@@ -1,7 +1,7 @@
 # Biaxial Testing Machine Control Application
 
 ## Description
-This repository contains the source code for a Biaxial Testing Machine Control Application, developed using PyQt6. The application provides a graphical user interface (GUI) for controlling and monitoring biaxial mechanical tests, managing motor operations, and visualizing real-time data through charts.
+This repository contains the source code for a Biaxial Testing Machine Control Application, developed using PyQt6. The application provides a graphical user interface (GUI) for controlling and monitoring biaxial mechanical tests (displacement, load and strain control), managing motor operations, and visualizing real-time data through charts.
 
 ## Installation
 
@@ -11,6 +11,11 @@ This repository contains the source code for a Biaxial Testing Machine Control A
 - matplotlib
 - OpenCV
 - numpy
+
+## Hardware-specific
+- zaber-motion
+- GInsAPy eGateHighSpeedPort API
+- Vimba 6.0 Allied Vision
 
 ### Setup
 Clone the repository to your local machine:
