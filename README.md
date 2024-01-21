@@ -12,7 +12,7 @@ This repository contains the source code for a Biaxial Testing Machine Control A
 - OpenCV
 - numpy
 
-## Hardware-specific
+### Hardware-specific
 - zaber-motion
 - GInsAPy eGateHighSpeedPort API
 - Vimba 6.0 Allied Vision
