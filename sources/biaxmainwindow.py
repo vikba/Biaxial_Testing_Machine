@@ -125,8 +125,11 @@ class BiaxMainWindow(QMainWindow):
         if hasattr(self, 'video_window'):
             self.video_window.close()
             
-        if hasattr(self, 'label_timer'):
-            self.label_timer.stop()
+        if hasattr(self, '_label_timer'):
+            self._label_timer.stop()
+
+        if hasattr(self, '_liveforce_timer'):
+            self._liveforce_timer.stop()
             
             
         self.close()
@@ -150,13 +153,13 @@ class BiaxMainWindow(QMainWindow):
             self.mecTest.start_stop_tracking_signal.connect(self.video_thread.startStopTracking)
         
         
-        if hasattr(self, 'label_timer'):
-            self.label_timer.stop()
-            self.label_timer.start(1000)  # 1000 milliseconds = 1 second
+        if hasattr(self, '_label_timer'):
+            self._label_timer.stop()
+            self._label_timer.start(1000)  # 1000 milliseconds = 1 second
         else:
-            self.label_timer = QTimer(self)
-            self.label_timer.timeout.connect(self.__changeLabelColor)
-            self.label_timer.start(1000)  # 1000 milliseconds = 1 second
+            self._label_timer = QTimer(self)
+            self._label_timer.timeout.connect(self.__changeLabelColor)
+            self._label_timer.start(1000)  # 1000 milliseconds = 1 second
 
 
         self.end_force1 = float(self.factorForceAx1.text())
@@ -253,8 +256,8 @@ class BiaxMainWindow(QMainWindow):
             
     def __stop_movement(self):
         
-        if hasattr(self, 'label_timer'):
-            self.label_timer.stop()
+        if hasattr(self, '_label_timer'):
+            self._label_timer.stop()
 
         if hasattr(self, '_liveforce_timer'):
             self._liveforce_timer.start(500)

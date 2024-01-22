@@ -100,7 +100,6 @@ class MechanicalTest (QThread):
            
     
     def __del__(self):
-        self._liveforce_timer.stop()
         self._axis1.stop()
         self._axis2.stop()
         self._connection_z.close()
@@ -118,7 +117,6 @@ class MechanicalTest (QThread):
         self._execute = False
         self._axis1.stop()
         self._axis2.stop()
-        self._liveforce_timer.stop()
         self._connection_z.close() #Connection to Zaber motors
         self._conn_q.close_connection() #Connection to DAQ Qstation
         self.quit()
@@ -299,17 +297,6 @@ class MechanicalTest (QThread):
             #raise Exception('Empty buffer')
             
         return self.__convertToNewtons(value1, value2)
-    
-    
-
-
-    '''
-    def _startForceLive(self):
-        self._liveforce_timer.start(500)
-
-    def _stopForceLive(self):
-        self._liveforce_timer.stop()
-        '''
             
             
               
@@ -771,9 +758,16 @@ class LoadControlTest(MechanicalTest):
         self._time.append(round(self._current_time, roundDecimals))
         
         self.update_matplotlib_signal.emit(self._ch1, self._ch2, self._l1, self._l2, self._time,self._vel_1,self._vel_2)
+
+        if len(self._time) > 10:
+            corr_force1 = self._moving_average(self._ch1, 4)[-1]
+            corr_force2 = self._moving_average(self._ch2, 4)[-1]
+        else:
+            corr_force1 = rel_force_ax1
+            corr_force2 = rel_force_ax2
         
-        vel_ax1 = -self._pid_1.update(rel_force_ax1)
-        vel_ax2 = -self._pid_2.update(rel_force_ax2)
+        vel_ax1 = -self._pid_1.update(corr_force1)
+        vel_ax2 = -self._pid_2.update(corr_force2)
         
         self._vel_1.append(vel_ax1)
         self._vel_2.append(vel_ax2)
