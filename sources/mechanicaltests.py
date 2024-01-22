@@ -42,7 +42,12 @@ class PID:
         self.integral = 0
         self.prev_error = 0
 
-    def update(self, measured_value):
+    def setPID (self, P, I, D):
+        self.Kp = P
+        self.Ki = I
+        self.Kd = D
+
+    def updateOutput(self, measured_value):
         """
         Update the controller with a new measured value.
 
@@ -634,6 +639,13 @@ class LoadControlTest(MechanicalTest):
         return start_force + (end_force - start_force) * (current_time / duration)
     
 
+    def updatePID(self, P1, I1, D1, P2, I2, D2):
+        """
+        Update the PID values for two PID controllers when these values are changed in the GUI.
+        """
+        self._pid_1.setPID(P1, I1, D1)
+        self._pid_2.setPID(P2, I2, D2)
+
        
     def run(self):
         """
@@ -760,14 +772,14 @@ class LoadControlTest(MechanicalTest):
         self.update_matplotlib_signal.emit(self._ch1, self._ch2, self._l1, self._l2, self._time,self._vel_1,self._vel_2)
 
         if len(self._time) > 10:
-            corr_force1 = self._moving_average(self._ch1, 4)[-1]
-            corr_force2 = self._moving_average(self._ch2, 4)[-1]
+            corr_force1 = self._moving_average(self._ch1[-10:-1], 4)[-1]
+            corr_force2 = self._moving_average(self._ch2[-10:-1], 4)[-1]
         else:
             corr_force1 = rel_force_ax1
             corr_force2 = rel_force_ax2
         
-        vel_ax1 = -self._pid_1.update(corr_force1)
-        vel_ax2 = -self._pid_2.update(corr_force2)
+        vel_ax1 = -self._pid_1.updateOutput(corr_force1)
+        vel_ax2 = -self._pid_2.updateOutput(corr_force2)
         
         self._vel_1.append(vel_ax1)
         self._vel_2.append(vel_ax2)

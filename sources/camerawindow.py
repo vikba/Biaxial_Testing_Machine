@@ -544,8 +544,8 @@ class VideoWindow(QWidget):
 if __name__ == '__main__':
     print("Started")
     app = QApplication(sys.argv)
-    video_thread = VideoThread()
-    video_window = VideoWindow(video_thread)
-    video_thread.start()
-    video_window.show()
+    _video_thread = VideoThread()
+    _video_window = VideoWindow(_video_thread)
+    _video_thread.start()
+    _video_window.show()
     sys.exit(app.exec())
