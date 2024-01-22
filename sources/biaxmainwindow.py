@@ -144,6 +144,8 @@ class BiaxMainWindow(QMainWindow):
         If not, display a warning message to connect to motors and DAQ first.
         """
 
+        self._liveforce_timer.stop()
+
         if hasattr(self, 'video_thread'):
             self.mecTest.start_stop_tracking_signal.connect(self.video_thread.startStopTracking)
         
@@ -244,12 +246,18 @@ class BiaxMainWindow(QMainWindow):
                 self.mecTest.update_force_label_signal.connect(self.__updateLabelForce)
                     
 
+        self._liveforce_timer = QTimer()
+        self._liveforce_timer.timeout.connect(self.mecTest.readForceLive)
+        self._liveforce_timer.start(500)
 
             
     def __stop_movement(self):
         
         if hasattr(self, 'label_timer'):
             self.label_timer.stop()
+
+        if hasattr(self, '_liveforce_timer'):
+            self._liveforce_timer.start(500)
         
         if hasattr(self, 'mecTest'):
             self.mecTest.stop_measurement()

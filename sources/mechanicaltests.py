@@ -68,22 +68,27 @@ class MechanicalTest (QThread):
     General class for tensile tests that includes general methods for hardware
     '''
 
+    #Signal to update matplotlib
     update_matplotlib_signal = pyqtSignal(list, list, list, list, list,list,list)
+    #Signal to start/stop tracking marks when test is run
     start_stop_tracking_signal = pyqtSignal(bool)
+    #Signal to update live force in GUI
     update_force_label_signal = pyqtSignal(float, float)
     #change_pixmap_signal = pyqtSignal(QImage)
     
-    force1_0 = 0 
-    force2_0 = 0
-    pos1_0 = 0
-    pos2_0 = 0
+    _force1_0 = 0 
+    _force2_0 = 0
+    _pos1_0 = 0
+    _pos2_0 = 0
    
     
     def __init__(self):
         super().__init__()
         self.__initMorors()
         self.__initDAQ()
-        self.initVariables()
+        self._initVariables()
+
+
         
         #Event to stop while loop during acquisition
         #change to qevent or flag
@@ -91,11 +96,11 @@ class MechanicalTest (QThread):
         self.marks_recorded = True
   
         # Time of one measurement
-        self.sample_time = 0.25  # seconds
+        self.sample_time = 0.2  # seconds
            
     
     def __del__(self):
-        self.liveforce_timer.stop()
+        self._liveforce_timer.stop()
         self._axis1.stop()
         self._axis2.stop()
         self._connection_z.close()
@@ -113,7 +118,7 @@ class MechanicalTest (QThread):
         self._execute = False
         self._axis1.stop()
         self._axis2.stop()
-        self.liveforce_timer.stop()
+        self._liveforce_timer.stop()
         self._connection_z.close() #Connection to Zaber motors
         self._conn_q.close_connection() #Connection to DAQ Qstation
         self.quit()
@@ -125,12 +130,15 @@ class MechanicalTest (QThread):
         self._execute = False
         self._axis1.stop()
         self._axis2.stop()
+        #self._startForceLive()
         
+
+        #what is it for?
     def setThread(self, thread):
         self.thread = thread
         
         
-    def initVariables(self):
+    def _initVariables(self):
         '''
         Function to initialize variables before each measurement
 
@@ -255,11 +263,21 @@ class MechanicalTest (QThread):
         time.sleep(0.5)
         
         #read load cell data before installing sample
-        val1, val2 = self.readForce()
+        val1, val2 = self._readForce()
         print("Initial force at channel 1: {}".format(val1))
         print("Initial force at channel 2: {}".format(val2))
         
-    def readForce(self):
+    
+    def readForceLive(self):
+        """
+        Updates the live forces and emits a signal with the relative forces along two axes.
+        """
+        self._force1,self._force2 = self._readForce()
+        rel_force_ax1 = self._force1 - self._force1_0
+        rel_force_ax2 = self._force2 - self._force2_0
+        self.update_force_label_signal.emit(rel_force_ax1, rel_force_ax2)
+    
+    def _readForce(self):
         """
         Read force from buffer and process the value to return as newtons.
         """
@@ -280,16 +298,18 @@ class MechanicalTest (QThread):
             return None, None
             #raise Exception('Empty buffer')
             
-        return self.convertToNewtons(value1, value2)
+        return self.__convertToNewtons(value1, value2)
     
-    def forceLive(self):
-        """
-        Updates the live forces and emits a signal with the relative forces along two axes.
-        """
-        self._force1,self._force2 = self.readForce()
-        rel_force_ax1 = self._force1 - self.force1_0
-        rel_force_ax2 = self._force2 - self.force2_0
-        self.update_force_label_signal.emit(rel_force_ax1, rel_force_ax2)
+    
+
+
+    '''
+    def _startForceLive(self):
+        self._liveforce_timer.start(500)
+
+    def _stopForceLive(self):
+        self._liveforce_timer.stop()
+        '''
             
             
               
@@ -298,9 +318,9 @@ class MechanicalTest (QThread):
         Performs a zero force calibration by sleeping for 0.1 seconds, reading force values, and printing the initial force 1 and force 2 values.
         """
         time.sleep(0.1)
-        self.force1_0, self.force2_0 = self.readForce()
-        print("Init force 1: {}".format(self.force1_0))
-        print("Init force 2: {}".format(self.force2_0))
+        self._force1_0, self._force2_0 = self._readForce()
+        print("Init force 1: {}".format(self._force1_0))
+        print("Init force 2: {}".format(self._force2_0))
         
         
     def zeroPosition(self):
@@ -308,14 +328,14 @@ class MechanicalTest (QThread):
         record initial position of the motors
         """
         #record initial position of the motors
-        self.pos1_0 = self._axis1.get_position(Units.LENGTH_MILLIMETRES)
-        self.pos2_0 = self._axis2.get_position(Units.LENGTH_MILLIMETRES)
+        self._pos1_0 = self._axis1.get_position(Units.LENGTH_MILLIMETRES)
+        self._pos2_0 = self._axis2.get_position(Units.LENGTH_MILLIMETRES)
         
-        print("Init pos 1: {}".format(self.pos1_0))
-        print("Init pos 2: {}".format(self.pos2_0))
+        print("Init pos 1: {}".format(self._pos1_0))
+        print("Init pos 2: {}".format(self._pos2_0))
         
       
-    def convertToNewtons(self, val1, val2):
+    def __convertToNewtons(self, val1, val2):
         """
         Convert the given values to Newtons using the provided coefficients.
 
@@ -342,9 +362,9 @@ class MechanicalTest (QThread):
         
         #mm_76 = 1595801
         
-        if self.pos1_0 >0 and self.pos2_0 > 0:
-            self._axis1.move_absolute(self.pos1_0 , Units.LENGTH_MILLIMETRES, velocity=5, velocity_unit=Units.VELOCITY_MILLIMETRES_PER_SECOND, wait_until_idle=False)
-            self._axis2.move_absolute(self.pos2_0, Units.LENGTH_MILLIMETRES, velocity=5, velocity_unit=Units.VELOCITY_MILLIMETRES_PER_SECOND, wait_until_idle=False)
+        if self._pos1_0 >0 and self._pos2_0 > 0:
+            self._axis1.move_absolute(self._pos1_0 , Units.LENGTH_MILLIMETRES, velocity=5, velocity_unit=Units.VELOCITY_MILLIMETRES_PER_SECOND, wait_until_idle=False)
+            self._axis2.move_absolute(self._pos2_0, Units.LENGTH_MILLIMETRES, velocity=5, velocity_unit=Units.VELOCITY_MILLIMETRES_PER_SECOND, wait_until_idle=False)
 
         else:
             self._axis1.move_absolute(samplePosition , Units.LENGTH_MILLIMETRES, velocity=5, velocity_unit=Units.VELOCITY_MILLIMETRES_PER_SECOND, wait_until_idle=False)
@@ -372,7 +392,7 @@ class MechanicalTest (QThread):
     def moveVelocityAx2(self, speed):
         self._axis2.move_velocity(speed, Units.VELOCITY_MILLIMETRES_PER_SECOND) 
         
-    def moving_average(self, x, w):
+    def _moving_average(self, x, w):
         return np.convolve(x, np.ones(w), 'valid') / w
     
     def changeFolder(self, folder):
@@ -461,9 +481,6 @@ class DisplacementControlTest(MechanicalTest):
         self._workfolder = folder
 
         #this timers should be created in class, but not in its parent class
-        self.liveforce_timer = QTimer(self)
-        self.liveforce_timer.timeout.connect(self.forceLive)
-        self.liveforce_timer.start(500)
 
     
     def __del__(self):
@@ -484,9 +501,8 @@ class DisplacementControlTest(MechanicalTest):
         moves the motors with specified velocities, and performs a measurement cycle.
 
         """
-        
-        self.liveforce_timer.stop()
-        self.initVariables()
+
+        self._initVariables()
         
         #self.thread.startTracking()
         self.start_stop_tracking_signal.emit(True)
@@ -532,7 +548,7 @@ class DisplacementControlTest(MechanicalTest):
         self.start_stop_tracking_signal.emit(False)
         self.writeDataToFile()
         
-        self.liveforce_timer.start(500)
+  
             
             
             
@@ -545,7 +561,7 @@ class DisplacementControlTest(MechanicalTest):
             
             #read force values
             try:
-                self._force1,self._force2 = self.readForce()
+                self._force1,self._force2 = self._readForce()
                 
             except:
                 if np.isnan(self._force1) or np.isnan(self._force2):
@@ -559,12 +575,12 @@ class DisplacementControlTest(MechanicalTest):
             
             
             #Calculate relative forces
-            rel_force_ax1 = self._force1 - self.force1_0
-            rel_force_ax2 = self._force2 - self.force2_0
+            rel_force_ax1 = self._force1 - self._force1_0
+            rel_force_ax2 = self._force2 - self._force2_0
             
             #update length for each axis
-            self._len_ax1 = 2*(self.pos1_0 - self._axis1.get_position(Units.LENGTH_MILLIMETRES))
-            self._len_ax2 = 2*(self.pos2_0 - self._axis2.get_position(Units.LENGTH_MILLIMETRES))
+            self._len_ax1 = 2*(self._pos1_0 - self._axis1.get_position(Units.LENGTH_MILLIMETRES))
+            self._len_ax2 = 2*(self._pos2_0 - self._axis2.get_position(Units.LENGTH_MILLIMETRES))
             #record time
             self._current_time = time.perf_counter() - self._start_time
             
@@ -604,10 +620,6 @@ class LoadControlTest(MechanicalTest):
         self._workfolder = folder
         self._num_cycles = num_cycles
 
-        #this timers should be created in class, but not in its parent class
-        self.liveforce_timer = QTimer(self)
-        self.liveforce_timer.timeout.connect(self.forceLive)
-        self.liveforce_timer.start(500)
 
     
     def __del__(self):
@@ -621,7 +633,7 @@ class LoadControlTest(MechanicalTest):
     
     def increase_desired_force(self, start_force, end_force, duration, current_time):
         """
-        Linearly increases the desired force over the specified duration.
+        Calculates desired force over the specified duration for specific current_time.
         Important function to control PID behaviour
     
         :param start_force: Initial force in Newtons
@@ -633,22 +645,29 @@ class LoadControlTest(MechanicalTest):
         if current_time >= duration:
             return end_force
         return start_force + (end_force - start_force) * (current_time / duration)
+    
 
        
     def run(self):
         """
         This function is implemented when the QTHread starts. Implements load control test.
         """
-       
-        self.liveforce_timer.stop()
-        self.initVariables()
         
-        # Test parameters
-        start_force = 0  # Starting force in Newtons
+
+        #start performing test
+        #this function is required to perform test with or without camera
+        self.__performTest()
+        
+
+
+
+    def __performTest(self):
+
+        self._initVariables()
         
         rel_force_ax1 = 0
         rel_force_ax2 = 0
-       
+
         #initial LOW velocities for motors
         vel_ax1 = -0.01#mm/sec
         vel_ax2 = -0.01 #mm/sec
@@ -672,12 +691,11 @@ class LoadControlTest(MechanicalTest):
         Ki2 = 0.002
         self._pid_2 = PID(Kp2, Ki2, Kd2)
         
-        #pid_1.setpoint = round(self._end_force1/self._test_duration, 5)
-        #pid_2.setpoint = round(self._end_force2/self._test_duration, 5)
-        
+        #Start tracking markers
         self.start_stop_tracking_signal.emit(True)
-
         
+
+
         #One directional test
         if 0 == self._num_cycles:
             self._start_time = time.perf_counter()
@@ -704,12 +722,15 @@ class LoadControlTest(MechanicalTest):
                 while self._execute and (rel_force_ax1 > 0.02 or rel_force_ax2 > 0.02):
                     rel_force_ax1, rel_force_ax2 = self.__oneCycle(start_half_cycle_time, self._end_force1, self._end_force2, 0.03, 0.03)
 
+        
+        #After test is finished (all the loops finished)
         # Stop motors after measurement cycle is finished
         self.stop_measurement()
         self.start_stop_tracking_signal.emit(False)
         self.writeDataToFile()
 
-        self.liveforce_timer.start(500) 
+    
+
 
     def __oneCycle(self, start_cycle_time, start_force1, start_force2, end_force1, end_force2):
 
@@ -724,15 +745,15 @@ class LoadControlTest(MechanicalTest):
         self._pid_2.setpoint = desired_force2
 
         # Read current forces, positions, time 
-        self._force1,self._force2 = self.readForce() #try/except is inside
+        self._force1,self._force2 = self._readForce() #try/except is inside
                 
         #update length for each axis
-        self._len_ax1 = 2*(self.pos1_0 - self._axis1.get_position(Units.LENGTH_MILLIMETRES))
-        self._len_ax2 = 2*(self.pos2_0 - self._axis2.get_position(Units.LENGTH_MILLIMETRES))
+        self._len_ax1 = 2*(self._pos1_0 - self._axis1.get_position(Units.LENGTH_MILLIMETRES))
+        self._len_ax2 = 2*(self._pos2_0 - self._axis2.get_position(Units.LENGTH_MILLIMETRES))
         
         #Calculate relative forces
-        rel_force_ax1 = self._force1 - self.force1_0
-        rel_force_ax2 = self._force2 - self.force2_0
+        rel_force_ax1 = self._force1 - self._force1_0
+        rel_force_ax2 = self._force2 - self._force2_0
     
         
         #print("self._force12: {}".format(rel_force_ax1))
