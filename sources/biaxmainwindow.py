@@ -405,7 +405,12 @@ class BiaxMainWindow(QMainWindow):
         
             self._video_thread = VideoThread()
             self._video_window = VideoWindow(self._video_thread)
+
+            self._video_thread.signal_marks_recorded.connect(self._mecTest.marksRecorded)
+            self._video_thread.change_pixmap_signal.connect(self._video_window.update_image)
             self._mecTest.start_stop_tracking_signal.connect(self._video_window.startStopTracking)
+            self._mecTest.change_pixmap_signal.connect(self._video_window.update_image)
+
             
             self._video_window.show()
             self._video_thread.start()  

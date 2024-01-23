@@ -17,10 +17,10 @@ from datetime import datetime
 
 from zaber_motion.ascii import Connection
 from zaber_motion import Units
-#from vimba import *
+from vimba import *
 import ginsapy.giutility.connect.PyQStationConnectWin as Qstation #module with communication functions to Gantner Q.Station under windows environment
 
-#from .camerawindow import markersDetection
+from .camerawindow import markersDetection
 
 
 
@@ -79,7 +79,7 @@ class MechanicalTest (QThread):
     start_stop_tracking_signal = pyqtSignal(bool)
     #Signal to update live force in GUI
     update_force_label_signal = pyqtSignal(float, float)
-    #change_pixmap_signal = pyqtSignal(QImage)
+    change_pixmap_signal = pyqtSignal(np.ndarray)
     
     _force1_0 = 0 
     _force2_0 = 0
@@ -101,7 +101,8 @@ class MechanicalTest (QThread):
         self.marks_recorded = True
   
         # Time of one measurement
-        self.sample_time = 0.2  # seconds
+        self.sample_time = 0.1  # seconds
+
            
     
     def __del__(self):
@@ -150,26 +151,22 @@ class MechanicalTest (QThread):
         None.
 
         '''
+        
+
+        
+
         # Variables to store measuremetns
         self._ch1 = [] #channel1 from load cell
         self._ch2 = [] #channel2
         self._l1 = [] #length
         self._l2 = [] #length
         self._time = [] #time
-        
-        # Variables to store markers position
-        self.marks_groups = []
-        self.group1 = []
-        self.group2 = []
-        self.group3 = []
-        self.group4 = []
-        self.group5 = []
-        
-        self.marks_groups.append(self.group1)
-        self.marks_groups.append(self.group2)
-        self.marks_groups.append(self.group3)
-        self.marks_groups.append(self.group4)
-        self.marks_groups.append(self.group5)
+
+        self._E11 = []
+        self._E22 = []
+
+        img_track = np.zeros((768, 1024, 1), dtype=np.uint8)
+        img_track.fill(0)
         
         self._vel_1 = []
         self._vel_2 = []
@@ -389,8 +386,33 @@ class MechanicalTest (QThread):
     
     def changeFolder(self, folder):
         self._workfolder = folder
+
+    def marksRecorded(self, lst):
+        '''
+        This function is connected with signal in video_thread which is emitted when marks are recorded
+        '''
+        # Variables to store markers position
+        self.marks_groups = []
+        self.group1 = []
+        self.group2 = []
+        self.group3 = []
+        self.group4 = []
         
-    def writeDataToFile(self):
+        self.marks_groups.append(self.group1)
+        self.marks_groups.append(self.group2)
+        self.marks_groups.append(self.group3)
+        self.marks_groups.append(self.group4)
+
+
+        self.group1.append(lst[0][0])
+        self.group2.append(lst[1][0])
+        self.group3.append(lst[2][0])
+        self.group4.append(lst[3][0])
+
+        print("rec m")
+        print(self.marks_groups)
+        
+    def _writeDataToFile(self):
         # Combine the lists
         combined_lists = zip(self._time, self._ch1, self._ch2, self._l1, self._l2)
         
@@ -406,58 +428,77 @@ class MechanicalTest (QThread):
             for row in combined_lists:
                 writer.writerow(row)
 
-    '''     
-    def captureImageTrackMarks(self, camera):
+         
+    def _captureImageTrackMarks(self, camera):
         with camera:
             frame = camera.get_frame ()
-            if frame:
-                
+            if frame: 
                 img_cv = frame.as_opencv_image()
                 
                 #detect markers
                 img, coord_temp = markersDetection().detectMarkers(img_cv) #detection of Markers
-                print(coord_temp)
                 
                 #draw track of the markers
                 for group in self.marks_groups:
                     lg = len(group)
                     if lg > 1:
-                        cv2.line(self.img_track, group[lg-2], group[lg-1], 255, 1)
-                        
-                # If the marks are recorded and we want to track them
-                if self.marks_recorded:
-    
-                    l = len(self.marks_groups)
+                        cv2.line(self.img_track, group[lg-2], group[lg-1], 150, 1)
                     
-                    #element - pair of (x,y) coordinates of a mark
-                    for element in coord_temp:
-                        #print("(x,y) {}".format(element))
-                        min_dist = 2000
-                        group = []
-                        
-                        for i in range (0,l):
-                            gr = self.marks_groups[i]
-                            
-                            if len(gr) > 0:
-                                last = gr[len(gr) - 1]
-                                dist = math.dist(element, last)
-                                #print("dist {} and {} = {}".format(element, last, dist))
-                                if min_dist > dist and dist < 70:
-                                    group = gr
-                                    min_dist = dist
-                        
-                        group.append(element)
-                        
-                        
-                ch = 1
-        
-                h, w,_ = img.shape
-                bytes_per_line = ch * w
-                convert_to_Qt_format = QImage(img.data, w, h, bytes_per_line, QImage.Format_Grayscale8)
-                p = convert_to_Qt_format.scaled(1024, 768, Qt.KeepAspectRatio)
-                self.change_pixmap_signal.emit(p)
 
-'''
+                l = len(self.marks_groups)
+                
+                #element - pair of (x,y) coordinates of a mark
+                #distribute marks in the groups
+                for element in coord_temp: 
+                    #print("(x,y) {}".format(element))
+                    min_dist = 2000
+                    group = []
+                    #For each element we are looking for a marks group with a lowest distance
+                    for i in range (0,l):
+                        gr = self.marks_groups[i]
+                        if len(gr) > 0:
+                            last = gr[len(gr) - 1]
+                            dist = math.dist(element, last)
+                            #print("dist {} and {} = {}".format(element, last, dist))
+                            if min_dist > dist and dist < 70:
+                                group = gr
+                                min_dist = dist
+                    
+                    group.append(element)
+
+                print(self.group1)
+
+                if len(self.group1) > 1:
+
+                    #calculate strain
+                    #along horizontal axis - upper and lower groups]
+                    #the algorithm find contours arranges points along y axis of an image
+                    eps_ab = (math.dist(self.group1[-1],self.group2[-1])-math.dist(self.group1[0],self.group2[0]))/math.dist(self.group1[-1],self.group2[-1])
+                    eps_cd = (math.dist(self.group3[-1],self.group4[-1])-math.dist(self.group3[0],self.group4[0]))/math.dist(self.group3[-1],self.group4[-1])
+                    lambda_1 = (2 + eps_ab + eps_cd)/2
+                    E11 = (lambda_1*lambda_1-1)/2
+
+                    #check orientation of the points
+                    if (self.group1[0][1]-self.group3[0][1] < self.group1[0][1]-self.group4[0][1]):
+                        eps_ac = (math.dist(self.group1[-1],self.group3[-1])-math.dist(self.group1[0],self.group3[0]))/math.dist(self.group1[-1],self.group3[-1])
+                        eps_bd = (math.dist(self.group2[-1],self.group4[-1])-math.dist(self.group2[0],self.group4[0]))/math.dist(self.group2[-1],self.group4[-1])
+                    else:
+                        eps_ac = (math.dist(self.group1[-1],self.group4[-1])-math.dist(self.group1[0],self.group4[0]))/math.dist(self.group1[-1],self.group4[-1])
+                        eps_bd = (math.dist(self.group2[-1],self.group3[-1])-math.dist(self.group2[0],self.group3[0]))/math.dist(self.group2[-1],self.group3[-1])
+
+                    lambda_2 = (2 + eps_ac + eps_bd)/2
+                    E22 = (lambda_2*lambda_2-1)/2
+
+                    self._E11.append(E11)
+                    self._E22.append(E22)
+                    
+                    print("E11 {} E22 {}".format(E11, E22))
+
+                img = cv2.addWeighted(self.img_track, 1, img, 1, 0)
+
+                self.change_pixmap_signal.emit(img)
+
+
 
 
 class DisplacementControlTest(MechanicalTest):
@@ -538,7 +579,7 @@ class DisplacementControlTest(MechanicalTest):
         # Stop motors after measurement cycle is finished
         self.stop_measurement()
         self.start_stop_tracking_signal.emit(False)
-        self.writeDataToFile()
+        self._writeDataToFile()
         
   
             
@@ -665,12 +706,26 @@ class LoadControlTest(MechanicalTest):
 
         #start performing test
         #this function is required to perform test with or without camera
-        self.__performTest()
-        
+
+        #with camera
+
+        if True:
+            with Vimba.get_instance () as vimba:
+                cams = vimba.get_all_cameras ()
+                with cams [0] as cam:
+                    
+                    cam.Gain.set(10)
+                    cam.ExposureTime.set(1000)
+
+                    self.__performTest(cam, True)
+
+        else:
+            #without camera
+            self.__performTest(None, False)
 
 
 
-    def __performTest(self):
+    def __performTest(self, cam, fl_cam):
 
         self._initVariables()
         
@@ -698,6 +753,8 @@ class LoadControlTest(MechanicalTest):
             self._start_time = time.perf_counter()
             while self._execute and self._current_time < 1.5*self._test_duration and (rel_force_ax1 < self._end_force1 or rel_force_ax2 < self._end_force2):
                 rel_force_ax1, rel_force_ax2 = self.__oneCycle(self._start_time, 0, 0, self._end_force1, self._end_force2)
+                if fl_cam:
+                    self._captureImageTrackMarks(cam)
         else:
             self._start_time = time.perf_counter()
             cycle = 0
@@ -724,7 +781,7 @@ class LoadControlTest(MechanicalTest):
         # Stop motors after measurement cycle is finished
         self.stop_measurement()
         self.start_stop_tracking_signal.emit(False)
-        self.writeDataToFile()
+        self._writeDataToFile()
 
     
 
