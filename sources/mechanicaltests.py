@@ -612,6 +612,16 @@ class LoadControlTest(MechanicalTest):
         self._workfolder = folder
         self._num_cycles = num_cycles
 
+            # Initialize PID controllers
+        Kp1 = 0.06
+        Kd1 = 0
+        Ki1 = 0.002
+        self._pid_1 = PID(Kp1, Ki1, Kd1)
+        Kp2 = 0.06
+        Kd2 = 0
+        Ki2 = 0.002
+        self._pid_2 = PID(Kp2, Ki2, Kd2)
+
 
     
     def __del__(self):
@@ -677,18 +687,6 @@ class LoadControlTest(MechanicalTest):
         
         time.sleep(self.sample_time)
         
-        
-  
-        
-        # Initialize PID controllers
-        Kp1 = 0.06
-        Kd1 = 0
-        Ki1 = 0.002
-        self._pid_1 = PID(Kp1, Ki1, Kd1)
-        Kp2 = 0.06
-        Kd2 = 0
-        Ki2 = 0.002
-        self._pid_2 = PID(Kp2, Ki2, Kd2)
         
         #Start tracking markers
         self.start_stop_tracking_signal.emit(True)

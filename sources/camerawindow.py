@@ -127,7 +127,7 @@ class VideoThread(QThread):
         
         self.marks_groups.append(self.group1)
         self.marks_groups.append(self.group2)
-        self.marks_groups.append(self.group3)
+        #self.marks_groups.append(self.group3)
         self.marks_groups.append(self.group4)
         self.marks_groups.append(self.group5)
 
