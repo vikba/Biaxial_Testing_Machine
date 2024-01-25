@@ -151,9 +151,6 @@ class MechanicalTest (QThread):
         None.
 
         '''
-        
-
-        
 
         # Variables to store measuremetns
         self._ch1 = [] #channel1 from load cell
@@ -164,6 +161,8 @@ class MechanicalTest (QThread):
 
         self._E11 = []
         self._E22 = []
+
+        self._fl_marks = False #Flag indicating whether marks are recorded
 
         img_track = np.zeros((768, 1024, 1), dtype=np.uint8)
         img_track.fill(0)
@@ -387,10 +386,28 @@ class MechanicalTest (QThread):
     def changeFolder(self, folder):
         self._workfolder = folder
 
+    def _writeDataToFile(self):
+        # Combine the lists
+        combined_lists = zip(self._time, self._ch1, self._ch2, self._l1, self._l2)
+        
+        #Get current date for filename
+        current_datetime = datetime.now()
+        formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
+
+        
+        # Write to CSV file
+        with open('Test_'+formatted_datetime+'.csv', 'w', newline='') as file:
+            writer = csv.writer(file, delimiter=';')
+            writer.writerow(["Time", "Load_1", "Load_2", "Displacement_1", "Displacement_2"])  # Header row, if needed
+            for row in combined_lists:
+                writer.writerow(row)
+
     def marksRecorded(self, lst):
         '''
         This function is connected with signal in video_thread which is emitted when marks are recorded
         '''
+        self._fl_marks = True
+
         # Variables to store markers position
         self.marks_groups = []
         self.group1 = []
@@ -409,27 +426,14 @@ class MechanicalTest (QThread):
         self.group3.append(lst[2][0])
         self.group4.append(lst[3][0])
 
-        print("rec m")
+        print("Marks recorded")
         print(self.marks_groups)
-        
-    def _writeDataToFile(self):
-        # Combine the lists
-        combined_lists = zip(self._time, self._ch1, self._ch2, self._l1, self._l2)
-        
-        #Get current date for filename
-        current_datetime = datetime.now()
-        formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-
-        
-        # Write to CSV file
-        with open('Test_'+formatted_datetime+'.csv', 'w', newline='') as file:
-            writer = csv.writer(file, delimiter=';')
-            writer.writerow(["Time", "Load_1", "Load_2", "Displacement_1", "Displacement_2"])  # Header row, if needed
-            for row in combined_lists:
-                writer.writerow(row)
 
          
     def _captureImageTrackMarks(self, camera):
+        """
+        Captures an image and tracks marks using the provided camera. Results are written to _E11, _E22 class attributes
+        """
         with camera:
             frame = camera.get_frame ()
             if frame: 
@@ -707,9 +711,10 @@ class LoadControlTest(MechanicalTest):
         #start performing test
         #this function is required to perform test with or without camera
 
-        #with camera
+        #I can get camera from Vimba only within with-block
+        #This is why such a weird construction
 
-        if True:
+        if self._fl_marks:
             with Vimba.get_instance () as vimba:
                 cams = vimba.get_all_cameras ()
                 with cams [0] as cam:
@@ -717,7 +722,7 @@ class LoadControlTest(MechanicalTest):
                     cam.Gain.set(10)
                     cam.ExposureTime.set(1000)
 
-                    self.__performTest(cam, True)
+                    self.__performTest(cam, True) #True means to perform test with camera
 
         else:
             #without camera

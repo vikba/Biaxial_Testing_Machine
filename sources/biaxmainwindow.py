@@ -8,20 +8,11 @@ from PyQt6.QtWidgets import*
 from PyQt6.uic import loadUi
 from PyQt6.QtCore import QTimer
 
+import os
+
 from .mechanicaltests import DisplacementControlTest, LoadControlTest
 from .camerawindow import VideoThread, VideoWindow
 from .mplwidget import MplWidget
-
-import numpy as np
-import os
-
-#Connect folder and writingin the file
-#Think about conditions of finishing the test
-#Change threading event to flag
-#Autoloading
-#Pretest
-#Add derivative to PID based on last 10-50 points
-
 
      
 class BiaxMainWindow(QMainWindow):
@@ -408,7 +399,7 @@ class BiaxMainWindow(QMainWindow):
 
             self._video_thread.signal_marks_recorded.connect(self._mecTest.marksRecorded)
             self._video_thread.change_pixmap_signal.connect(self._video_window.update_image)
-            self._mecTest.start_stop_tracking_signal.connect(self._video_window.startStopTracking)
+            #self._mecTest.start_stop_tracking_signal.connect(self._video_window.startStopTracking)
             self._mecTest.change_pixmap_signal.connect(self._video_window.update_image)
 
             

@@ -172,15 +172,23 @@ class VideoThread(QThread):
         
         self._rec_marks = True
         
+    def if_within_roi (self, p):
+        """
+        Check if the point p is within the active region of interest (ROI).
         
-    def send_command(self, string):
+        Parameters:
+        - p: a tuple representing the point coordinates (x, y)
         
-        if "record" == string:
-            self._rec_marks = True
-        elif "start" == string:
-            self._track_marks = True
-        elif "stop" == string:
-            self.stop()
+        Returns:
+        - True if the point is within the ROI, False otherwise
+        """
+        
+        #check in the point p is wihtin active roi
+        
+        if p[0] > self._roi_x1 and p[1] > self._roi_y1 and p[0] < self._roi_x2 and p[1] < self._roi_y2:
+            return True
+        else:
+            return False
         
 
 
@@ -199,24 +207,6 @@ class VideoThread(QThread):
         else:
             self._execute = False
             self.stop()
-            
-    def if_within_roi (self, p):
-        """
-        Check if the point p is within the active region of interest (ROI).
-        
-        Parameters:
-        - p: a tuple representing the point coordinates (x, y)
-        
-        Returns:
-        - True if the point is within the ROI, False otherwise
-        """
-        
-        #check in the point p is wihtin active roi
-        
-        if p[0] > self._roi_x1 and p[1] > self._roi_y1 and p[0] < self._roi_x2 and p[1] < self._roi_y2:
-            return True
-        else:
-            return False
     
     
     def run(self):
@@ -440,21 +430,6 @@ class VideoWindow(QWidget):
         #self.thread.change_pixmap_signal.connect(self.update_image)
         self.update_roi_signal.connect(self.thread.update_roi)
         
-        self.init_command_thread()
-
-    def init_command_thread(self):
-        self.command_thread = QThread()
-        self.command_thread.run = self.read_commands
-        self.command_thread.start()
-
-    def read_commands(self):
-        while True:
-            command = sys.stdin.readline().strip()  # Read a line from stdin
-            
-            if "stop" == command:
-                self.stop_webcam()
-            
-            #self.received_command.emit(command)  # Emit the signal
             
     def mousePressEvent(self, event):
         """
@@ -534,14 +509,6 @@ class VideoWindow(QWidget):
         self.__terminate_application()
         self.stop_webcam()
 
-    def __terminate_application(self):
-        pass
-        
-    def track_marks_clicked(self):
-        """
-        A function to track when marks are clicked, emitting a signal.
-        """
-        self._track_marks_signal.emit()  # Emit the signal
 
 
 if __name__ == '__main__':
