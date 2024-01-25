@@ -94,6 +94,7 @@ class VideoThread(QThread):
     '''
     
     change_pixmap_signal = pyqtSignal(np.ndarray)
+    signal_marks_recorded = pyqtSignal(list)
 
     
     def __init__(self):
@@ -127,7 +128,7 @@ class VideoThread(QThread):
         
         self.marks_groups.append(self.group1)
         self.marks_groups.append(self.group2)
-        self.marks_groups.append(self.group3)
+        #self.marks_groups.append(self.group3)
         self.marks_groups.append(self.group4)
         self.marks_groups.append(self.group5)
 
@@ -296,13 +297,15 @@ class VideoThread(QThread):
                             formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
                             cv2.imwrite('Test_'+formatted_datetime+'_first_frame.jpg', img_cv)
 
-                            print("Recorded marks:")
-                            print(self.marks_groups)
+                            self.signal_marks_recorded.emit(self.marks_groups)
+                            #print("Recorded marks:")
+                            #print(self.marks_groups)
+                            self.stop()
 
 
                             
                             
-                        elif self._track_marks:
+                        elif False: #self._track_marks:
                             
                             self._current_time = time.perf_counter() - self._start_time
                             self._time.append(round(self._current_time, 5))
@@ -434,7 +437,7 @@ class VideoWindow(QWidget):
          
         
         self.thread = thread
-        self.thread.change_pixmap_signal.connect(self.update_image)
+        #self.thread.change_pixmap_signal.connect(self.update_image)
         self.update_roi_signal.connect(self.thread.update_roi)
         
         self.init_command_thread()
