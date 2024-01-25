@@ -597,7 +597,7 @@ class LoadControlTest(MechanicalTest):
     
     '''
     num_cycles:
-    0 - one directional
+    0 - one directional (half cycle)
     1 - one cycle
     etc
     '''
