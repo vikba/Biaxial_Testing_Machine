@@ -145,37 +145,38 @@ class BiaxMainWindow(QMainWindow):
         If not, display a warning message to connect to motors and DAQ first.
         """
 
-        self._liveforce_timer.stop()
+        if hasattr(self, '_mecTest'):
 
-        if hasattr(self, '_video_thread'):
-            self._mecTest.start_stop_tracking_signal.connect(self._video_thread.startStopTracking)
-        
-        
-        if hasattr(self, '_label_timer'):
-            self._label_timer.stop()
-            self._label_timer.start(1000)  # 1000 milliseconds = 1 second
-        else:
-            self._label_timer = QTimer(self)
-            self._label_timer.timeout.connect(self.__changeLabelColor)
-            self._label_timer.start(1000)  # 1000 milliseconds = 1 second
+            self._liveforce_timer.stop()
 
-
-        self.end_force1 = float(self.factorForceAx1.text())
-        self.end_force2 = float(self.factorForceAx2.text())
-        self.test_duration = float(self.factorTimeAx.text())
-        self.cycl_num = int(self.factorCyclNum.text())
-        
-        if hasattr(self, '_mecTest') and isinstance(self._mecTest, LoadControlTest):
-            #If object of load control test exists just update test parameters
-            if self.checkBoxCycl.isChecked():
-                self._mecTest.update_parameters(self.end_force1, self.end_force2, self.test_duration, self.cycl_num)
+            if hasattr(self, '_video_thread'):
+                self._mecTest.start_stop_tracking_signal.connect(self._video_thread.startStopTracking)
+            
+            if hasattr(self, '_label_timer'):
+                self._label_timer.stop()
+                self._label_timer.start(1000)  # 1000 milliseconds = 1 second
             else:
-                # 0 - one directional test
-                self._mecTest.update_parameters(self.end_force1, self.end_force2, self.test_duration, 0)
+                self._label_timer = QTimer(self)
+                self._label_timer.timeout.connect(self.__changeLabelColor)
+                self._label_timer.start(1000)  # 1000 milliseconds = 1 second
+            
+            #Load Control Test
+            if isinstance(self._mecTest, LoadControlTest):
+                self.end_force1 = float(self.factorForceAx1.text())
+                self.end_force2 = float(self.factorForceAx2.text())
+                self.test_duration = float(self.factorTimeAx.text())
+                self.cycl_num = int(self.factorCyclNum.text())
 
-            self.upperLabel_1.setText("Warning!")
-            self.upperLabel_2.setText("Load control test")
-            self._mecTest.start()
+                #If object of load control test exists just update test parameters
+                if self.checkBoxCycl.isChecked():
+                    self._mecTest.update_parameters(self.end_force1, self.end_force2, self.test_duration, self.cycl_num)
+                else:
+                    # 0 - one directional test
+                    self._mecTest.update_parameters(self.end_force1, self.end_force2, self.test_duration, 0)
+
+                self.upperLabel_1.setText("Warning!")
+                self.upperLabel_2.setText("Load control test")
+                self._mecTest.start()
             
         else:
             warning_box = QMessageBox()
@@ -195,62 +196,71 @@ class BiaxMainWindow(QMainWindow):
         1 - strain control
         2 - displacement control
         '''
-    
-        if 2 == self.tabWidget.currentIndex():
-            '''
-            Displacement Control Test!
-            '''
-            
-            # Calculate velocity
-            self._vel_ax1 = -float(self.factorSpeedAx1.text())/60
-            self._vel_ax2 = -float(self.factorSpeedAx2.text())/60
-            
-            if hasattr(self, '_mecTest') and isinstance(self._mecTest, DisplacementControlTest):
-                #If object of displacement control test exists just update test parameters
-                self._mecTest.update_speed(self._vel_ax1, self._vel_ax2)
+
+        try:
+            if 0 == self.tabWidget.currentIndex():
                 
-            else:
-                #Close old object to prevent issues in connection with devices
-                self._mecTest = DisplacementControlTest(self._work_folder, self._vel_ax1, self._vel_ax2)
-                self._mecTest.update_matplotlib_signal.connect(self.__update_charts)
-                self._mecTest.update_force_label_signal.connect(self.__updateLabelForce)
-            
-            # Update UI labels
-            self.upperLabel_1.setText("Warning!")
-            self.upperLabel_2.setText("Displacement control test")
-            
-        elif 0 == self.tabWidget.currentIndex():
-            
-            '''
-            Load Control Test!
-            '''
-            
-            # Get test parameters
-            self.end_force1 = float(self.factorForceAx1.text())
-            self.end_force2 = float(self.factorForceAx2.text())
-            self.test_duration = float(self.factorTimeAx.text())
-            self.cycl_num = int(self.factorCyclNum.text())
-            
-            if hasattr(self, '_mecTest') and isinstance(self._mecTest, LoadControlTest):
-                #If object of load control test exists just update test parameters
-                self._mecTest.update_parameters(self.end_force1, self.end_force2, self.test_duration)
+                '''
+                Load Control Test!
+                '''
+                
+                # Get test parameters
+                self.end_force1 = float(self.factorForceAx1.text())
+                self.end_force2 = float(self.factorForceAx2.text())
+                self.test_duration = float(self.factorTimeAx.text())
+                self.cycl_num = int(self.factorCyclNum.text())
+                
+                if hasattr(self, '_mecTest') and isinstance(self._mecTest, LoadControlTest):
+                    #If object of load control test exists just update test parameters
+                    self._mecTest.update_parameters(self.end_force1, self.end_force2, self.test_duration)
 
-            else:
-                #Check if the test should be cycled
-                if self.checkBoxCycl.isChecked():
-                    self._mecTest = LoadControlTest(self._work_folder, self.end_force1, self.end_force2, self.test_duration, self.cycl_num)
                 else:
-                    #0 - one directional test
-                    self._mecTest = LoadControlTest(self._work_folder, self.end_force1, self.end_force2, self.test_duration, 0)
+                    #Check if the test should be cycled
+                    if self.checkBoxCycl.isChecked():
+                        self._mecTest = LoadControlTest(self._work_folder, self.end_force1, self.end_force2, self.test_duration, self.cycl_num)
+                    else:
+                        #0 - one directional test
+                        self._mecTest = LoadControlTest(self._work_folder, self.end_force1, self.end_force2, self.test_duration, 0)
 
 
-                self._mecTest.update_matplotlib_signal.connect(self.__update_charts)
-                self._mecTest.update_force_label_signal.connect(self.__updateLabelForce)
+                    self._mecTest.update_matplotlib_signal.connect(self.__update_charts)
+                    self._mecTest.update_force_label_signal.connect(self.__updateLabelForce)
+        
+            elif 2 == self.tabWidget.currentIndex():
+                '''
+                Displacement Control Test!
+                '''
+                
+                # Calculate velocity
+                self._vel_ax1 = -float(self.factorSpeedAx1.text())/60
+                self._vel_ax2 = -float(self.factorSpeedAx2.text())/60
+                
+                if hasattr(self, '_mecTest') and isinstance(self._mecTest, DisplacementControlTest):
+                    #If object of displacement control test exists just update test parameters
+                    self._mecTest.update_speed(self._vel_ax1, self._vel_ax2)
                     
-
-        self._liveforce_timer = QTimer()
-        self._liveforce_timer.timeout.connect(self._mecTest.readForceLive)
-        self._liveforce_timer.start(500)
+                else:
+                    #Close old object to prevent issues in connection with devices
+                    self._mecTest = DisplacementControlTest(self._work_folder, self._vel_ax1, self._vel_ax2)
+                    self._mecTest.update_matplotlib_signal.connect(self.__update_charts)
+                    self._mecTest.update_force_label_signal.connect(self.__updateLabelForce)
+                
+                # Update UI labels
+                self.upperLabel_1.setText("Warning!")
+                self.upperLabel_2.setText("Displacement control test")
+            
+    
+        except Exception as e:
+            warning_box = QMessageBox()
+            warning_box.setIcon(QMessageBox.Icon.Warning)
+            warning_box.setWindowTitle("Warning")
+            warning_box.setText(e.__str__())
+            warning_box.exec()
+            #delattr(self, '_mecTest')
+        else:
+            self._liveforce_timer = QTimer()
+            self._liveforce_timer.timeout.connect(self._mecTest.readForceLive)
+            self._liveforce_timer.start(500)
 
             
     def __stop_movement(self):

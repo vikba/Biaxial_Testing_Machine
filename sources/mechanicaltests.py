@@ -198,12 +198,8 @@ class MechanicalTest (QThread):
         try:
             self._connection_z = Connection.open_tcp(ip_zaber, Connection.TCP_PORT_CHAIN)
         except:
-            warning_box = QMessageBox()
-            warning_box.setIcon(QMessageBox.Icon.Warning)
-            warning_box.setWindowTitle("Warning")
-            warning_box.setText("Connection with motors failed at IP: " + ip_zaber + " Please check the network connection and ensure that the specified IP address is correct.")
-            warning_box.exec()
-
+            raise Exception("Connection with motors failed at IP: " + ip_zaber + " Please check the network connection and ensure that the specified IP address is correct.")
+            pass
         else:
             print("Motors were found")
             self._connection_z.enable_alerts()
@@ -231,30 +227,21 @@ class MechanicalTest (QThread):
         """
         ip_daq = "172.31.250.105"#Controller IP
 
-       
-        try:
-            #Initialisation of a buffer connection
-            self._conn_q=Qstation.ConnectGIns()
-            self._conn_q.bufferindex=0
-            self._conn_q.init_connection(str(ip_daq))
-        
-            #Return some information of the controller
-            self._conn_q.read_controller_name()
-            self._conn_q.read_serial_number()
-            self._conn_q.read_sample_rate()
-            self._conn_q.read_channel_names()
-            self._conn_q.read_channel_count()
-            print(self._conn_q.read_index_name(0))
-        except:
-            warning_box = QMessageBox()
-            warning_box.setIcon(QMessageBox.Icon.Warning)
-            warning_box.setWindowTitle("Warning")
-            warning_box.setText("Connection with DAQ failed at IP: " + ip_daq + " Please check the network connection and ensure that the specified IP address is correct.")
-            warning_box.exec()
-            
-        
+        #Initialisation of a buffer connection
+        self._conn_q=Qstation.ConnectGIns()
+        self._conn_q.bufferindex=0
+        init_con_res = self._conn_q.init_connection(str(ip_daq))
 
-
+        if not init_con_res:
+            raise Exception("Connection with DAQ failed at IP: " + ip_daq + " Please check the network connection and ensure that the specified IP address is correct.")
+    
+        #Return some information of the controller
+        self._conn_q.read_controller_name()
+        self._conn_q.read_serial_number()
+        self._conn_q.read_sample_rate()
+        self._conn_q.read_channel_names()
+        self._conn_q.read_channel_count()
+        
         #Call function to connect Controller buffer and variable 
         self._buffer=self._conn_q.yield_buffer()
         #first data are usually broken. Just read them to 

@@ -18,110 +18,68 @@
     <property name="geometry">
      <rect>
       <x>520</x>
-      <y>50</y>
+      <y>200</y>
       <width>231</width>
-      <height>181</height>
+      <height>131</height>
      </rect>
     </property>
     <property name="title">
-     <string>Controls</string>
+     <string>Motor Controls</string>
     </property>
     <layout class="QGridLayout" name="gridLayout">
-     <item row="0" column="2">
-      <widget class="QPushButton" name="buttonStop">
-       <property name="text">
-        <string>Stop</string>
-       </property>
-      </widget>
-     </item>
-     <item row="3" column="0">
-      <widget class="QLabel" name="label_7">
-       <property name="text">
-        <string>Axis 1</string>
-       </property>
-      </widget>
-     </item>
-     <item row="4" column="2">
-      <widget class="QPushButton" name="buttonMoveBackAx2">
-       <property name="text">
-        <string>Back</string>
-       </property>
-      </widget>
-     </item>
-     <item row="3" column="1">
-      <widget class="QPushButton" name="buttonMoveCentAx1">
-       <property name="text">
-        <string>Center</string>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="1">
-      <widget class="QPushButton" name="buttonSampleP">
-       <property name="text">
-        <string>Sample Pos.</string>
-       </property>
-      </widget>
-     </item>
-     <item row="0" column="1">
-      <widget class="QPushButton" name="buttonStart">
-       <property name="text">
-        <string>Start</string>
-       </property>
-      </widget>
-     </item>
-     <item row="5" column="2">
-      <widget class="QPushButton" name="buttonCamera">
-       <property name="text">
-        <string>Camera</string>
-       </property>
-      </widget>
-     </item>
-     <item row="4" column="1">
-      <widget class="QPushButton" name="buttonMoveCentAx2">
-       <property name="text">
-        <string>Center</string>
-       </property>
-      </widget>
-     </item>
-     <item row="4" column="0">
-      <widget class="QLabel" name="label_10">
-       <property name="text">
-        <string>Axis 2</string>
-       </property>
-      </widget>
-     </item>
-     <item row="3" column="2">
+     <item row="1" column="2">
       <widget class="QPushButton" name="buttonMoveBackAx1">
        <property name="text">
         <string>Back</string>
        </property>
       </widget>
      </item>
-     <item row="5" column="1">
+     <item row="2" column="0">
+      <widget class="QLabel" name="label_10">
+       <property name="text">
+        <string>Axis 2</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="1">
+      <widget class="QPushButton" name="buttonMoveCentAx2">
+       <property name="text">
+        <string>Center</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="2">
+      <widget class="QPushButton" name="buttonMoveBackAx2">
+       <property name="text">
+        <string>Back</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="1">
+      <widget class="QPushButton" name="buttonMoveCentAx1">
+       <property name="text">
+        <string>Center</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <widget class="QPushButton" name="buttonSampleP">
+       <property name="text">
+        <string>Sample Pos.</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="0">
+      <widget class="QLabel" name="label_7">
+       <property name="text">
+        <string>Axis 1</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="2">
       <widget class="QPushButton" name="buttonInitMot">
        <property name="text">
         <string>Init motors</string>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="2">
-      <widget class="QPushButton" name="buttonConnect">
-       <property name="text">
-        <string>Connect</string>
-       </property>
-      </widget>
-     </item>
-     <item row="6" column="2">
-      <widget class="QPushButton" name="buttonZeroForce">
-       <property name="text">
-        <string>Zero Force</string>
-       </property>
-      </widget>
-     </item>
-     <item row="6" column="1">
-      <widget class="QPushButton" name="buttonZeroPosition">
-       <property name="text">
-        <string>Zero Position</string>
        </property>
       </widget>
      </item>
@@ -174,7 +132,7 @@
     <property name="geometry">
      <rect>
       <x>520</x>
-      <y>490</y>
+      <y>600</y>
       <width>191</width>
       <height>20</height>
      </rect>
@@ -187,7 +145,7 @@
     <property name="geometry">
      <rect>
       <x>720</x>
-      <y>490</y>
+      <y>600</y>
       <width>21</width>
       <height>20</height>
      </rect>
@@ -216,7 +174,7 @@
     <property name="geometry">
      <rect>
       <x>520</x>
-      <y>240</y>
+      <y>350</y>
       <width>231</width>
       <height>231</height>
      </rect>
@@ -503,6 +461,13 @@
         </property>
        </widget>
       </item>
+      <item row="0" column="1">
+       <widget class="QLabel" name="label">
+        <property name="text">
+         <string>Axis 1</string>
+        </property>
+       </widget>
+      </item>
       <item row="0" column="3">
        <widget class="QLabel" name="label_2">
         <property name="text">
@@ -517,10 +482,10 @@
         </property>
        </widget>
       </item>
-      <item row="0" column="1">
-       <widget class="QLabel" name="label">
+      <item row="1" column="2">
+       <widget class="QLabel" name="label_4">
         <property name="text">
-         <string>Axis 1</string>
+         <string>mm/min</string>
         </property>
        </widget>
       </item>
@@ -538,28 +503,78 @@
         </property>
        </widget>
       </item>
-      <item row="1" column="2">
-       <widget class="QLabel" name="label_4">
-        <property name="text">
-         <string>mm/min</string>
-        </property>
-       </widget>
-      </item>
       <item row="2" column="1">
-       <spacer name="horizontalSpacer">
+       <spacer name="verticalSpacer">
         <property name="orientation">
-         <enum>Qt::Horizontal</enum>
+         <enum>Qt::Vertical</enum>
         </property>
         <property name="sizeHint" stdset="0">
          <size>
-          <width>40</width>
-          <height>20</height>
+          <width>20</width>
+          <height>40</height>
          </size>
         </property>
        </spacer>
       </item>
      </layout>
     </widget>
+   </widget>
+   <widget class="QGroupBox" name="groupBox_3">
+    <property name="geometry">
+     <rect>
+      <x>520</x>
+      <y>60</y>
+      <width>191</width>
+      <height>131</height>
+     </rect>
+    </property>
+    <property name="title">
+     <string>Test Controls</string>
+    </property>
+    <layout class="QGridLayout" name="gridLayout_2">
+     <item row="0" column="0">
+      <widget class="QPushButton" name="buttonStart">
+       <property name="text">
+        <string>Start</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <widget class="QPushButton" name="buttonStop">
+       <property name="text">
+        <string>Stop</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="0">
+      <widget class="QPushButton" name="buttonConnect">
+       <property name="text">
+        <string>Connect</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="1">
+      <widget class="QPushButton" name="buttonCamera">
+       <property name="text">
+        <string>Camera</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="0">
+      <widget class="QPushButton" name="buttonZeroPosition">
+       <property name="text">
+        <string>Zero Position</string>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="1">
+      <widget class="QPushButton" name="buttonZeroForce">
+       <property name="text">
+        <string>Zero Force</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
