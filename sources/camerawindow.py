@@ -362,11 +362,6 @@ class VideoThread(QThread):
                         #print("One frame {}".format(time.perf_counter()-t))
                         
                         
-                #Get current date for filename
-                current_datetime = datetime.now()
-                formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-                cv2.imwrite('Test_'+formatted_datetime+'_tracks.jpg', img_track)
-                cv2.imwrite('Test_'+formatted_datetime+'_last_frame.jpg', img_cv)
                 
                 self._track_marks = False
                 #Record to the file
@@ -505,8 +500,6 @@ class VideoWindow(QWidget):
         self.close()
         
     def closeEvent(self, event):
-        # This method is called when the window is closed.
-        self.__terminate_application()
         self.stop_webcam()
 
 

@@ -74,7 +74,7 @@ class MechanicalTest (QThread):
     '''
 
     #Signal to update matplotlib
-    update_matplotlib_signal = pyqtSignal(list, list, list, list, list,list,list)
+    update_matplotlib_signal = pyqtSignal(list, list, list, list, list,list,list, list, list)
     #Signal to start/stop tracking marks when test is run
     start_stop_tracking_signal = pyqtSignal(bool)
     #Signal to update live force in GUI
@@ -101,7 +101,7 @@ class MechanicalTest (QThread):
         self.marks_recorded = True
   
         # Time of one measurement
-        self.sample_time = 0.1  # seconds
+        self.sample_time = 0.05  # seconds
 
            
     
@@ -163,9 +163,6 @@ class MechanicalTest (QThread):
         self._E22 = []
 
         self._fl_marks = False #Flag indicating whether marks are recorded
-
-        img_track = np.zeros((768, 1024, 1), dtype=np.uint8)
-        img_track.fill(0)
         
         self._vel_1 = []
         self._vel_2 = []
@@ -259,9 +256,10 @@ class MechanicalTest (QThread):
         Updates the live forces and emits a signal with the relative forces along two axes.
         """
         self._force1,self._force2 = self._readForce()
-        rel_force_ax1 = self._force1 - self._force1_0
-        rel_force_ax2 = self._force2 - self._force2_0
-        self.update_force_label_signal.emit(rel_force_ax1, rel_force_ax2)
+        if self._force1 is not None and self._force2 is not None:
+            rel_force_ax1 = self._force1 - self._force1_0
+            rel_force_ax2 = self._force2 - self._force2_0
+            self.update_force_label_signal.emit(rel_force_ax1, rel_force_ax2)
     
     def _readForce(self):
         """
@@ -315,14 +313,14 @@ class MechanicalTest (QThread):
         Convert the given values to Newtons using the provided coefficients.
 
         Args:
-            val1: The first value to be converted.
+            val1: The first value in mV/V to be converted.
             val2: The second value to be converted.
 
         Returns:
             Tuple containing the converted values for val1 and val2.
         """
         
-        k1 = 250/0.7976 #coefficients according to calibration certificate
+        k1 = 250/0.7978 #coefficients according to calibration certificate
         k2 = 250/0.8317
         
         return k1*val1, k2*val2
@@ -375,7 +373,7 @@ class MechanicalTest (QThread):
 
     def _writeDataToFile(self):
         # Combine the lists
-        combined_lists = zip(self._time, self._ch1, self._ch2, self._l1, self._l2)
+        combined_lists = zip(self._time, self._ch1, self._ch2, self._l1, self._l2, self._E11, self._E22)
         
         #Get current date for filename
         current_datetime = datetime.now()
@@ -385,7 +383,7 @@ class MechanicalTest (QThread):
         # Write to CSV file
         with open('Test_'+formatted_datetime+'.csv', 'w', newline='') as file:
             writer = csv.writer(file, delimiter=';')
-            writer.writerow(["Time", "Load_1", "Load_2", "Displacement_1", "Displacement_2"])  # Header row, if needed
+            writer.writerow(["Time", "Load_1", "Load_2", "Disp_1", "Disp_2", "E11", "E22"])  # Header row, if needed
             for row in combined_lists:
                 writer.writerow(row)
 
@@ -424,10 +422,10 @@ class MechanicalTest (QThread):
         with camera:
             frame = camera.get_frame ()
             if frame: 
-                img_cv = frame.as_opencv_image()
+                self._img_cv = frame.as_opencv_image()
                 
                 #detect markers
-                img, coord_temp = markersDetection().detectMarkers(img_cv) #detection of Markers
+                img, coord_temp = markersDetection().detectMarkers(self._img_cv) #detection of Markers
                 
                 #draw track of the markers
                 for group in self.marks_groups:
@@ -739,15 +737,35 @@ class LoadControlTest(MechanicalTest):
         #One directional test
         if 0 == self._num_cycles:
             self._start_time = time.perf_counter()
+            #First image will be recorded in camerawindow. Dont wont to capture it in a cycle now.
+            '''
+            if fl_cam:
+                current_datetime = datetime.now()
+                formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
+                cv2.imwrite('Test_'+formatted_datetime+'_first_frame.jpg', self._img_cv) '''
+
             while self._execute and self._current_time < 1.5*self._test_duration and (rel_force_ax1 < self._end_force1 or rel_force_ax2 < self._end_force2):
                 #Image capture should go first E11, E22 calculated in this funciton and after emitted in __oneCycle funciton
                 if fl_cam:
                     self._captureImageTrackMarks(cam)
                 rel_force_ax1, rel_force_ax2 = self.__oneCycle(self._start_time, 0, 0, self._end_force1, self._end_force2)
                 
+            #Last image frame
+            if fl_cam:
+                current_datetime = datetime.now()
+                formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
+                cv2.imwrite('Test_'+formatted_datetime+'_last_frame.jpg', self._img_cv)
+                cv2.imwrite('Test_'+formatted_datetime+'_tracks.jpg', self.img_track)
+
         else:
             self._start_time = time.perf_counter()
             cycle = 0
+            '''
+            if fl_cam:
+                current_datetime = datetime.now()
+                formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
+                cv2.imwrite('Test_'+formatted_datetime+'_first_frame.jpg', self._img_cv) '''
+
             #loop that counts cycles
             while cycle < self._num_cycles:
                 #half cycle is to increase force, half cycle is to decrease force
@@ -755,16 +773,31 @@ class LoadControlTest(MechanicalTest):
                 cycle += 1
                 self._pid_1.reset()
                 self._pid_2.reset()
+
                 #Increasing force loop (stretching loop)
                 while self._execute and (rel_force_ax1 < self._end_force1 or rel_force_ax2 < self._end_force2):
+                    if fl_cam:
+                        self._captureImageTrackMarks(cam)
                     rel_force_ax1, rel_force_ax2 = self.__oneCycle(start_half_cycle_time, 0.03, 0.03, self._end_force1, self._end_force2)
+                
+                #For the last frame we need to capture highest force
+                if fl_cam:
+                    current_datetime = datetime.now()
+                    formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
+                    cv2.imwrite('Test_'+formatted_datetime+'_last_frame.jpg', self._img_cv)
+                
                 #Decreasing force loop
                 print("Start decreasing force")
                 start_half_cycle_time = time.perf_counter()
                 self._pid_1.reset()
                 self._pid_2.reset()
                 while self._execute and (rel_force_ax1 > 0.02 or rel_force_ax2 > 0.02):
+                    if fl_cam:
+                        self._captureImageTrackMarks(cam)
                     rel_force_ax1, rel_force_ax2 = self.__oneCycle(start_half_cycle_time, self._end_force1, self._end_force2, 0.03, 0.03)
+
+            if fl_cam:
+                cv2.imwrite('Test_'+formatted_datetime+'_tracks.jpg', self.img_track)
 
         
         #After test is finished (all the loops finished)
