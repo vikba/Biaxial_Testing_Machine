@@ -323,7 +323,7 @@ class MechanicalTest (QThread):
         """
         
         k1 = 250/0.7976 #coefficients according to calibration certificate
-        k2 = 250/0.8293
+        k2 = 250/0.8317
         
         return k1*val1, k2*val2
     
@@ -725,8 +725,8 @@ class LoadControlTest(MechanicalTest):
         rel_force_ax2 = 0
 
         #initial LOW velocities for motors
-        vel_ax1 = -0.01#mm/sec
-        vel_ax2 = -0.01 #mm/sec
+        vel_ax1 = -0.02#mm/sec
+        vel_ax2 = -0.02 #mm/sec
         
         # Start motors
         self._axis1.move_velocity(vel_ax1, Units.VELOCITY_MILLIMETRES_PER_SECOND)
@@ -734,19 +734,17 @@ class LoadControlTest(MechanicalTest):
         
         time.sleep(self.sample_time)
         
-        
-        #Start tracking markers
-        self.start_stop_tracking_signal.emit(True)
-        
 
 
         #One directional test
         if 0 == self._num_cycles:
             self._start_time = time.perf_counter()
             while self._execute and self._current_time < 1.5*self._test_duration and (rel_force_ax1 < self._end_force1 or rel_force_ax2 < self._end_force2):
-                rel_force_ax1, rel_force_ax2 = self.__oneCycle(self._start_time, 0, 0, self._end_force1, self._end_force2)
+                #Image capture should go first E11, E22 calculated in this funciton and after emitted in __oneCycle funciton
                 if fl_cam:
                     self._captureImageTrackMarks(cam)
+                rel_force_ax1, rel_force_ax2 = self.__oneCycle(self._start_time, 0, 0, self._end_force1, self._end_force2)
+                
         else:
             self._start_time = time.perf_counter()
             cycle = 0
@@ -772,7 +770,6 @@ class LoadControlTest(MechanicalTest):
         #After test is finished (all the loops finished)
         # Stop motors after measurement cycle is finished
         self.stop_measurement()
-        self.start_stop_tracking_signal.emit(False)
         self._writeDataToFile()
 
     
@@ -816,7 +813,7 @@ class LoadControlTest(MechanicalTest):
         self._l2.append(round(self._len_ax2, roundDecimals))
         self._time.append(round(self._current_time, roundDecimals))
         
-        self.update_matplotlib_signal.emit(self._ch1, self._ch2, self._l1, self._l2, self._time,self._vel_1,self._vel_2)
+        self.update_matplotlib_signal.emit(self._time, self._ch1, self._ch2, self._l1, self._l2, self._E11, self._E22, self._vel_1,self._vel_2)
 
         if len(self._time) > 10:
             corr_force1 = self._moving_average(self._ch1[-10:-1], 4)[-1]

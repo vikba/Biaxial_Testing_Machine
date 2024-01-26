@@ -265,16 +265,22 @@ class BiaxMainWindow(QMainWindow):
             
     def __stop_movement(self):
         
+        
+        
+        if hasattr(self, '_mecTest'):
+            self._mecTest.stop_measurement()
+        else:
+            warning_box = QMessageBox()
+            warning_box.setIcon(QMessageBox.Icon.Warning)
+            warning_box.setWindowTitle("Warning")
+            warning_box.setText("Connect to motors and DAQ first!")
+            warning_box.exec()
+
         if hasattr(self, '_label_timer'):
             self._label_timer.stop()
 
         if hasattr(self, '_liveforce_timer'):
             self._liveforce_timer.start(500)
-        
-        if hasattr(self, '_mecTest'):
-            self._mecTest.stop_measurement()
-        else:
-            print("Mechanical test is not running")
             
         
             
@@ -333,23 +339,23 @@ class BiaxMainWindow(QMainWindow):
             
     def __initializeMotors(self):
 
-        # Show a message box with Yes/No buttons
-        reply = QMessageBox.question(self, 'Message',
-                                     "Is the sample unmounted?",
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                                     QMessageBox.StandardButton.No)
+        if hasattr(self, '_mecTest'):
+            # Show a message box with Yes/No buttons
+            reply = QMessageBox.question(self, 'Message',
+                                        "Is the sample unmounted?",
+                                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                        QMessageBox.StandardButton.No)
 
-        # Check if 'Yes' was clicked
-        if reply == QMessageBox.StandardButton.Yes:
-            #Initialize Zero position of the motors
-            if hasattr(self, '_mecTest'):
+            # Check if 'Yes' was clicked
+            if reply == QMessageBox.StandardButton.Yes:
+                #Initialize Zero position of the motors
                 self._mecTest.initMotZeroPos()
-            else:
-                warning_box = QMessageBox()
-                warning_box.setIcon(QMessageBox.Icon.Warning)
-                warning_box.setWindowTitle("Warning")
-                warning_box.setText("Connect to motors and DAQ first!")
-                warning_box.exec()
+        else:
+            warning_box = QMessageBox()
+            warning_box.setIcon(QMessageBox.Icon.Warning)
+            warning_box.setWindowTitle("Warning")
+            warning_box.setText("Connect to motors and DAQ first!")
+            warning_box.exec()
     
     def __moveForwardAxis1(self):
         if hasattr(self, '_mecTest'):
@@ -435,7 +441,7 @@ class BiaxMainWindow(QMainWindow):
     
         
 
-    def __update_charts(self, ch1, ch2, l1, l2, t, v1, v2):
+    def __update_charts(self, t, ch1, ch2, l1, l2, E11, E22, v1, v2):
         """
         Updates charts on matplotlib widgets
         This function is connected to MechanicalTest classes with signal/slot mechanism
@@ -469,12 +475,12 @@ class BiaxMainWindow(QMainWindow):
         
         
         self.MplWidget_3.canvas.axes.clear()
-        self.MplWidget_3.canvas.axes.plot(l1, ch1)
-        self.MplWidget_3.canvas.axes.plot(l2, ch2)
+        self.MplWidget_3.canvas.axes.plot(E11, ch1)
+        self.MplWidget_3.canvas.axes.plot(E22, ch2)
         self.MplWidget_3.canvas.axes.legend(('ch1','ch2'),loc='upper right')
-        self.MplWidget_3.canvas.axes.set_title('Load vs. Displacement')
+        self.MplWidget_3.canvas.axes.set_title('Load vs. Strain')
         self.MplWidget_3.canvas.axes.set_ylabel('Load, N')
-        self.MplWidget_3.canvas.axes.set_xlabel('Displacement, mm')
+        self.MplWidget_3.canvas.axes.set_xlabel('Strain, %')
         self.MplWidget_3.canvas.draw()
         
         
