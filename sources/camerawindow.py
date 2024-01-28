@@ -13,7 +13,7 @@ import time
 import csv
 
 from PyQt6.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QLabel
-from PyQt6.QtCore import QThread, QTimer, pyqtSignal, Qt
+from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PyQt6.QtGui import QImage, QPixmap
 from datetime import datetime
 
@@ -21,13 +21,8 @@ from vimba import *
 
 
 class markersDetection:
-    
     '''
     class with methods to detect markers on the image
-    
-    returns
-    image with highlighted markers
-    list of tuples (x,y) with coordinates of each marker
     '''
     
     #fl_img to show that image with circles should be returned as a result, 
