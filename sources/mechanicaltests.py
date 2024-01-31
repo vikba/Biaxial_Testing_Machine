@@ -87,7 +87,7 @@ class MechanicalTest (QThread):
     _pos2_0 = 0
 
     
-    sample_time = 0.1  # seconds
+    _sample_time = 0.1  # seconds
    
     
     def __init__(self):
@@ -557,7 +557,7 @@ class DisplacementControlTest(MechanicalTest):
             while self._len_ax1 < 73 and self._len_ax2 < 73 and self._current_time < 400 and self._execute:
                 t = time.perf_counter()
                 self.__makeOneAnalogReading()
-                time.sleep(self.sample_time)
+                time.sleep(self._sample_time)
                 print("One cycle is {} sec".format(time.perf_counter()-t))
         '''
          
@@ -565,7 +565,7 @@ class DisplacementControlTest(MechanicalTest):
         while self._len_ax1 < 73 and self._len_ax2 < 73 and self._current_time < 400 and self._execute:
             #t = time.perf_counter()
             self.__oneCycle()
-            time.sleep(self.sample_time)
+            time.sleep(self._sample_time)
             
         # Stop motors after measurement cycle is finished
         self.stop_measurement()
@@ -702,6 +702,7 @@ class LoadControlTest(MechanicalTest):
         #This is why such a weird construction
 
         if self._fl_marks:
+            self._sample_time = 0.1
             with Vimba.get_instance () as vimba:
                 cams = vimba.get_all_cameras ()
                 with cams [0] as cam:
@@ -713,6 +714,7 @@ class LoadControlTest(MechanicalTest):
 
         else:
             #without camera
+            self._sample_time = 0.15
             self.__performTest(None, False)
 
 
@@ -725,17 +727,22 @@ class LoadControlTest(MechanicalTest):
         rel_force_ax2 = 0
 
         #initial LOW velocities for motors
+        #to stretch a sample velocity should be negarive. It'll become negative before stretching cycle
         vel_ax1 = 0.02#mm/sec
         vel_ax2 = 0.02 #mm/sec
-        
-        
-        
-        
 
 
         #One directional test
         if 0 == self._num_cycles:
             self._start_time = time.perf_counter()
+
+            vel_ax1 = - vel_ax1
+            vel_ax2 = - vel_ax2
+
+            # Start motors
+            self._axis1.move_velocity(vel_ax1, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+            self._axis2.move_velocity(vel_ax2, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+
             #First image will be recorded in camerawindow. Dont wont to capture it in a cycle now.
             '''
             if fl_cam:
@@ -828,7 +835,7 @@ class LoadControlTest(MechanicalTest):
     def __oneCycle(self, start_cycle_time, start_force1, start_force2, end_force1, end_force2):
 
         # Wait before the next loop iteration
-        time.sleep(self.sample_time)
+        time.sleep(self._sample_time)
 
         self._current_time = time.perf_counter() - self._start_time
         current_cycle_time = time.perf_counter() - start_cycle_time
