@@ -475,8 +475,8 @@ class BiaxMainWindow(QMainWindow):
         
         
         self.MplWidget_3.canvas.axes.clear()
-        self.MplWidget_3.canvas.axes.plot(E11, ch1)
-        self.MplWidget_3.canvas.axes.plot(E22, ch2)
+        self.MplWidget_3.canvas.axes.plot(l1, ch1)
+        self.MplWidget_3.canvas.axes.plot(l2, ch2)
         self.MplWidget_3.canvas.axes.legend(('ch1','ch2'),loc='upper right')
         self.MplWidget_3.canvas.axes.set_title('Load vs. Strain')
         self.MplWidget_3.canvas.axes.set_ylabel('Load, N')

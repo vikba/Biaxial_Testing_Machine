@@ -85,6 +85,9 @@ class MechanicalTest (QThread):
     _force2_0 = 0
     _pos1_0 = 0
     _pos2_0 = 0
+
+    
+    sample_time = 0.1  # seconds
    
     
     def __init__(self):
@@ -100,8 +103,7 @@ class MechanicalTest (QThread):
         self.use_camera = False
         self.marks_recorded = True
   
-        # Time of one measurement
-        self.sample_time = 0.05  # seconds
+        
 
            
     
@@ -723,14 +725,11 @@ class LoadControlTest(MechanicalTest):
         rel_force_ax2 = 0
 
         #initial LOW velocities for motors
-        vel_ax1 = -0.02#mm/sec
-        vel_ax2 = -0.02 #mm/sec
+        vel_ax1 = 0.02#mm/sec
+        vel_ax2 = 0.02 #mm/sec
         
-        # Start motors
-        self._axis1.move_velocity(vel_ax1, Units.VELOCITY_MILLIMETRES_PER_SECOND)
-        self._axis2.move_velocity(vel_ax2, Units.VELOCITY_MILLIMETRES_PER_SECOND)
         
-        time.sleep(self.sample_time)
+        
         
 
 
@@ -768,26 +767,44 @@ class LoadControlTest(MechanicalTest):
 
             #loop that counts cycles
             while cycle < self._num_cycles:
+                #Increase force loop (stretching loop)
+
+                vel_ax1 = - vel_ax1
+                vel_ax2 = - vel_ax2
+
+                # Start motors
+                self._axis1.move_velocity(vel_ax1, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+                self._axis2.move_velocity(vel_ax2, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+                
                 #half cycle is to increase force, half cycle is to decrease force
                 start_half_cycle_time = time.perf_counter()
                 cycle += 1
                 self._pid_1.reset()
                 self._pid_2.reset()
 
-                #Increasing force loop (stretching loop)
+                
                 while self._execute and (rel_force_ax1 < self._end_force1 or rel_force_ax2 < self._end_force2):
                     if fl_cam:
                         self._captureImageTrackMarks(cam)
                     rel_force_ax1, rel_force_ax2 = self.__oneCycle(start_half_cycle_time, 0.03, 0.03, self._end_force1, self._end_force2)
                 
+                
+
+                #Decreasing force loop
+                print("Start decreasing force")
+                #Velocity should be positive for back movement
+                vel_ax1 = self._l1[-1]/self._test_duration
+                vel_ax2 = self._l2[-1]/self._test_duration
+                # Start motors
+                self._axis1.move_velocity(vel_ax1, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+                self._axis2.move_velocity(vel_ax2, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+
                 #For the last frame we need to capture highest force
                 if fl_cam:
                     current_datetime = datetime.now()
                     formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
                     cv2.imwrite('Test_'+formatted_datetime+'_last_frame.jpg', self._img_cv)
                 
-                #Decreasing force loop
-                print("Start decreasing force")
                 start_half_cycle_time = time.perf_counter()
                 self._pid_1.reset()
                 self._pid_2.reset()
@@ -809,6 +826,9 @@ class LoadControlTest(MechanicalTest):
 
 
     def __oneCycle(self, start_cycle_time, start_force1, start_force2, end_force1, end_force2):
+
+        # Wait before the next loop iteration
+        time.sleep(self.sample_time)
 
         self._current_time = time.perf_counter() - self._start_time
         current_cycle_time = time.perf_counter() - start_cycle_time
@@ -867,8 +887,7 @@ class LoadControlTest(MechanicalTest):
         # Apply motor output adjustments
         self._axis2.move_velocity(vel_ax2, Units.VELOCITY_MILLIMETRES_PER_SECOND)
     
-        # Wait before the next loop iteration
-        time.sleep(self.sample_time)
+        
         
         #print("Cycle finished")
 
