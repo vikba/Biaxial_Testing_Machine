@@ -104,6 +104,7 @@ class BiaxMainWindow(QMainWindow):
         # Read motor speed
         self._vel_ax1 = -int(self.factorSpeedAx1.text())/60 #Convert from per minute to per second
         self._vel_ax2 = -int(self.factorSpeedAx2.text())/60
+
         
 
         

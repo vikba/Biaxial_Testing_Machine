@@ -44,7 +44,7 @@ class markersDetection:
         opening = ~opening
         
         # Find circles 
-        cnts = cv2.findContours(opening, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        cnts = cv2.findContours(opening, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
         #print("contours {}".format(len(cnts[0])))
         #print("contours {}".format(len(cnts[1])))
         cnts = cnts[0] if len(cnts) == 2 else cnts[1]
@@ -63,12 +63,28 @@ class markersDetection:
             circularity = 4*math.pi*(area/(perimeter*perimeter))
            
             if 0.7 < circularity and area > 50:
+                '''
                 ((x, y), r) = cv2.minEnclosingCircle(c)
                 x = int (x)
                 y = int (y)
                 r = int (r)
+
+                cv2.circle(res_img, (x, y), r, 120, 2) '''
+
+                #Find center with image moments
+                M = cv2.moments(c)
+    
+                # Check if the moment "m00" is zero to avoid division by zero
+                if M["m00"] != 0:
+                    x = int(M["m10"] / M["m00"])
+                    y = int(M["m01"] / M["m00"])
+                else:
+                    x, y = 0, 0  # Assign some default value in case m00 is zero
+
+                cv2.drawContours(res_img, c, -1, 1, 2)
+                cv2.circle(res_img, (x, y), 1, 255, 2)
                 
-                cv2.circle(res_img, (x, y), r, 120, 2)
+                
                   
                 marks_groups.append((x,y))
         
@@ -360,7 +376,7 @@ class VideoThread(QThread):
                 
                 self._track_marks = False
                 #Record to the file
-                self.writeDataToFile()
+                #self.writeDataToFile()
                 self.quit()
             
     def writeDataToFile(self):
