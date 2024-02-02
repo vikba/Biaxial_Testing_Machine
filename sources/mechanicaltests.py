@@ -827,8 +827,8 @@ class LoadControlTest(MechanicalTest):
                 print("Vel2: {}".format(vel_ax2))
 
                 # Start motors
-                self._axis1.move_velocity(vel_ax1*0.5, Units.VELOCITY_MILLIMETRES_PER_SECOND)
-                self._axis2.move_velocity(vel_ax2*0.5, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+                self._axis1.move_velocity(vel_ax1*0.2, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+                self._axis2.move_velocity(vel_ax2*0.2, Units.VELOCITY_MILLIMETRES_PER_SECOND)
 
                 #For the last frame we need to capture highest force
                 if cam is not None:
