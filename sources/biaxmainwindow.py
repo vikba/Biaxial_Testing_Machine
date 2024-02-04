@@ -104,6 +104,7 @@ class BiaxMainWindow(QMainWindow):
         # Read motor speed
         self._vel_ax1 = -int(self.factorSpeedAx1.text())/60 #Convert from per minute to per second
         self._vel_ax2 = -int(self.factorSpeedAx2.text())/60
+
         
 
         
@@ -475,12 +476,18 @@ class BiaxMainWindow(QMainWindow):
         
         
         self.MplWidget_3.canvas.axes.clear()
-        self.MplWidget_3.canvas.axes.plot(E11, ch1)
-        self.MplWidget_3.canvas.axes.plot(E22, ch2)
+        if hasattr(self, '_video_window'):
+            self.MplWidget_3.canvas.axes.plot(E11, ch1)
+            self.MplWidget_3.canvas.axes.plot(E22, ch2)
+            self.MplWidget_3.canvas.axes.set_xlabel('Strain, %')
+        else:
+            self.MplWidget_3.canvas.axes.plot(l1, ch1)
+            self.MplWidget_3.canvas.axes.plot(l2, ch2)
+            self.MplWidget_3.canvas.axes.set_xlabel('Displacement, mm')
+            
         self.MplWidget_3.canvas.axes.legend(('ch1','ch2'),loc='upper right')
         self.MplWidget_3.canvas.axes.set_title('Load vs. Strain')
         self.MplWidget_3.canvas.axes.set_ylabel('Load, N')
-        self.MplWidget_3.canvas.axes.set_xlabel('Strain, %')
         self.MplWidget_3.canvas.draw()
         
         
