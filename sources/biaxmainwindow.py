@@ -482,7 +482,8 @@ class BiaxMainWindow(QMainWindow):
         
         
         self.MplWidget_3.canvas.axes.clear()
-        if hasattr(self, '_video_window'):
+        if self._mecTest.getMarksStatus():
+            #If initial marks are recorded than strain will be calculated and can be plotted
             self.MplWidget_3.canvas.axes.plot(E11, ch1)
             self.MplWidget_3.canvas.axes.plot(E22, ch2)
             self.MplWidget_3.canvas.axes.set_xlabel('Strain, %')

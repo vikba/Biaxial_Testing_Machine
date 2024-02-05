@@ -53,9 +53,6 @@ class MechanicalTest (QThread):
         self._initVariables()
 
 
-        
-        #Event to stop while loop during acquisition
-        #change to qevent or flag
         self.use_camera = False
         self.marks_recorded = True
   
@@ -371,6 +368,12 @@ class MechanicalTest (QThread):
 
         print("Marks recorded")
         print(self.marks_groups)
+
+    def getMarksStatus(self):
+        """
+        Check if the marks are recorded. Required in the main window to decide whether to show strain or displacement
+        """
+        return self._fl_marks
 
          
     def _captureImageTrackMarks(self, camera):

@@ -12,7 +12,7 @@ import numpy as np
 import time
 import csv
 
-from PyQt6.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QLabel
+from PyQt6.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QLabel, QMessageBox
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PyQt6.QtGui import QImage, QPixmap
 from datetime import datetime
@@ -208,27 +208,36 @@ class VideoThread(QThread):
                             print("Point 1 {},  {}".format(self._roi_x1, self._roi_y1))
                             print("Point 2 {},  {}".format(self._roi_x2, self._roi_y2))
                             
-                            
-                            #allocate (x,y) in first empty sub(list)
-                            i = 0
-                            
-                            for coord in coord_temp:
-                 
-                                if self.if_within_roi(coord) and i < len(self.marks_groups):
-                                    self.marks_groups[i].append(coord)
-                                    i += 1
-                            
+                            if len(coord_temp) == 4:
+                                #allocate (x,y) in first empty sub(list)
+                                i = 0
+                                for coord in coord_temp:
+                    
+                                    if self.if_within_roi(coord) and i < len(self.marks_groups):
+                                        self.marks_groups[i].append(coord)
+                                        i += 1
+
+                                #Get current date for filename
+                                current_datetime = datetime.now()
+                                formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
+                                cv2.imwrite('Test_'+formatted_datetime+'_first_frame.jpg', img_cv)
+
+                                self.signal_marks_recorded.emit(self.marks_groups)
+                                #print("Recorded marks:")
+                                #print(self.marks_groups)
+                                self.stop()
+
+                            else:
+                                print("Wrong number of marks. Expected 4. Detected {}".format(len(coord_temp)))
+                                warning_box = QMessageBox()
+                                warning_box.setIcon(QMessageBox.Icon.Warning)
+                                warning_box.setWindowTitle("Warning")
+                                warning_box.setText("Wrong number of marks. Expected 4. Detected {}".format(len(coord_temp)))
+                                warning_box.exec()
+                                
                             self._rec_marks = False
                             
-                            #Get current date for filename
-                            current_datetime = datetime.now()
-                            formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-                            cv2.imwrite('Test_'+formatted_datetime+'_first_frame.jpg', img_cv)
-
-                            self.signal_marks_recorded.emit(self.marks_groups)
-                            #print("Recorded marks:")
-                            #print(self.marks_groups)
-                            self.stop()
+                            
 
 
                             
