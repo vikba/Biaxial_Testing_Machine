@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>764</width>
+    <width>802</width>
     <height>840</height>
    </rect>
   </property>
@@ -47,13 +47,13 @@
       <property name="minimumSize">
        <size>
         <width>251</width>
-        <height>621</height>
+        <height>450</height>
        </size>
       </property>
       <property name="maximumSize">
        <size>
         <width>251</width>
-        <height>781</height>
+        <height>1500</height>
        </size>
       </property>
       <property name="frameShape">
@@ -88,7 +88,6 @@
        </item>
        <item>
         <widget class="QGroupBox" name="groupBox_3">
-         
          <property name="title">
           <string>Test Controls</string>
          </property>
@@ -122,85 +121,16 @@
            </widget>
           </item>
           <item row="2" column="0">
-           <widget class="QPushButton" name="buttonZeroPosition">
+           <widget class="QPushButton" name="buttonAutoload">
             <property name="text">
-             <string>Zero Position</string>
+             <string>Autoload</string>
             </property>
            </widget>
           </item>
           <item row="2" column="1">
-           <widget class="QPushButton" name="buttonZeroForce">
+           <widget class="QPushButton" name="buttonCalcLoad">
             <property name="text">
-             <string>Zero Force</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </widget>
-       </item>
-       <item>
-        <widget class="QGroupBox" name="groupBox">
-         <property name="autoFillBackground">
-          <bool>false</bool>
-         </property>
-         
-         <property name="title">
-          <string>Motor Controls</string>
-         </property>
-         <layout class="QGridLayout" name="gridLayout">
-          <item row="1" column="2">
-           <widget class="QPushButton" name="buttonMoveBackAx1">
-            <property name="text">
-             <string>Back</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="0">
-           <widget class="QLabel" name="label_10">
-            <property name="text">
-             <string>Axis 2</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="1">
-           <widget class="QPushButton" name="buttonMoveCentAx2">
-            <property name="text">
-             <string>Center</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="2">
-           <widget class="QPushButton" name="buttonMoveBackAx2">
-            <property name="text">
-             <string>Back</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="1">
-           <widget class="QPushButton" name="buttonMoveCentAx1">
-            <property name="text">
-             <string>Center</string>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="1">
-           <widget class="QPushButton" name="buttonSampleP">
-            <property name="text">
-             <string>Sample Pos.</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="0">
-           <widget class="QLabel" name="label_7">
-            <property name="text">
-             <string>Axis 1</string>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="2">
-           <widget class="QPushButton" name="buttonInitMot">
-            <property name="text">
-             <string>Init motors</string>
+             <string>Calc Load</string>
             </property>
            </widget>
           </item>
@@ -317,7 +247,7 @@
            <item row="1" column="0">
             <widget class="QLabel" name="label_6">
              <property name="text">
-              <string>Force</string>
+              <string>Load</string>
              </property>
             </widget>
            </item>
@@ -420,32 +350,6 @@
              </property>
             </widget>
            </item>
-           <item row="7" column="2">
-            <spacer name="horizontalSpacer_2">
-             <property name="orientation">
-              <enum>Qt::Horizontal</enum>
-             </property>
-             <property name="sizeHint" stdset="0">
-              <size>
-               <width>40</width>
-               <height>20</height>
-              </size>
-             </property>
-            </spacer>
-           </item>
-           <item row="7" column="4">
-            <spacer name="horizontalSpacer_3">
-             <property name="orientation">
-              <enum>Qt::Horizontal</enum>
-             </property>
-             <property name="sizeHint" stdset="0">
-              <size>
-               <width>40</width>
-               <height>20</height>
-              </size>
-             </property>
-            </spacer>
-           </item>
            <item row="0" column="0">
             <spacer name="horizontalSpacer_4">
              <property name="orientation">
@@ -461,6 +365,19 @@
            </item>
            <item row="0" column="2">
             <spacer name="horizontalSpacer_5">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item row="0" column="4">
+            <spacer name="horizontalSpacer_3">
              <property name="orientation">
               <enum>Qt::Horizontal</enum>
              </property>
@@ -551,11 +468,93 @@
         </widget>
        </item>
        <item>
+        <widget class="QGroupBox" name="groupBox">
+         <property name="autoFillBackground">
+          <bool>false</bool>
+         </property>
+         <property name="title">
+          <string>Motor Controls</string>
+         </property>
+         <layout class="QGridLayout" name="gridLayout">
+          <item row="3" column="0">
+           <widget class="QLabel" name="label_10">
+            <property name="text">
+             <string>Axis 2</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="label_7">
+            <property name="text">
+             <string>Axis 1</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QPushButton" name="buttonSampleP">
+            <property name="text">
+             <string>Move Sam. Pos.</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QPushButton" name="buttonMoveCentAx1">
+            <property name="text">
+             <string>Move Center</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="2">
+           <widget class="QPushButton" name="buttonInitMot">
+            <property name="text">
+             <string>Init motors</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="2">
+           <widget class="QPushButton" name="buttonMoveBackAx1">
+            <property name="text">
+             <string>Move Back</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QPushButton" name="buttonMoveCentAx2">
+            <property name="text">
+             <string>Move Center</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="2">
+           <widget class="QPushButton" name="buttonMoveBackAx2">
+            <property name="text">
+             <string>Move Back</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QPushButton" name="buttonZeroPosition">
+            <property name="text">
+             <string>Set Zero Position</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="2">
+           <widget class="QPushButton" name="buttonZeroForce">
+            <property name="text">
+             <string>Set Zero Force</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
         <layout class="QHBoxLayout" name="horizontalLayout_2">
          <item>
           <widget class="QLabel" name="labelFolder">
            <property name="text">
-            <string>TextLabel</string>
+            <string>Folder address</string>
            </property>
           </widget>
          </item>
@@ -597,7 +596,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>764</width>
+     <width>802</width>
      <height>21</height>
     </rect>
    </property>

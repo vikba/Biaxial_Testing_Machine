@@ -76,7 +76,7 @@ class MechanicalTest (QThread):
     #Signal to update matplotlib
     update_matplotlib_signal = pyqtSignal(list, list, list, list, list,list,list, list, list)
     #Signal to start/stop tracking marks when test is run
-    start_stop_tracking_signal = pyqtSignal(bool)
+    #start_stop_tracking_signal = pyqtSignal(bool)
     #Signal to update live force in GUI
     update_force_label_signal = pyqtSignal(float, float)
     change_pixmap_signal = pyqtSignal(np.ndarray)
@@ -827,8 +827,8 @@ class LoadControlTest(MechanicalTest):
                 print("Vel2: {}".format(vel_ax2))
 
                 # Start motors
-                self._axis1.move_velocity(vel_ax1*0.2, Units.VELOCITY_MILLIMETRES_PER_SECOND)
-                self._axis2.move_velocity(vel_ax2*0.2, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+                self._axis1.move_velocity(vel_ax1*0.1, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+                self._axis2.move_velocity(vel_ax2*0.1, Units.VELOCITY_MILLIMETRES_PER_SECOND)
 
                 #For the last frame we need to capture highest force
                 if cam is not None:

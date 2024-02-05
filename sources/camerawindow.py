@@ -81,7 +81,7 @@ class markersDetection:
                 else:
                     x, y = 0, 0  # Assign some default value in case m00 is zero
 
-                cv2.drawContours(res_img, c, -1, 1, 2)
+                cv2.drawContours(res_img, c, -1, 1, 1)
                 cv2.circle(res_img, (x, y), 1, 255, 2)
                 
                 
