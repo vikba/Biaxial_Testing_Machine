@@ -25,7 +25,7 @@ class LoadCalculatorWindow(QWidget):
 
         loadUi(ui_file_path, self)
 
-        self.buttonCalcLoad.clicked.connect(self.calcLoads)
+        self.buttonCalc.clicked.connect(self.calcLoads)
         
         
         
