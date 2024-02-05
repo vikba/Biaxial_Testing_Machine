@@ -24,10 +24,15 @@ class LoadCalculatorWindow(QWidget):
         print(ui_file_path)
 
         loadUi(ui_file_path, self)
+
+        self.buttonCalcLoad.clicked.connect(self.calcLoads)
         
         
         
     def closeEvent(self, event):
+        pass
+
+    def calcLoads(self):
         pass
 
 
