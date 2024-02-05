@@ -20,52 +20,8 @@ from zaber_motion import Units
 from vimba import *
 import ginsapy.giutility.connect.PyQStationConnectWin as Qstation #module with communication functions to Gantner Q.Station under windows environment
 
-from .camerawindow import markersDetection
-
-
-
-class PID:
-    '''
-    This PID class is used to implement a Proportional Integral Derivative (PID) controller.
-    '''
-
-    def __init__(self, P, I, D):
-        self.Kp = P
-        self.Ki = I
-        self.Kd = D
-        self.setpoint = 0
-        self.integral = 0
-        self.prev_error = 0
-
-    def reset (self):
-        self.setpoint = 0
-        self.integral = 0
-        self.prev_error = 0
-
-    def setPID (self, P, I, D):
-        self.Kp = P
-        self.Ki = I
-        self.Kd = D
-
-    def updateOutput(self, measured_value):
-        """
-        Update the controller with a new measured value.
-
-        Args:
-            measured_value: The measured value from the system.
-
-        Returns:
-            The output of the controller after updating with the measured value.
-        """
-        error = self.setpoint - measured_value
-        if not np.isnan(error):
-            self.integral += error
-        derivative = error - self.prev_error
-        output = self.Kp * error + self.Ki * self.integral + self.Kd * derivative
-        self.prev_error = error
-
-        return round(output,5)
-
+from .markersdetection import markersDetection
+from .pid import PID
 
 
 class MechanicalTest (QThread):
@@ -272,8 +228,8 @@ class MechanicalTest (QThread):
       
             # Process the value
         
-            value1 = value[-100:-1,1].mean() #mean last 100 values of the buffer
-            value2 = value[-100:-1,2].mean()
+            value1 = round(value[-100:-1,1].mean(),5) #mean last 100 values of the buffer
+            value2 = round(value[-100:-1,2].mean(), 5)
             #print('')
             #print("val1 {}".format(value1))
             #print("val2 {}".format(value1))
@@ -433,7 +389,11 @@ class MechanicalTest (QThread):
                 for group in self.marks_groups:
                     lg = len(group)
                     if lg > 1:
-                        cv2.line(self.img_track, group[lg-2], group[lg-1], 200, 1)
+                        x1 = int(group[lg-2][0])
+                        y1  = int(group[lg-2][1])
+                        x2 = int(group[lg-1][0])
+                        y2  = int(group[lg-1][1])
+                        cv2.line(self.img_track, (x1,y1), (x2, y2), 200, 1)
                     
 
                 '''
@@ -549,7 +509,7 @@ class DisplacementControlTest(MechanicalTest):
         self._initVariables()
         
         #self.thread.startTracking()
-        self.start_stop_tracking_signal.emit(True)
+        #self.start_stop_tracking_signal.emit(True)
         
         #start moving the motors
         self._axis1.move_velocity(self._vel_ax1, Units.VELOCITY_MILLIMETRES_PER_SECOND)
@@ -589,7 +549,7 @@ class DisplacementControlTest(MechanicalTest):
             
         # Stop motors after measurement cycle is finished
         self.stop_measurement()
-        self.start_stop_tracking_signal.emit(False)
+        #self.start_stop_tracking_signal.emit(False)
         self._writeDataToFile()
         
   

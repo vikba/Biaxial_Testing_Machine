@@ -152,8 +152,8 @@ class BiaxMainWindow(QMainWindow):
 
             self._liveforce_timer.stop()
 
-            if hasattr(self, '_video_thread'):
-                self._mecTest.start_stop_tracking_signal.connect(self._video_thread.startStopTracking)
+            #if hasattr(self, '_video_thread'):
+                #self._mecTest.start_stop_tracking_signal.connect(self._video_thread.startStopTracking)
             
             if hasattr(self, '_label_timer'):
                 self._label_timer.stop()

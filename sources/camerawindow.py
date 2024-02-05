@@ -7,7 +7,7 @@ Created on Sun Jan  7 09:03:14 2024
 
 import sys
 import cv2
-import math
+#import math
 import numpy as np
 import time
 import csv
@@ -19,80 +19,7 @@ from datetime import datetime
 
 from vimba import *
 
-
-class markersDetection:
-    '''
-    class with methods to detect markers on the image
-    '''
-    
-    #fl_img to show that image with circles should be returned as a result, 
-    #otherwise coordinates of markers
-    def detectMarkers(self, image):
-        """
-        Detects markers in the given image and returns the resulting image with markers 
-        drawn and the coordinates of the detected markers.
-        """
-        #gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        blur = cv2.medianBlur(image, 9)
-        #thresh = cv2.adaptiveThreshold(blur,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,15,2)
-        _, thresh = cv2.threshold(blur, 200, 255, cv2.THRESH_BINARY)
-        
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3,3))
-        closing = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=2)
-        opening = cv2.morphologyEx(closing, cv2.MORPH_OPEN, kernel, iterations=3)
-        
-        opening = ~opening
-        
-        # Find circles 
-        cnts = cv2.findContours(opening, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
-        #print("contours {}".format(len(cnts[0])))
-        #print("contours {}".format(len(cnts[1])))
-        cnts = cnts[0] if len(cnts) == 2 else cnts[1]
-        
-        
-        
-        marks_groups = []
-        
-        res_img = image
-        
-        for c in cnts:
-            area = cv2.contourArea(c)
-            perimeter = cv2.arcLength(c,True)
-            if perimeter == 0:
-                continue
-            circularity = 4*math.pi*(area/(perimeter*perimeter))
-           
-            if 0.7 < circularity and area > 50:
-                '''
-                ((x, y), r) = cv2.minEnclosingCircle(c)
-                x = int (x)
-                y = int (y)
-                r = int (r)
-
-                cv2.circle(res_img, (x, y), r, 120, 2) '''
-
-                #Find center with image moments
-                M = cv2.moments(c)
-    
-                # Check if the moment "m00" is zero to avoid division by zero
-                if M["m00"] != 0:
-                    x = int(M["m10"] / M["m00"])
-                    y = int(M["m01"] / M["m00"])
-                else:
-                    x, y = 0, 0  # Assign some default value in case m00 is zero
-
-                cv2.drawContours(res_img, c, -1, 1, 1)
-                cv2.circle(res_img, (x, y), 1, 255, 2)
-                
-                
-                  
-                marks_groups.append((x,y))
-        
-        #(36, 255, 12)
-        #img = cv2.drawContours(gray, cnts, 3, (0,255,0), 3)
-        #print(type(marks_groups))
-        
-        return res_img, marks_groups
+from .markersdetection import markersDetection
      
 
 class VideoThread(QThread):
