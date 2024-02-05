@@ -192,7 +192,7 @@ class MechanicalTest (QThread):
         motors initialization
         """
 
-        ip_zaber = "172.31.250.109"
+        ip_zaber = "172.31.100.108"
         
         try:
             self._connection_z = Connection.open_tcp(ip_zaber, Connection.TCP_PORT_CHAIN)
@@ -224,7 +224,7 @@ class MechanicalTest (QThread):
         The function also connects the controller buffer and variable, removes the first 
         values from the buffer, and reads load cell data before installing the sample. 
         """
-        ip_daq = "172.31.250.105"#Controller IP
+        ip_daq = "172.31.100.107"#Controller IP
 
         #Initialisation of a buffer connection
         self._conn_q=Qstation.ConnectGIns()
