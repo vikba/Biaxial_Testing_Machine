@@ -16,9 +16,15 @@ class MplWidget(QWidget):
     def __init__(self, parent = None):
 
         QWidget.__init__(self, parent)
+
+        fig = Figure()
+        #fig.tight_layout()
+
+        fig.subplots_adjust(bottom=0.2)  # Adjusts the bottom of the subplot area
+
         
-        self.canvas = FigureCanvas(Figure())
-        
+        self.canvas = FigureCanvas(fig)
+    
         vertical_layout = QVBoxLayout()
         vertical_layout.addWidget(self.canvas)
         

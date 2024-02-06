@@ -27,7 +27,7 @@ from mplwidget import * '''
 from PyQt6.QtWidgets import QApplication
 
 from sources import BiaxMainWindow
-from sources import MplWidget
+#from sources import MplWidget
 
 if __name__ == '__main__':
     #start of the application

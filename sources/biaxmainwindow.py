@@ -13,7 +13,7 @@ import os
 from .mechanicaltests import DisplacementControlTest, LoadControlTest
 from .camerawindow import VideoThread, VideoWindow
 from .loadcalculator import LoadCalculatorWindow
-from .mplwidget import MplWidget
+#from .mplwidget import MplWidget
 
      
 class BiaxMainWindow(QMainWindow):
