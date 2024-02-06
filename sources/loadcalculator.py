@@ -33,7 +33,14 @@ class LoadCalculatorWindow(QWidget):
         pass
 
     def calcLoads(self):
-        pass
+        if self.radioButton_Stress.isChecked():
+            self.load1 = float(self.factor_axis1.text()) * self.factor_L1.value() * self.factor_thickness.value() / 1000
+            self.load2 = float(self.factor_axis2.text()) * self.factor_L2.value() * self.factor_thickness.value() / 1000
+
+            self.factor_calculatedLoad1.setText(str(self.load1))
+            self.factor_calculatedLoad2.setText(str(self.load2))
+
+            self.signal_loads_calculated.emit(self.load1, self.load2)
 
 
 

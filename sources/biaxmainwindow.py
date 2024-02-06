@@ -404,7 +404,17 @@ class BiaxMainWindow(QMainWindow):
             
     def __calculateLoads (self):
         self._calc_loads_window = LoadCalculatorWindow()
+        self._calc_loads_window.signal_loads_calculated.connect(self.__setLoads)
+
         self._calc_loads_window.show()
+
+    
+    def __setLoads(self, load1, load2):
+        self.end_force1 = load1
+        self.end_force2 = load2
+
+        self.factorForceAx1.setText(str(load1))
+        self.factorForceAx2.setText(str(load2))
     
     
     def __startCamera(self):
@@ -435,6 +445,9 @@ class BiaxMainWindow(QMainWindow):
             warning_box.setText("Connect to motors and DAQ first!")
             warning_box.exec()
         
+
+
+
     
     def __updatePID(self):
         if hasattr(self, '_mecTest') and isinstance(self._mecTest, LoadControlTest):

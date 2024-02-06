@@ -55,13 +55,6 @@
     <number>2</number>
    </property>
    <layout class="QGridLayout" name="gridLayout">
-    <item row="0" column="0" colspan="4">
-     <widget class="QLabel" name="label_2">
-      <property name="text">
-       <string>Enter specimen dimensions</string>
-      </property>
-     </widget>
-    </item>
     <item row="1" column="0">
      <widget class="QLabel" name="label_3">
       <property name="text">
@@ -69,18 +62,12 @@
       </property>
      </widget>
     </item>
-    <item row="1" column="1">
-     <widget class="QSpinBox" name="factor_L1"/>
-    </item>
-    <item row="1" column="2">
-     <widget class="QLabel" name="label_4">
+    <item row="0" column="0" colspan="4">
+     <widget class="QLabel" name="label_2">
       <property name="text">
-       <string>L2 (mm)</string>
+       <string>Enter specimen dimensions</string>
       </property>
      </widget>
-    </item>
-    <item row="1" column="3">
-     <widget class="QSpinBox" name="factor_L2"/>
     </item>
     <item row="1" column="4">
      <widget class="QLabel" name="label_5">
@@ -89,8 +76,48 @@
       </property>
      </widget>
     </item>
+    <item row="1" column="2">
+     <widget class="QLabel" name="label_4">
+      <property name="text">
+       <string>L2 (mm)</string>
+      </property>
+     </widget>
+    </item>
     <item row="1" column="5">
-     <widget class="QDoubleSpinBox" name="factor_thickness"/>
+     <widget class="QDoubleSpinBox" name="factor_thickness">
+      <property name="singleStep">
+       <double>0.010000000000000</double>
+      </property>
+      <property name="value">
+       <double>0.500000000000000</double>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="1">
+     <widget class="QDoubleSpinBox" name="factor_L1">
+      <property name="decimals">
+       <number>1</number>
+      </property>
+      <property name="singleStep">
+       <double>0.500000000000000</double>
+      </property>
+      <property name="value">
+       <double>10.000000000000000</double>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="3">
+     <widget class="QDoubleSpinBox" name="factor_L2">
+      <property name="decimals">
+       <number>1</number>
+      </property>
+      <property name="singleStep">
+       <double>0.500000000000000</double>
+      </property>
+      <property name="value">
+       <double>10.000000000000000</double>
+      </property>
+     </widget>
     </item>
    </layout>
   </widget>
@@ -143,7 +170,7 @@
     <item>
      <widget class="QRadioButton" name="radioButton_Stress">
       <property name="text">
-       <string>Stress (Pa)</string>
+       <string>Stress (kPa)</string>
       </property>
       <property name="checked">
        <bool>true</bool>
@@ -192,7 +219,11 @@
      </widget>
     </item>
     <item row="0" column="1">
-     <widget class="QLineEdit" name="factor_axis1"/>
+     <widget class="QLineEdit" name="factor_axis1">
+      <property name="text">
+       <string>700</string>
+      </property>
+     </widget>
     </item>
     <item row="1" column="0">
      <widget class="QLabel" name="label_9">
@@ -202,7 +233,11 @@
      </widget>
     </item>
     <item row="1" column="1">
-     <widget class="QLineEdit" name="factor_axis2"/>
+     <widget class="QLineEdit" name="factor_axis2">
+      <property name="text">
+       <string>700</string>
+      </property>
+     </widget>
     </item>
    </layout>
   </widget>
@@ -248,12 +283,12 @@
     <item row="0" column="1">
      <widget class="QLabel" name="label_11">
       <property name="text">
-       <string>g</string>
+       <string>N</string>
       </property>
      </widget>
     </item>
     <item row="1" column="0">
-     <widget class="QLineEdit" name="factor_calculatedLoad1_2">
+     <widget class="QLineEdit" name="factor_calculatedLoad2">
       <property name="readOnly">
        <bool>true</bool>
       </property>
@@ -262,7 +297,7 @@
     <item row="1" column="1">
      <widget class="QLabel" name="label_12">
       <property name="text">
-       <string>g</string>
+       <string>N</string>
       </property>
      </widget>
     </item>
