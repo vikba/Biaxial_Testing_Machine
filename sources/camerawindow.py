@@ -166,7 +166,7 @@ class VideoThread(QThread):
             with cams [0] as cam:
                 
                 cam.Gain.set(10)
-                cam.ExposureTime.set(1000)
+                cam.ExposureTime.set(1500)
         
                 while self._execute:
                     
@@ -207,8 +207,16 @@ class VideoThread(QThread):
                             print("Start recording")
                             print("Point 1 {},  {}".format(self._roi_x1, self._roi_y1))
                             print("Point 2 {},  {}".format(self._roi_x2, self._roi_y2))
+
+                            n_marks = 0
+
+                            for coord in coord_temp:
+                                if self.if_within_roi(coord):
+                                        n_marks += 1
+
                             
-                            if len(coord_temp) == 4:
+                            
+                            if True or n_marks == 4:
                                 #allocate (x,y) in first empty sub(list)
                                 i = 0
                                 for coord in coord_temp:

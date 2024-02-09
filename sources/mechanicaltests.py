@@ -447,6 +447,7 @@ class MechanicalTest (QThread):
                     #calculate strain
                     #along horizontal axis - upper and lower groups]
                     #the algorithm find contours arranges points along y axis of an image
+                    '''
                     eps_ab = (math.dist(self.group1[-1],self.group2[-1])-math.dist(self.group1[0],self.group2[0]))/math.dist(self.group1[-1],self.group2[-1])
                     eps_cd = (math.dist(self.group3[-1],self.group4[-1])-math.dist(self.group3[0],self.group4[0]))/math.dist(self.group3[-1],self.group4[-1])
                     lambda_1 = (2 + eps_ab + eps_cd)/2
@@ -458,15 +459,47 @@ class MechanicalTest (QThread):
                         eps_bd = (math.dist(self.group2[-1],self.group4[-1])-math.dist(self.group2[0],self.group4[0]))/math.dist(self.group2[-1],self.group4[-1])
                     else:
                         eps_ac = (math.dist(self.group1[-1],self.group4[-1])-math.dist(self.group1[0],self.group4[0]))/math.dist(self.group1[-1],self.group4[-1])
-                        eps_bd = (math.dist(self.group2[-1],self.group3[-1])-math.dist(self.group2[0],self.group3[0]))/math.dist(self.group2[-1],self.group3[-1])
+                        eps_bd = (math.dist(self.group2[-1],self.group3[-1])-math.dist(self.group2[0],self.group3[0]))/math.dist(self.group2[-1],self.group3[-1]) 
+                    
+                    eps_ab = math.dist(self.group1[-1],self.group2[-1])/math.dist(self.group1[0],self.group2[0])
+                    eps_cd = math.dist(self.group3[-1],self.group4[-1])/math.dist(self.group3[0],self.group4[0])
+                    lambda_1 = (2 + eps_ab + eps_cd)/2
+                    #E11 = (lambda_1*lambda_1-1)/2
+                    E11 = (eps_ab + eps_cd)/2
 
+                    #check orientation of the points
+                    if (self.group1[0][1]-self.group3[0][1] < self.group1[0][1]-self.group4[0][1]):
+                        eps_ac = math.dist(self.group1[-1],self.group3[-1])/math.dist(self.group1[0],self.group3[0])
+                        eps_bd = math.dist(self.group2[-1],self.group4[-1])/math.dist(self.group2[0],self.group4[0])
+                    else:
+                        eps_ac = math.dist(self.group1[-1],self.group4[-1])/math.dist(self.group1[0],self.group4[0])
+                        eps_bd = math.dist(self.group2[-1],self.group3[-1])/math.dist(self.group2[0],self.group3[0])
                     lambda_2 = (2 + eps_ac + eps_bd)/2
-                    E22 = (lambda_2*lambda_2-1)/2
+                    #E22 = (lambda_2*lambda_2-1)/2
+                    E22 = (eps_ac + eps_bd)/2
 
                     self._E11.append(E11)
-                    self._E22.append(E22)
+                    self._E22.append(E22) '''
                     
                     #print("E11 {} E22 {}".format(E11, E22))
+
+                L1_0 = (math.dist(self.group1[0],self.group2[0]) + math.dist(self.group3[0],self.group4[0])) / 2
+                L1_last = (math.dist(self.group1[-1],self.group2[-1]) + math.dist(self.group3[-1],self.group4[-1])) / 2
+
+                if (self.group1[0][1]-self.group3[0][1] < self.group1[0][1]-self.group4[0][1]):
+                    L2_0 = (math.dist(self.group1[0],self.group3[0]) + math.dist(self.group2[0],self.group4[0])) / 2
+                    L2_last = (math.dist(self.group1[-1],self.group3[-1]) + math.dist(self.group2[-1],self.group4[-1])) / 2
+                else:
+                    L2_0 = (math.dist(self.group1[0],self.group4[0]) + math.dist(self.group2[0],self.group3[0])) / 2
+                    L2_last = (math.dist(self.group1[-1],self.group4[-1]) + math.dist(self.group2[-1],self.group3[-1])) / 2
+                
+                
+                # Calculate strains
+                E11 = (L1_last - L1_0) / L1_0
+                E22 = (L2_last - L2_0) / L2_0
+
+                self._E11.append(E11)
+                self._E22.append(E22)
 
                 img = cv2.addWeighted(self.img_track, 0.2, img, 0.8, 0)
 
@@ -605,7 +638,7 @@ class DisplacementControlTest(MechanicalTest):
             self._time.append(round(self._current_time, roundDecimals))
          
             
-            self.update_matplotlib_signal.emit(self._ch1, self._ch2, self._l1, self._l2, self._time,[],[])
+            self.update_matplotlib_signal.emit(self._ch1, self._ch2, self._l1, self._l2, self._time,[],[],[],[])
             
 
 class LoadControlTest(MechanicalTest):
@@ -691,7 +724,7 @@ class LoadControlTest(MechanicalTest):
                 with cams [0] as cam:
                     
                     cam.Gain.set(10)
-                    cam.ExposureTime.set(1000)
+                    cam.ExposureTime.set(1500)
 
                     self.__performTest(cam) #True means to perform test with camera
 

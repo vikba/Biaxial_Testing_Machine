@@ -7,7 +7,7 @@
 #Set motor limits in steps
 #Check logic of displacement test
 #Correct folder for saving results
-#Change the tracking algorithm in a way so for each group of the marks it will find the closest element
+#Change the tracking algorithm in a way so for each group of the marks it will find the closest element  
 #Check what is going on at the end of load control test
 #Add cheking number of markers in ROI
 
