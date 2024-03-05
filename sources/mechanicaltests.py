@@ -397,34 +397,13 @@ class MechanicalTest (QThread):
                         x2 = int(group[lg-1][0])
                         y2  = int(group[lg-1][1])
                         cv2.line(self.img_track, (x1,y1), (x2, y2), 200, 1)
-                    
-
-                '''
-                l = len(self.marks_groups)
                 
-                #element - pair of (x,y) coordinates of a mark
                 #distribute marks in the groups
-                for element in coord_temp: 
-                    #print("(x,y) {}".format(element))
-                    min_dist = 2000
-                    group = []
-                    #For each element we are looking for a marks group with a lowest distance
-                    for i in range (0,l):
-                        gr = self.marks_groups[i]
-                        if len(gr) > 0:
-                            last = gr[len(gr) - 1]
-                            dist = math.dist(element, last)
-                            #print("dist {} and {} = {}".format(element, last, dist))
-                            if min_dist > dist and dist < 70:
-                                group = gr
-                                min_dist = dist    
-                    
-                    group.append(element) '''
-                
                 for gr in self.marks_groups:
                     if len(gr) > 0:
                         min_dist = 2000
                         el = None
+                        #element - pair of (x,y) coordinates of a mark
                         for element in coord_temp: 
                             #last = gr[len(gr) - 1]
                             dist = math.dist(element, gr[-1])
@@ -440,70 +419,47 @@ class MechanicalTest (QThread):
                         
                 
 
-                #print(self.group3)
-
+                #Calculate strains
                 if len(self.group1) > 1:
 
                     #calculate strain
                     #along horizontal axis - upper and lower groups]
                     #the algorithm find contours arranges points along y axis of an image
-                    '''
-                    eps_ab = (math.dist(self.group1[-1],self.group2[-1])-math.dist(self.group1[0],self.group2[0]))/math.dist(self.group1[-1],self.group2[-1])
-                    eps_cd = (math.dist(self.group3[-1],self.group4[-1])-math.dist(self.group3[0],self.group4[0]))/math.dist(self.group3[-1],self.group4[-1])
-                    lambda_1 = (2 + eps_ab + eps_cd)/2
-                    E11 = (lambda_1*lambda_1-1)/2
+    
+                    #Coordinates of initial and final points
+                    p1_0 = self.group1[0]
+                    p1 = self.group1[-1]
+                    p2_0 = self.group2[0]
+                    p2 = self.group2[-1]
+                    p3_0 = self.group3[0]
+                    p3 = self.group3[-1]
+                    p4_0 = self.group4[0]
+                    p4 = self.group4[-1]
 
-                    #check orientation of the points
-                    if (self.group1[0][1]-self.group3[0][1] < self.group1[0][1]-self.group4[0][1]):
-                        eps_ac = (math.dist(self.group1[-1],self.group3[-1])-math.dist(self.group1[0],self.group3[0]))/math.dist(self.group1[-1],self.group3[-1])
-                        eps_bd = (math.dist(self.group2[-1],self.group4[-1])-math.dist(self.group2[0],self.group4[0]))/math.dist(self.group2[-1],self.group4[-1])
+                    L1_0 = (math.dist(p1_0, p2_0) + math.dist(p3_0,p4_0)) / 2
+                    L1_last = (math.dist(p1, p2) + math.dist(p3, p4)) / 2
+
+                    if (p1_0[1]-p3_0[1] < p1_0[1]-p4_0[1]):
+                        L2_0 = (math.dist(p1_0, p3_0) + math.dist(p2_0,p4_0)) / 2
+                        L2_last = (math.dist(p1, p3) + math.dist(p2, p4)) / 2
                     else:
-                        eps_ac = (math.dist(self.group1[-1],self.group4[-1])-math.dist(self.group1[0],self.group4[0]))/math.dist(self.group1[-1],self.group4[-1])
-                        eps_bd = (math.dist(self.group2[-1],self.group3[-1])-math.dist(self.group2[0],self.group3[0]))/math.dist(self.group2[-1],self.group3[-1]) 
+                        L2_0 = (math.dist(p1_0, p4_0) + math.dist(p2_0, p3_0)) / 2
+                        L2_last = (math.dist(p1, p4) + math.dist(p2, p3)) / 2
                     
-                    eps_ab = math.dist(self.group1[-1],self.group2[-1])/math.dist(self.group1[0],self.group2[0])
-                    eps_cd = math.dist(self.group3[-1],self.group4[-1])/math.dist(self.group3[0],self.group4[0])
-                    lambda_1 = (2 + eps_ab + eps_cd)/2
-                    #E11 = (lambda_1*lambda_1-1)/2
-                    E11 = (eps_ab + eps_cd)/2
+                    
+                    # Calculate strains
+                    lambda1 = (L1_last - L1_0) / L1_0
+                    lambda2 = (L2_last - L2_0) / L2_0
 
-                    #check orientation of the points
-                    if (self.group1[0][1]-self.group3[0][1] < self.group1[0][1]-self.group4[0][1]):
-                        eps_ac = math.dist(self.group1[-1],self.group3[-1])/math.dist(self.group1[0],self.group3[0])
-                        eps_bd = math.dist(self.group2[-1],self.group4[-1])/math.dist(self.group2[0],self.group4[0])
-                    else:
-                        eps_ac = math.dist(self.group1[-1],self.group4[-1])/math.dist(self.group1[0],self.group4[0])
-                        eps_bd = math.dist(self.group2[-1],self.group3[-1])/math.dist(self.group2[0],self.group3[0])
-                    lambda_2 = (2 + eps_ac + eps_bd)/2
-                    #E22 = (lambda_2*lambda_2-1)/2
-                    E22 = (eps_ac + eps_bd)/2
+                    E11 = (lambda1*lambda1 - 1)/2
+                    E22 = (lambda2*lambda2 - 1)/2
 
                     self._E11.append(E11)
-                    self._E22.append(E22) '''
-                    
-                    #print("E11 {} E22 {}".format(E11, E22))
+                    self._E22.append(E22)
 
-                L1_0 = (math.dist(self.group1[0],self.group2[0]) + math.dist(self.group3[0],self.group4[0])) / 2
-                L1_last = (math.dist(self.group1[-1],self.group2[-1]) + math.dist(self.group3[-1],self.group4[-1])) / 2
+                    img = cv2.addWeighted(self.img_track, 0.2, img, 0.8, 0)
 
-                if (self.group1[0][1]-self.group3[0][1] < self.group1[0][1]-self.group4[0][1]):
-                    L2_0 = (math.dist(self.group1[0],self.group3[0]) + math.dist(self.group2[0],self.group4[0])) / 2
-                    L2_last = (math.dist(self.group1[-1],self.group3[-1]) + math.dist(self.group2[-1],self.group4[-1])) / 2
-                else:
-                    L2_0 = (math.dist(self.group1[0],self.group4[0]) + math.dist(self.group2[0],self.group3[0])) / 2
-                    L2_last = (math.dist(self.group1[-1],self.group4[-1]) + math.dist(self.group2[-1],self.group3[-1])) / 2
-                
-                
-                # Calculate strains
-                E11 = (L1_last - L1_0) / L1_0
-                E22 = (L2_last - L2_0) / L2_0
-
-                self._E11.append(E11)
-                self._E22.append(E22)
-
-                img = cv2.addWeighted(self.img_track, 0.2, img, 0.8, 0)
-
-                self.change_pixmap_signal.emit(img)
+                    self.change_pixmap_signal.emit(img)
 
 
 
