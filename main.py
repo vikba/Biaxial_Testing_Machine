@@ -2,7 +2,7 @@
 # ---------------------- main.py -----------------------
 # ------------------------------------------------------
 
-#Add condition to check if there are 4 markers
+
 #make the same numbering of points as in labview
 #Connect folder and writingin the file
 #Think about conditions of finishing the test

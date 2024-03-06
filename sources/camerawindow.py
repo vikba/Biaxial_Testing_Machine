@@ -210,20 +210,34 @@ class VideoThread(QThread):
 
                             n_marks = 0
 
+                            
                             for coord in coord_temp:
                                 if self.if_within_roi(coord):
                                         n_marks += 1
 
                             
                             
-                            if True or n_marks == 4:
+                            if n_marks == 4:
                                 #allocate (x,y) in first empty sub(list)
                                 i = 0
                                 for coord in coord_temp:
-                    
-                                    if self.if_within_roi(coord) and i < len(self.marks_groups):
+                                    #print a number on the image
+                                    # Font type
+                                    
+
+                                    if self.if_within_roi(coord)  and i < len(self.marks_groups):
                                         self.marks_groups[i].append(coord)
                                         i += 1
+
+                                        font = cv2.FONT_HERSHEY_SIMPLEX
+                                        p = (int(coord[0]+10),int(coord[1])+10)
+                                        cv2.putText(img, str(i), p, font, 1, 155, 2)
+                                       
+
+                                        
+                                
+
+                                print("Marks count: {}".format(i))
 
                                 #Get current date for filename
                                 current_datetime = datetime.now()
@@ -236,12 +250,13 @@ class VideoThread(QThread):
                                 self.stop()
 
                             else:
-                                print("Wrong number of marks. Expected 4. Detected {}".format(len(coord_temp)))
+                                print("Wrong number of marks. Expected 4. Detected {}".format(n_marks))
+                                '''
                                 warning_box = QMessageBox()
                                 warning_box.setIcon(QMessageBox.Icon.Warning)
                                 warning_box.setWindowTitle("Warning")
-                                warning_box.setText("Wrong number of marks. Expected 4. Detected {}".format(len(coord_temp)))
-                                warning_box.exec()
+                                warning_box.setText("Wrong number of marks. Expected 4. Detected {}".format(n_marks))
+                                warning_box.exec() '''
                                 
                             self._rec_marks = False
                             
