@@ -1,6 +1,3 @@
-# ------------------------------------------------------
-# ---------------------- main.py -----------------------
-# ------------------------------------------------------
 
 #Connect folder and writingin the file
 #Think about conditions of finishing the test
@@ -10,19 +7,6 @@
 #Change the tracking algorithm in a way so for each group of the marks it will find the closest element  
 #Check what is going on at the end of load control test
 #Add cheking number of markers in ROI
-
-
-
-
-'''
-import sys
-# Add the directory containing your module/file to the Python path
-sys.path.append('C:/Users/vbalashov/Desktop/Biax_App_Python/sources') 
-
-from biaxmainwindow import BiaxMainWindow
-from mechanicaltests import LoadControlTest
-from camerawindow import *
-from mplwidget import * '''
 
 from PyQt6.QtWidgets import QApplication
 
