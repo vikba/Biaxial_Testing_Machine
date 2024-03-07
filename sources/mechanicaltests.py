@@ -325,6 +325,7 @@ class MechanicalTest (QThread):
     
     def changeFolder(self, folder):
         self._workfolder = folder
+        
 
     def _writeDataToFile(self):
         # Combine the lists
@@ -336,7 +337,7 @@ class MechanicalTest (QThread):
 
         
         # Write to CSV file
-        with open('Test_'+formatted_datetime+'.csv', 'w', newline='') as file:
+        with open(self._workfolder + '\Test_'+formatted_datetime+'.csv', 'w', newline='') as file:
             writer = csv.writer(file, delimiter=';')
             writer.writerow(["Time", "Load_1", "Load_2", "Disp_1", "Disp_2", "E11", "E22"])  # Header row, if needed
             for row in combined_lists:
@@ -344,9 +345,9 @@ class MechanicalTest (QThread):
 
         # If videoextensometer is on and more than 10 marker positions were recorded
         # Write to CSV positions of markers
-        if len(self.point1 > 10):
+        if len(self.point1) > 10:
             combined_lists = zip(self._time, self.point1, self.point2, self.point3, self.point4)
-            with open('Test_'+formatted_datetime+'_markers.csv', 'w', newline='') as file:
+            with open(self._workfolder + '\Test_'+formatted_datetime+'_markers.csv', 'w', newline='') as file:
                 writer = csv.writer(file, delimiter=';')
                 writer.writerow(["Time","Marker_1", "Marker_2", "Marker_3", "Marker_4"])  # Header row, if needed
                 for row in combined_lists:
@@ -744,8 +745,8 @@ class LoadControlTest(MechanicalTest):
             if cam is not None:
                 current_datetime = datetime.now()
                 formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-                cv2.imwrite('Test_'+formatted_datetime+'_last_frame.jpg', self._img_cv)
-                cv2.imwrite('Test_'+formatted_datetime+'_tracks.jpg', self.img_track)
+                cv2.imwrite(self._workfolder + '\'Test_'+formatted_datetime+'_last_frame.jpg', self._img_cv)
+                cv2.imwrite(self._workfolder + '\'Test_'+formatted_datetime+'_tracks.jpg', self.img_track)
 
         #Cyclic test
         else:

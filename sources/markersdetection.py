@@ -43,7 +43,7 @@ class markersDetection:
                 continue
             circularity = 4*math.pi*(area/(perimeter*perimeter))
            
-            if 0.5 < circularity and area > 50 and area < 500:
+            if 0.5 < circularity and area > 50 and area < 1500:
                 '''
                 ((x, y), r) = cv2.minEnclosingCircle(c)
                 x = int (x)

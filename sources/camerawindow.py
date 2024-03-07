@@ -180,8 +180,6 @@ class VideoThread(QThread):
                         
                         #detect markers
                         img, coord_temp = markersDetection().detectMarkers(img_cv) #detection of Markers
-                        
-                            
                            
                         # True only one time to record initial position of the marks
                         if self._rec_marks:
@@ -201,21 +199,17 @@ class VideoThread(QThread):
                             upper_coord = sorted_y[:2]
                             lower_coord = sorted_y[2:]
                             #sort by x coord
-                            upper_sorted = sorted(upper_coord, key=lambda x: x[0])
-                            lower_sorted = sorted(lower_coord, key=lambda x: x[0])
+                            upper_sorted = sorted(upper_coord, key=lambda x: x[0], reverse=False)
+                            lower_sorted = sorted(lower_coord, key=lambda x: x[0], reverse=True)
 
                             sorted_coord = lower_sorted + upper_sorted
 
-                            print (sorted_coord)
+                            print ("Sorted: ")
+                            print(sorted_coord)
+                            print ("Filtered: ")
+                            print(filtered_coord)
                             n_marks = len(filtered_coord)
 
-                            '''
-                            n_marks = 0
-                            for coord in coord_temp:
-                                if self.if_within_roi(coord):
-                                        n_marks += 1
-                            
-                            if n_marks == 4:   '''
 
                             if n_marks == 4:
 
@@ -224,8 +218,6 @@ class VideoThread(QThread):
                                 for coord in sorted_coord:
                                     #print a number on the image
                                     # Font type
-                                    
-
                                     if self.if_within_roi(coord)  and i < len(self.marks_groups):
                                         self.marks_groups[i].append(coord)
                                         i += 1

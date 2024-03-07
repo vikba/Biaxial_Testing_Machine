@@ -89,7 +89,7 @@ class BiaxMainWindow(QMainWindow):
 
         # init work folder
         self._work_folder = tests_path
-        print(script_dir)
+        print(self._work_folder)
         self.labelFolder.setText(self._work_folder)
 
         #init matplotlib widgets to display charts

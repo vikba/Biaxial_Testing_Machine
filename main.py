@@ -1,14 +1,10 @@
 
 
-#make the same numbering of points as in labview
+#Move first frame to mechanical test
 #Connect folder and writingin the file
 #Think about conditions of finishing the test
 #Set motor limits in steps
 #Check logic of displacement test
-#Correct folder for saving results
-#Change the tracking algorithm in a way so for each group of the marks it will find the closest element  
-#Check what is going on at the end of load control test
-#Add cheking number of markers in ROI
 
 from PyQt6.QtWidgets import QApplication
 
@@ -22,3 +18,5 @@ if __name__ == '__main__':
     window = BiaxMainWindow()
     window.show()
     app.exec()
+
+
