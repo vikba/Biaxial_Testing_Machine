@@ -58,17 +58,15 @@ class VideoThread(QThread):
 
         #datastructures to store tracks of marks
         self.marks_groups = []
-        self.group1 = []
-        self.group2 = []
-        self.group3 = []
-        self.group4 = []
-        self.group5 = []
+        self.point1 = []
+        self.point2 = []
+        self.point3 = []
+        self.point4 = []
         
-        self.marks_groups.append(self.group1)
-        self.marks_groups.append(self.group2)
-        #self.marks_groups.append(self.group3)
-        self.marks_groups.append(self.group4)
-        self.marks_groups.append(self.group5)
+        self.marks_groups.append(self.point1)
+        self.marks_groups.append(self.point2)
+        self.marks_groups.append(self.point3)
+        self.marks_groups.append(self.point4)
 
         self._E11 = []
         self._E22 = []
@@ -206,7 +204,10 @@ class VideoThread(QThread):
                             upper_sorted = sorted(upper_coord, key=lambda x: x[0])
                             lower_sorted = sorted(lower_coord, key=lambda x: x[0])
 
-                            sorted_coord = lower_coord + upper_sorted
+                            sorted_coord = lower_sorted + upper_sorted
+
+                            print (sorted_coord)
+                            n_marks = len(filtered_coord)
 
                             '''
                             n_marks = 0
@@ -216,7 +217,7 @@ class VideoThread(QThread):
                             
                             if n_marks == 4:   '''
 
-                            if len(filtered_coord) == 4:
+                            if n_marks == 4:
 
                                 #allocate (x,y) in first empty sub(list)
                                 i = 0
@@ -251,69 +252,12 @@ class VideoThread(QThread):
 
                             else:
                                 print("Wrong number of marks. Expected 4. Detected {}".format(n_marks))
-                                '''
-                                warning_box = QMessageBox()
-                                warning_box.setIcon(QMessageBox.Icon.Warning)
-                                warning_box.setWindowTitle("Warning")
-                                warning_box.setText("Wrong number of marks. Expected 4. Detected {}".format(n_marks))
-                                warning_box.exec() '''
+                                      
+                                
                                 
                             self._rec_marks = False
                             
 
-                            
-                        elif False: #self._track_marks:
-                            
-                            self._current_time = time.perf_counter() - self._start_time
-                            self._time.append(round(self._current_time, 5))
-            
-                            l = len(self.marks_groups)
-                            
-                            #element - pair of (x,y) coordinates of a mark
-                            #distribute marks in the groups
-                            for element in coord_temp: 
-                                #print("(x,y) {}".format(element))
-                                min_dist = 2000
-                                group = []
-                                #For each element we are looking for a marks group with a lowest distance
-                                for i in range (0,l):
-                                    gr = self.marks_groups[i]
-                                    if len(gr) > 0:
-                                        last = gr[len(gr) - 1]
-                                        dist = math.dist(element, last)
-                                        #print("dist {} and {} = {}".format(element, last, dist))
-                                        if min_dist > dist and dist < 70:
-                                            group = gr
-                                            min_dist = dist
-                                
-                                group.append(element)
-
-
-                            #calculate strain
-                            #along horizontal axis - upper and lower groups]
-                            #the algorithm find contours arranges points along y axis of an image
-                            eps_ab = (math.dist(self.group1[-1],self.group2[-1])-math.dist(self.group1[0],self.group2[0]))/math.dist(self.group1[-1],self.group2[-1])
-                            eps_cd = (math.dist(self.group4[-1],self.group5[-1])-math.dist(self.group4[0],self.group5[0]))/math.dist(self.group4[-1],self.group5[-1])
-                            lambda_1 = (2 + eps_ab + eps_cd)/2
-                            E11 = (lambda_1*lambda_1-1)/2
-
-                            #check orientation of the points
-                            if (self.group1[0][1]-self.group4[0][1] < self.group1[0][1]-self.group5[0][1]):
-                                eps_ac = (math.dist(self.group1[-1],self.group4[-1])-math.dist(self.group1[0],self.group4[0]))/math.dist(self.group1[-1],self.group4[-1])
-                                eps_bd = (math.dist(self.group2[-1],self.group5[-1])-math.dist(self.group2[0],self.group5[0]))/math.dist(self.group2[-1],self.group5[-1])
-                            else:
-                                eps_ac = (math.dist(self.group1[-1],self.group5[-1])-math.dist(self.group1[0],self.group5[0]))/math.dist(self.group1[-1],self.group5[-1])
-                                eps_bd = (math.dist(self.group2[-1],self.group4[-1])-math.dist(self.group2[0],self.group4[0]))/math.dist(self.group2[-1],self.group4[-1])
-
-                            lambda_2 = (2 + eps_ac + eps_bd)/2
-                            E22 = (lambda_2*lambda_2-1)/2
-
-                            self._E11.append(E11)
-                            self._E22.append(E22)
-                            
-                            print("E11 {} E22 {}".format(E11, E22))
-
-                            #print(self.marks_groups)
                         
                         #append marks coordinates to the tracks to that they have the lowest distance 
                         #lowest distance - they are from this track
@@ -340,23 +284,6 @@ class VideoThread(QThread):
                 #self.writeDataToFile()
                 self.quit()
             
-    def writeDataToFile(self):
-        # Combine the lists
-        combined_lists = zip(self._time, self._E11, self._E22, self.group1, self.group2, self.group3, self.group4, self.group5)
-        
-        #Get current date for filename
-        current_datetime = datetime.now()
-        formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-        
-        
-        # Write to CSV file
-        with open('Test_'+formatted_datetime+'_markers.csv', 'w', newline='') as file:
-            writer = csv.writer(file, delimiter=';')
-            writer.writerow(["Time", "E11", "E22", "Marker_1", "Marker_2", "Marker_3", "Marker_4", "Marker_5"])  # Header row, if needed
-            for row in combined_lists:
-                writer.writerow(row)
-                
-                
                     
 
 class VideoWindow(QWidget):

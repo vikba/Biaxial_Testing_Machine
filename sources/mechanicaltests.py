@@ -342,6 +342,18 @@ class MechanicalTest (QThread):
             for row in combined_lists:
                 writer.writerow(row)
 
+        # If videoextensometer is on and more than 10 marker positions were recorded
+        # Write to CSV positions of markers
+        if len(self.point1 > 10):
+            combined_lists = zip(self._time, self.point1, self.point2, self.point3, self.point4)
+            with open('Test_'+formatted_datetime+'_markers.csv', 'w', newline='') as file:
+                writer = csv.writer(file, delimiter=';')
+                writer.writerow(["Time","Marker_1", "Marker_2", "Marker_3", "Marker_4"])  # Header row, if needed
+                for row in combined_lists:
+                    writer.writerow(row)
+
+
+
     def marksRecorded(self, lst):
         '''
         This function is connected with signal in video_thread which is emitted when marks are recorded
@@ -350,21 +362,21 @@ class MechanicalTest (QThread):
 
         # Variables to store markers position
         self.marks_groups = []
-        self.group1 = []
-        self.group2 = []
-        self.group3 = []
-        self.group4 = []
+        self.point1 = []
+        self.point2 = []
+        self.point3 = []
+        self.point4 = []
         
-        self.marks_groups.append(self.group1)
-        self.marks_groups.append(self.group2)
-        self.marks_groups.append(self.group3)
-        self.marks_groups.append(self.group4)
+        self.marks_groups.append(self.point1)
+        self.marks_groups.append(self.point2)
+        self.marks_groups.append(self.point3)
+        self.marks_groups.append(self.point4)
 
 
-        self.group1.append(lst[0][0])
-        self.group2.append(lst[1][0])
-        self.group3.append(lst[2][0])
-        self.group4.append(lst[3][0])
+        self.point1.append(lst[0][0])
+        self.point2.append(lst[1][0])
+        self.point3.append(lst[2][0])
+        self.point4.append(lst[3][0])
 
         print("Marks recorded")
         print(self.marks_groups)
@@ -420,21 +432,21 @@ class MechanicalTest (QThread):
                 
 
                 #Calculate strains
-                if len(self.group1) > 1:
+                if len(self.point1) > 1:
 
                     #calculate strain
                     #along horizontal axis - upper and lower groups]
                     #the algorithm find contours arranges points along y axis of an image
     
                     #Coordinates of initial and final points
-                    p1_0 = self.group1[0]
-                    p1 = self.group1[-1]
-                    p2_0 = self.group2[0]
-                    p2 = self.group2[-1]
-                    p3_0 = self.group3[0]
-                    p3 = self.group3[-1]
-                    p4_0 = self.group4[0]
-                    p4 = self.group4[-1]
+                    p1_0 = self.point1[0]
+                    p1 = self.point1[-1]
+                    p2_0 = self.point2[0]
+                    p2 = self.point2[-1]
+                    p3_0 = self.point3[0]
+                    p3 = self.point3[-1]
+                    p4_0 = self.point4[0]
+                    p4 = self.point4[-1]
 
                     L1_0 = (math.dist(p1_0, p2_0) + math.dist(p3_0,p4_0)) / 2
                     L1_last = (math.dist(p1, p2) + math.dist(p3, p4)) / 2
@@ -735,6 +747,7 @@ class LoadControlTest(MechanicalTest):
                 cv2.imwrite('Test_'+formatted_datetime+'_last_frame.jpg', self._img_cv)
                 cv2.imwrite('Test_'+formatted_datetime+'_tracks.jpg', self.img_track)
 
+        #Cyclic test
         else:
             self._start_time = time.perf_counter()
             cycle = 0
