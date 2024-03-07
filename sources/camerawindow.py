@@ -170,12 +170,8 @@ class VideoThread(QThread):
         
                 while self._execute:
                     
-                    
                     t = time.perf_counter()
                     time.sleep(0.1)
-                    
-                    
-                    
                     frame = cam.get_frame ()
                     
                     if frame:
@@ -187,16 +183,6 @@ class VideoThread(QThread):
                         #detect markers
                         img, coord_temp = markersDetection().detectMarkers(img_cv) #detection of Markers
                         
-                        #print("Time 2 {}".format(time.perf_counter()-t))
-                        #img = img_cv
-                        #coord_temp = []
-                        #print(coord_temp)
-                        
-                        #draw track of the markers
-                        for group in self.marks_groups:
-                            lg = len(group)
-                            if lg > 1:
-                                cv2.line(img_track, group[lg-2], group[lg-1], 150, 1)
                             
                            
                         # True only one time to record initial position of the marks
@@ -208,19 +194,33 @@ class VideoThread(QThread):
                             print("Point 1 {},  {}".format(self._roi_x1, self._roi_y1))
                             print("Point 2 {},  {}".format(self._roi_x2, self._roi_y2))
 
-                            n_marks = 0
+                            filtered_coord = [coord for coord in coord_temp if self.if_within_roi(coord)]
 
-                            
+                            #We need to ensure constant point order on the image
+                            #sort by y coord to separate upper and lower marks
+                            sorted_y = sorted(filtered_coord, key=lambda x: x[1])
+                            #split into upper and lower
+                            upper_coord = sorted_y[:2]
+                            lower_coord = sorted_y[2:]
+                            #sort by x coord
+                            upper_sorted = sorted(upper_coord, key=lambda x: x[0])
+                            lower_sorted = sorted(lower_coord, key=lambda x: x[0])
+
+                            sorted_coord = lower_coord + upper_sorted
+
+                            '''
+                            n_marks = 0
                             for coord in coord_temp:
                                 if self.if_within_roi(coord):
                                         n_marks += 1
+                            
+                            if n_marks == 4:   '''
 
-                            
-                            
-                            if n_marks == 4:
+                            if len(filtered_coord) == 4:
+
                                 #allocate (x,y) in first empty sub(list)
                                 i = 0
-                                for coord in coord_temp:
+                                for coord in sorted_coord:
                                     #print a number on the image
                                     # Font type
                                     
@@ -260,10 +260,7 @@ class VideoThread(QThread):
                                 
                             self._rec_marks = False
                             
-                            
 
-
-                            
                             
                         elif False: #self._track_marks:
                             
@@ -321,6 +318,11 @@ class VideoThread(QThread):
                         #append marks coordinates to the tracks to that they have the lowest distance 
                         #lowest distance - they are from this track
                         
+                        #draw track of the markers
+                        for group in self.marks_groups:
+                            lg = len(group)
+                            if lg > 1:
+                                cv2.line(img_track, group[lg-2], group[lg-1], 150, 1)
                    
                         img = cv2.addWeighted(img_track, 1, img, 1, 0)
 
