@@ -695,6 +695,15 @@ class LoadControlTest(MechanicalTest):
                     cam.Gain.set(10)
                     cam.ExposureTime.set(1500)
 
+                    frame = cam.get_frame ()
+                    if frame: 
+                        img_cv = frame.as_opencv_image()
+
+                        #Get current date for filename
+                        current_datetime = datetime.now()
+                        formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
+                        cv2.imwrite(self._workfolder + '\Test_'+formatted_datetime+'_first_frame.jpg', img_cv)
+
                     self.__performTest(cam) #True means to perform test with camera
 
         else:
@@ -745,8 +754,8 @@ class LoadControlTest(MechanicalTest):
             if cam is not None:
                 current_datetime = datetime.now()
                 formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-                cv2.imwrite(self._workfolder + '\'Test_'+formatted_datetime+'_last_frame.jpg', self._img_cv)
-                cv2.imwrite(self._workfolder + '\'Test_'+formatted_datetime+'_tracks.jpg', self.img_track)
+                cv2.imwrite(self._workfolder + '\Test_'+formatted_datetime+'_last_frame.jpg', self._img_cv)
+                cv2.imwrite(self._workfolder + '\Test_'+formatted_datetime+'_tracks.jpg', self.img_track)
 
         #Cyclic test
         else:
@@ -800,7 +809,7 @@ class LoadControlTest(MechanicalTest):
                 if cam is not None:
                     current_datetime = datetime.now()
                     formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-                    cv2.imwrite('Test_'+formatted_datetime+'_last_frame.jpg', self._img_cv)
+                    cv2.imwrite(self._workfolder + '\Test_'+formatted_datetime+'_last_frame.jpg', self._img_cv)
                 
                 start_half_cycle_time = time.perf_counter()
                 self._pid_1.reset()
@@ -816,7 +825,7 @@ class LoadControlTest(MechanicalTest):
                 
 
             if cam is not None:
-                cv2.imwrite('Test_'+formatted_datetime+'_tracks.jpg', self.img_track)
+                cv2.imwrite(self._workfolder + '\Test_'+formatted_datetime+'_tracks.jpg', self.img_track)
 
         
         #After test is finished (all the loops finished)

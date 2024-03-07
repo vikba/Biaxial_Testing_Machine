@@ -1,0 +1,4 @@
+ File "c:\Users\vbalashov\Desktop\Biaxial_Testing_Machine\sources\mechanicaltests.py", line 348, in _writeDataToFile
+    if len(self.point1) > 10:
+           ^^^^^^^^^^^
+AttributeError: 'LoadControlTest' object has no attribute 'point1'

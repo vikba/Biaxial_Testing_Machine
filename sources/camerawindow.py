@@ -225,17 +225,9 @@ class VideoThread(QThread):
                                         font = cv2.FONT_HERSHEY_SIMPLEX
                                         p = (int(coord[0]+10),int(coord[1])+10)
                                         cv2.putText(img, str(i), p, font, 1, 155, 2)
-                                       
 
-                                        
-                                
 
                                 print("Marks count: {}".format(i))
-
-                                #Get current date for filename
-                                current_datetime = datetime.now()
-                                formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-                                cv2.imwrite('Test_'+formatted_datetime+'_first_frame.jpg', img_cv)
 
                                 self.signal_marks_recorded.emit(self.marks_groups)
                                 #print("Recorded marks:")
