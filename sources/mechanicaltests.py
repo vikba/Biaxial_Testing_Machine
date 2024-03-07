@@ -461,8 +461,8 @@ class MechanicalTest (QThread):
                     
                     
                     # Calculate strains
-                    lambda1 = (L1_last - L1_0) / L1_0
-                    lambda2 = (L2_last - L2_0) / L2_0
+                    lambda1 = 1 + (L1_last - L1_0) / L1_0
+                    lambda2 = 1 + (L2_last - L2_0) / L2_0
 
                     E11 = (lambda1*lambda1 - 1)/2
                     E22 = (lambda2*lambda2 - 1)/2
