@@ -2,3 +2,5 @@
     if len(self.point1) > 10:
            ^^^^^^^^^^^
 AttributeError: 'LoadControlTest' object has no attribute 'point1'
+
+ SyntaxWarning: invalid escape sequence '\T'

@@ -1,5 +1,6 @@
 import cv2
 import math
+import numpy as np
 
 class markersDetection:
     '''
@@ -15,7 +16,22 @@ class markersDetection:
         """
         #gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         blur = cv2.medianBlur(image, 9)
+
+        blur_strong = cv2.GaussianBlur(image, (71,71), 0)
+
+        blur_darker =  blur_strong.astype(np.float32) * 0.9
+
+        blur_darker = np.clip(blur_darker, 0, 255).astype(np.uint8)
+
+
+    
+
+
+
         #thresh = cv2.adaptiveThreshold(blur,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,15,2)
+
+        subtract_image = cv2.subtract(blur, blur_darker)
+
         _, thresh = cv2.threshold(blur, 200, 255, cv2.THRESH_BINARY)
         
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3,3))
@@ -34,7 +50,7 @@ class markersDetection:
         
         marks_groups = []
         
-        res_img = image
+        res_img = subtract_image 
         
         for c in cnts:
             area = cv2.contourArea(c)

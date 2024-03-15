@@ -54,7 +54,8 @@ class MechanicalTest (QThread):
 
 
         self.use_camera = False
-        self.marks_recorded = True
+        #why?
+        #self.marks_recorded = True
   
         
 
@@ -345,7 +346,7 @@ class MechanicalTest (QThread):
 
         # If videoextensometer is on and more than 10 marker positions were recorded
         # Write to CSV positions of markers
-        if len(self.point1) > 10:
+        if self._fl_marks:
             combined_lists = zip(self._time, self.point1, self.point2, self.point3, self.point4)
             with open(self._workfolder + '\Test_'+formatted_datetime+'_markers.csv', 'w', newline='') as file:
                 writer = csv.writer(file, delimiter=';')
