@@ -19,18 +19,15 @@ class markersDetection:
 
         blur_strong = cv2.GaussianBlur(image, (71,71), 0)
 
-        blur_darker =  blur_strong.astype(np.float32) * 0.9
+        #blur_darker =  blur_strong.astype(np.float32) * 0.9
+        #blur_darker = np.clip(blur_darker, 0, 255).astype(np.uint8)
 
-        blur_darker = np.clip(blur_darker, 0, 255).astype(np.uint8)
-
-
-    
-
-
+        blur_inv = cv2.bitwise_not(blur)
+        blur_strong_inv = cv2.bitwise_not(blur_strong)
 
         #thresh = cv2.adaptiveThreshold(blur,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,15,2)
 
-        subtract_image = cv2.subtract(blur, blur_darker)
+        subtract_image = cv2.subtract(blur_inv, blur_strong_inv)
 
         _, thresh = cv2.threshold(blur, 200, 255, cv2.THRESH_BINARY)
         
