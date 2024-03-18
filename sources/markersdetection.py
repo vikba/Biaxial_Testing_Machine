@@ -15,9 +15,9 @@ class markersDetection:
         drawn and the coordinates of the detected markers.
         """
         #gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        blur = cv2.medianBlur(image, 9)
-
-        blur_strong = cv2.GaussianBlur(image, (71,71), 0)
+        blur = cv2.medianBlur(image, 3)
+        blur_strong = cv2.medianBlur(image, 33)
+        #blur_strong = cv2.GaussianBlur(image, (71,71), 0)
 
         #blur_darker =  blur_strong.astype(np.float32) * 0.9
         #blur_darker = np.clip(blur_darker, 0, 255).astype(np.uint8)
@@ -27,7 +27,7 @@ class markersDetection:
         subtract_image = cv2.subtract(blur_inv, blur_strong_inv)
 
         #thresh = cv2.adaptiveThreshold(blur,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,15,2)
-        #_, thresh = cv2.threshold(subtract_image, 50, 255, cv2.THRESH_BINARY)
+        #_, thresh = cv2.threshold(subtract_image, 250, 255, cv2.THRESH_BINARY)
         ret, thresh = cv2.threshold(subtract_image, 30, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
         
