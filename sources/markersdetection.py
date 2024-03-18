@@ -50,7 +50,7 @@ class markersDetection:
         
         marks_groups = []
         
-        res_img = subtract_image 
+        res_img = image 
         
         for c in cnts:
             area = cv2.contourArea(c)
