@@ -24,12 +24,12 @@ class markersDetection:
 
         blur_inv = cv2.bitwise_not(blur)
         blur_strong_inv = cv2.bitwise_not(blur_strong)
-
-        #thresh = cv2.adaptiveThreshold(blur,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,15,2)
-
         subtract_image = cv2.subtract(blur_inv, blur_strong_inv)
 
-        _, thresh = cv2.threshold(blur, 200, 255, cv2.THRESH_BINARY)
+        #thresh = cv2.adaptiveThreshold(blur,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,15,2)
+        #_, thresh = cv2.threshold(subtract_image, 50, 255, cv2.THRESH_BINARY)
+        ret, thresh = cv2.threshold(subtract_image, 30, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
         
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3,3))
         closing = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=2)
@@ -47,7 +47,7 @@ class markersDetection:
         
         marks_groups = []
         
-        res_img = image 
+        res_img = image
         
         for c in cnts:
             area = cv2.contourArea(c)
