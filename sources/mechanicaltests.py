@@ -30,7 +30,7 @@ class MechanicalTest (QThread):
     '''
 
     #Signal to update matplotlib
-    update_matplotlib_signal = pyqtSignal(list, list, list, list, list,list,list, list, list)
+    update_matplotlib_signal = pyqtSignal(float,float,float,float,float,float,float,float,float)
     #Signal to start/stop tracking marks when test is run
     #start_stop_tracking_signal = pyqtSignal(bool)
     #Signal to update live force in GUI
@@ -41,6 +41,9 @@ class MechanicalTest (QThread):
     _force2_0 = 0
     _pos1_0 = 0
     _pos2_0 = 0
+
+    res_x = 1024
+    res_y = 768
 
     
     _sample_time = 0.1  # seconds
@@ -134,7 +137,7 @@ class MechanicalTest (QThread):
         self._len_ax1 = self._len_ax2 = 0
         
         # Supplementary image to show tracks
-        self.img_track = np.zeros((768, 1024, 1), dtype=np.uint8)
+        self.img_track = np.zeros((MechanicalTest.res_y, MechanicalTest.res_x, 1), dtype=np.uint8)
         self.img_track.fill(0)
         
         #record start time
@@ -346,7 +349,7 @@ class MechanicalTest (QThread):
 
         # If videoextensometer is on and more than 10 marker positions were recorded
         # Write to CSV positions of markers
-        if self._fl_marks:
+        if self._fl_marks or True:
             combined_lists = zip(self._time, self.point1, self.point2, self.point3, self.point4)
             with open(self._workfolder + '\Test_'+formatted_datetime+'_markers.csv', 'w', newline='') as file:
                 writer = csv.writer(file, delimiter=';')
@@ -397,7 +400,7 @@ class MechanicalTest (QThread):
         with camera:
             frame = camera.get_frame ()
             if frame: 
-                self._img_cv = frame.as_opencv_image()
+                self._img_cv = cv2.resize(frame.as_opencv_image(), (MechanicalTest.res_x, MechanicalTest.res_y))
                 
                 #detect markers
                 img, coord_temp = markersDetection().detectMarkers(self._img_cv) #detection of Markers
@@ -608,7 +611,7 @@ class DisplacementControlTest(MechanicalTest):
             self._time.append(round(self._current_time, roundDecimals))
          
             
-            self.update_matplotlib_signal.emit(self._ch1, self._ch2, self._l1, self._l2, self._time,[],[],[],[])
+            self.update_matplotlib_signal.emit(self._ch1[-1], self._ch2[-1], self._l1[-1], self._l2[-1], self._time[-1],0,0,0,0)
             
 
 class LoadControlTest(MechanicalTest):

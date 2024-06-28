@@ -1,5 +1,6 @@
 
 
+#Optimize signal slot mechanism (not all array and reduce image resolution for display purposes)
 #Move first frame to mechanical test
 #Connect folder and writingin the file
 #Think about conditions of finishing the test

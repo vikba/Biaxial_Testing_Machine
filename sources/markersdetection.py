@@ -16,7 +16,7 @@ class markersDetection:
         """
         #gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         blur = cv2.medianBlur(image, 3)
-        blur_strong = cv2.medianBlur(image, 33)
+        blur_strong = cv2.medianBlur(image, 71)
         #blur_strong = cv2.GaussianBlur(image, (71,71), 0)
 
         #blur_darker =  blur_strong.astype(np.float32) * 0.9

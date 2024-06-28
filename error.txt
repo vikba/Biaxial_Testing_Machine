@@ -4,3 +4,24 @@
 AttributeError: 'LoadControlTest' object has no attribute 'point1'
 
  SyntaxWarning: invalid escape sequence '\T'
+
+markers were not saved
+ 
+--------------------
+self.__performTest(cam) #True means to perform test with camera
+    ^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\vbalashov\Desktop\Biaxial_Testing_Machine\sources\mechanicaltests.py", line 792, in __performTest
+    rel_force_ax1, rel_force_ax2 = self.__oneCycle(start_half_cycle_time, 0.03, 0.03, self._end_force1, self._end_force2)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\vbalashov\Desktop\Biaxial_Testing_Machine\sources\mechanicaltests.py", line 897, in __oneCycle
+  File "C:\Users\vbalashov\AppData\Local\anaconda3\envs\biax_env\Lib\site-packages\zaber_motion\ascii\axis.py", line 689, in move_velocity
+    call("device/move", request)
+  File "C:\Users\vbalashov\AppData\Local\anaconda3\envs\biax_env\Lib\site-packages\zaber_motion\call.py", line 46, in call
+    process_response(response_buffers, response_data)
+  File "C:\Users\vbalashov\AppData\Local\anaconda3\envs\biax_env\Lib\site-packages\zaber_motion\call.py", line 122, in process_response
+    raise convert_exception(response_proto.error_type, response_proto.error_message, response_buffers[1])
+zaber_motion.exceptions.command_failed_exception.CommandFailedException: CommandFailedException: Command "move vel NaN" rejected: BADCOMMAND: The command or setting was incorrect or invalid; a firmware update may be required.
+
+
+
+-------------------

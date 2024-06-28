@@ -31,13 +31,13 @@
       </property>
       <layout class="QVBoxLayout" name="verticalLayout">
        <item>
-        <widget class="MplWidget" name="MplWidget_1" native="true"/>
+        <widget class="PlotWidget" name="ChartWidget_1" native="true"/>
        </item>
        <item>
-        <widget class="MplWidget" name="MplWidget_2" native="true"/>
+        <widget class="PlotWidget" name="ChartWidget_2" native="true"/>
        </item>
        <item>
-        <widget class="MplWidget" name="MplWidget_3" native="true"/>
+        <widget class="PlotWidget" name="ChartWidget_3" native="true"/>
        </item>
       </layout>
      </widget>
@@ -605,9 +605,9 @@
  </widget>
  <customwidgets>
   <customwidget>
-   <class>MplWidget</class>
+   <class>PlotWidget</class>
    <extends>QWidget</extends>
-   <header>mplwidget.h</header>
+   <header location="global">pyqtgraph</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

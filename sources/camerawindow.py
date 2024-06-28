@@ -34,6 +34,9 @@ class VideoThread(QThread):
     change_pixmap_signal = pyqtSignal(np.ndarray)
     signal_marks_recorded = pyqtSignal(list)
 
+    res_x = 1024
+    res_y = 768
+
     
     def __init__(self):
         super().__init__()
@@ -48,8 +51,8 @@ class VideoThread(QThread):
         self._roi_x1 = 0
         self._roi_y1 = 0
         
-        self._roi_x2 = 1024
-        self._roi_y2 = 768
+        self._roi_x2 = VideoThread.res_x
+        self._roi_y2 = VideoThread.res_y
 
     def __initVariables(self):
         """
@@ -155,7 +158,7 @@ class VideoThread(QThread):
         """
         #self.cap = cv2.VideoCapture(0)
         
-        img_track = np.zeros((768, 1024, 1), dtype=np.uint8)
+        img_track = np.zeros((VideoThread.res_y, VideoThread.res_x, 1), dtype=np.uint8)
         img_track.fill(0)
         self._time = []
         
@@ -276,14 +279,17 @@ class VideoWindow(QWidget):
     
     
     def __init__(self, thread):
+        res_x = 1024
+        res_y = 768
+
         """
         Initializes the video stream window and sets up the interface for displaying the video feed 
         and controlling the webcam. 
         """
         super().__init__()
         self.setWindowTitle("Video Stream")
-        self.disply_width = 1024
-        self.display_height = 768
+        self.disply_width = VideoWindow.res_x
+        self.display_height = VideoWindow.res_y
         self.image_label = QLabel(self)
         self.image_label.resize(self.disply_width, self.display_height)
         self.layout = QVBoxLayout()
@@ -363,7 +369,7 @@ class VideoWindow(QWidget):
         
         bytes_per_line = ch * w
         convert_to_Qt_format = QImage(cv_img.data, w, h, bytes_per_line, QImage.Format.Format_Grayscale8)
-        p = convert_to_Qt_format.scaled(1024, 768, Qt.AspectRatioMode.KeepAspectRatio)
+        p = convert_to_Qt_format.scaled(VideoWindow.res_x, VideoWindow.res_y, Qt.AspectRatioMode.KeepAspectRatio)
         
  
         
