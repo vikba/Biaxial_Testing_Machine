@@ -1,5 +1,5 @@
 
-
+#Decrease resolution of images for camera in signal slot mechanism
 #Optimize signal slot mechanism (not all array and reduce image resolution for display purposes)
 #Move first frame to mechanical test
 #Connect folder and writingin the file

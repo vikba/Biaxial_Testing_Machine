@@ -7,16 +7,19 @@
 from PyQt6.QtWidgets import*
 from PyQt6.uic import loadUi
 from PyQt6.QtCore import QTimer
+from PyQt6.QtGui import QFont
+#from PyQt5.QtChart import QLineSeries
+import pyqtgraph as pg
 
 import os
 
-from .mechanicaltests import DisplacementControlTest, LoadControlTest
+from .mechanicaltests import DisplacementControlTest, LoadControlTest, MechanicalTest
 from .camerawindow import VideoThread, VideoWindow
 from .loadcalculator import LoadCalculatorWindow
 #from .mplwidget import MplWidget
 
-import pyqtgraph as pg
-from pyqtgraph.Qt import QtCore, QtGui
+
+
 
      
 class BiaxMainWindow(QMainWindow):
@@ -110,7 +113,7 @@ class BiaxMainWindow(QMainWindow):
         self.ChartWidget_1.getAxis('bottom').setTextPen(pg.mkPen(color='k'))
         self.ChartWidget_1.showGrid(x=False, y=False, alpha=0.5)
         self.ChartWidget_1.getPlotItem().getViewBox().setBorder(pg.mkPen(color='k', width=1))
-        font = QtGui.QFont()
+        font = QFont()
         font.setPointSize(15)
         self.ChartWidget_1.getAxis('left').setTickFont(font)
         self.ChartWidget_1.getAxis('bottom').setTickFont(font)
@@ -118,11 +121,14 @@ class BiaxMainWindow(QMainWindow):
         self.ChartWidget_1.setLabel('bottom', 'Time, s', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
 
         # Generate data
-        x = [1,2,3,4,5]
+        x = [1,2,3,4,20]
         y = [1,1,2,2,3]
+        y2 = [2,5,6,1,2]
 
         # Plot data with classic line style
-        self.ChartWidget_1.plot(x, y, pen=pg.mkPen(color='b', width=1))  # Blue line
+        self.ChartWidget_1.plot(x, y, pen=pg.mkPen(color='b', width=2))  
+        self.ChartWidget_1.plot(x, y2, pen=pg.mkPen(color='r', width=2))  
+        self.ChartWidget_1.clear()
 
         self.ChartWidget_2.setBackground('w')  # Set background to white
         self.ChartWidget_2.getAxis('left').setPen(pg.mkPen(color='k', width=1))
@@ -133,7 +139,7 @@ class BiaxMainWindow(QMainWindow):
         self.ChartWidget_2.getPlotItem().getViewBox().setBorder(pg.mkPen(color='k', width=1))
         self.ChartWidget_2.getAxis('left').setTickFont(font)
         self.ChartWidget_2.getAxis('bottom').setTickFont(font)
-        self.ChartWidget_2.setLabel('left', 'Load, N', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
+        self.ChartWidget_2.setLabel('left', 'Velocity', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
         self.ChartWidget_2.setLabel('bottom', 'Time, s', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
 
         self.ChartWidget_3.setBackground('w')  # Set background to white
@@ -145,8 +151,8 @@ class BiaxMainWindow(QMainWindow):
         self.ChartWidget_3.getPlotItem().getViewBox().setBorder(pg.mkPen(color='k', width=1))
         self.ChartWidget_3.getAxis('left').setTickFont(font)
         self.ChartWidget_3.getAxis('bottom').setTickFont(font)
-        self.ChartWidget_3.setLabel('left', 'Load, N', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
-        self.ChartWidget_3.setLabel('bottom', 'Time, s', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
+        self.ChartWidget_3.setLabel('left', 'Stress, MPa', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
+        self.ChartWidget_3.setLabel('bottom', 'Strain, %', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
 
 
         
@@ -288,7 +294,7 @@ class BiaxMainWindow(QMainWindow):
                         self._mecTest = LoadControlTest(self._work_folder, self.end_force1, self.end_force2, self.test_duration, 0)
 
 
-                    self._mecTest.update_matplotlib_signal.connect(self.__update_charts)
+                    self._mecTest.signal_update_charts.connect(self.__update_charts)
                     self._mecTest.update_force_label_signal.connect(self.__updateLabelForce)
         
             elif 2 == self.tabWidget.currentIndex():
@@ -307,7 +313,7 @@ class BiaxMainWindow(QMainWindow):
                 else:
                     #Close old object to prevent issues in connection with devices
                     self._mecTest = DisplacementControlTest(self._work_folder, self._vel_ax1, self._vel_ax2)
-                    self._mecTest.update_matplotlib_signal.connect(self.__update_charts)
+                    self._mecTest.signal_update_charts.connect(self.__update_charts)
                     self._mecTest.update_force_label_signal.connect(self.__updateLabelForce)
                 
                 # Update UI labels
@@ -465,10 +471,14 @@ class BiaxMainWindow(QMainWindow):
     #Other Functions
             
     def __calculateLoads (self):
+
+
+        
         self._calc_loads_window = LoadCalculatorWindow()
         self._calc_loads_window.signal_loads_calculated.connect(self.__setLoads)
 
         self._calc_loads_window.show()
+        
 
     
     def __setLoads(self, load1, load2):
@@ -543,6 +553,27 @@ class BiaxMainWindow(QMainWindow):
         f_s = [0, self.end_force1]
     
         
+
+
+        self.ChartWidget_1.clear()
+        self.ChartWidget_1.plot(self._t, self._ch1, pen=pg.mkPen(color='b', width=2))  
+        self.ChartWidget_1.plot(self._t, self._ch2, pen=pg.mkPen(color='r', width=2))  
+        if 0 == self.tabWidget.currentIndex():
+            self.ChartWidget_1.plot(t_s, f_s)
+
+
+        self.ChartWidget_2.clear()
+        self.ChartWidget_2.plot(self._v1, pen=pg.mkPen(color='b', width=2))  
+        self.ChartWidget_2.plot(self._v2, pen=pg.mkPen(color='r', width=2))  
+
+        self.ChartWidget_3.clear()
+        if len(self._E11) == len (self._ch1):
+            self.ChartWidget_3.plot(self._E11, self._ch1, pen=pg.mkPen(color='b', width=2)) 
+            self.ChartWidget_3.plot(self._E22, self._ch2, pen=pg.mkPen(color='r', width=2)) 
+        else:
+            self.ChartWidget_3.plot(self._l1, self._ch1, pen=pg.mkPen(color='b', width=2)) 
+            self.ChartWidget_3.plot(self._l2, self._ch2, pen=pg.mkPen(color='r', width=2)) 
+
         """
         self.MplWidget_1.canvas.axes.clear()
         self.MplWidget_1.canvas.axes.plot(self._t, self._ch1)
@@ -554,7 +585,7 @@ class BiaxMainWindow(QMainWindow):
         self.MplWidget_1.canvas.axes.set_ylabel('Load, N')
         self.MplWidget_1.canvas.axes.set_xlabel('Time, s')
         self.MplWidget_1.canvas.draw()
-        """
+        
         
         self.MplWidget_2.canvas.axes.clear()
         self.MplWidget_2.canvas.axes.plot(self._v1)
@@ -582,7 +613,7 @@ class BiaxMainWindow(QMainWindow):
         self.MplWidget_3.canvas.axes.set_title('Load vs. Strain')
         self.MplWidget_3.canvas.axes.set_ylabel('Load, N')
         self.MplWidget_3.canvas.draw()
-        
+        """
         
 
         

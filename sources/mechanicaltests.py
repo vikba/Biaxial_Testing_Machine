@@ -30,7 +30,7 @@ class MechanicalTest (QThread):
     '''
 
     #Signal to update matplotlib
-    update_matplotlib_signal = pyqtSignal(float,float,float,float,float,float,float,float,float)
+    signal_update_charts = pyqtSignal(float,float,float,float,float,float,float,float,float)
     #Signal to start/stop tracking marks when test is run
     #start_stop_tracking_signal = pyqtSignal(bool)
     #Signal to update live force in GUI
@@ -117,6 +117,7 @@ class MechanicalTest (QThread):
         self._l1 = [] #length
         self._l2 = [] #length
         self._time = [] #time
+        self._counter = 0 #counter
 
         self._E11 = []
         self._E22 = []
@@ -478,7 +479,19 @@ class MechanicalTest (QThread):
 
                     self.change_pixmap_signal.emit(img)
 
-
+    def sendRandomSignal(self):
+        while (True):
+            print("Sending random")
+            self._counter +=1
+            self._ch1 = np.random.rand(1)
+            self._ch2 = np.random.rand(1) 
+            self._l1 = np.random.rand(1) 
+            self._l2 = np.random.rand(1) 
+            self._E11 = np.random.rand(1) 
+            self._E22 = np.random.rand(1) 
+            self._vel_1 = np.random.rand(1) 
+            self._vel_2 = np.random.rand(1) 
+            self.signal_update_charts.emit(self._counter, self._ch1[-1], self._ch2[-1], self._l1[-1], self._l2[-1], self._E11[-1], self._E22[-1], self._vel_1[-1],self._vel_2[-1])
 
 
 class DisplacementControlTest(MechanicalTest):
@@ -514,7 +527,9 @@ class DisplacementControlTest(MechanicalTest):
         moves the motors with specified velocities, and performs a measurement cycle.
 
         """
-
+        
+        
+        
         self._initVariables()
         
         #self.thread.startTracking()
@@ -523,6 +538,7 @@ class DisplacementControlTest(MechanicalTest):
         #start moving the motors
         self._axis1.move_velocity(self._vel_ax1, Units.VELOCITY_MILLIMETRES_PER_SECOND)
         self._axis2.move_velocity(self._vel_ax2, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+        
         
         '''
         if self.use_camera:
@@ -549,7 +565,8 @@ class DisplacementControlTest(MechanicalTest):
                 time.sleep(self._sample_time)
                 print("One cycle is {} sec".format(time.perf_counter()-t))
         '''
-         
+        
+        
         #while not exceed max extension or sample rupture
         while self._len_ax1 < 73 and self._len_ax2 < 73 and self._current_time < 400 and self._execute:
             #t = time.perf_counter()
@@ -560,6 +577,7 @@ class DisplacementControlTest(MechanicalTest):
         self.stop_measurement()
         #self.start_stop_tracking_signal.emit(False)
         self._writeDataToFile()
+        
         
   
             
@@ -611,7 +629,7 @@ class DisplacementControlTest(MechanicalTest):
             self._time.append(round(self._current_time, roundDecimals))
          
             
-            self.update_matplotlib_signal.emit(self._ch1[-1], self._ch2[-1], self._l1[-1], self._l2[-1], self._time[-1],0,0,0,0)
+            self.signal_update_charts.emit(self._ch1[-1], self._ch2[-1], self._l1[-1], self._l2[-1], self._time[-1],0,0,0,0)
             
 
 class LoadControlTest(MechanicalTest):
@@ -881,7 +899,7 @@ class LoadControlTest(MechanicalTest):
         self._l2.append(round(self._len_ax2, roundDecimals))
         self._time.append(round(self._current_time, roundDecimals))
         
-        self.update_matplotlib_signal.emit(self._time, self._ch1, self._ch2, self._l1, self._l2, self._E11, self._E22, self._vel_1,self._vel_2)
+        self.signal_update_charts.emit(self._time[-1], self._ch1[-1], self._ch2[-1], self._l1[-1], self._l2[-1], self._E11[-1], self._E22[-1], self._vel_1[-1],self._vel_2[-1])
 
         if len(self._time) > 10:
             corr_force1 = self._moving_average(self._ch1[-10:-1], 4)[-1]
