@@ -51,9 +51,13 @@ class MechanicalTest (QThread):
     
     def __init__(self):
         super().__init__()
+
+        '''
         self.__initMorors()
         self.__initDAQ()
-        self._initVariables()
+        '''
+        self._initVariables() 
+        
 
 
         self.use_camera = False
@@ -73,7 +77,11 @@ class MechanicalTest (QThread):
         
         
     def run(self):
-        pass
+        #Generation of random signal to test the class
+        #This method is redefined in subclassess
+        while (self._counter < 100):
+            self._sendRandSignal()
+            time.sleep(0.1)
     
     def stop(self):
         """
@@ -479,19 +487,19 @@ class MechanicalTest (QThread):
 
                     self.change_pixmap_signal.emit(img)
 
-    def sendRandomSignal(self):
-        while (True):
-            print("Sending random")
-            self._counter +=1
-            self._ch1 = np.random.rand(1)
-            self._ch2 = np.random.rand(1) 
-            self._l1 = np.random.rand(1) 
-            self._l2 = np.random.rand(1) 
-            self._E11 = np.random.rand(1) 
-            self._E22 = np.random.rand(1) 
-            self._vel_1 = np.random.rand(1) 
-            self._vel_2 = np.random.rand(1) 
-            self.signal_update_charts.emit(self._counter, self._ch1[-1], self._ch2[-1], self._l1[-1], self._l2[-1], self._E11[-1], self._E22[-1], self._vel_1[-1],self._vel_2[-1])
+    def _sendRandSignal(self):
+       
+        print("Sending random")
+        self._counter +=1
+        self._ch1 = np.random.rand(1)
+        self._ch2 = np.random.rand(1) 
+        self._l1 = np.random.rand(1) 
+        self._l2 = np.random.rand(1) 
+        self._E11 = np.random.rand(1) 
+        self._E22 = np.random.rand(1) 
+        self._vel_1 = np.random.rand(1) 
+        self._vel_2 = np.random.rand(1) 
+        self.signal_update_charts.emit(self._counter, self._ch1[-1], self._ch2[-1], self._l1[-1], self._l2[-1], self._E11[-1], self._E22[-1], self._vel_1[-1],self._vel_2[-1])
 
 
 class DisplacementControlTest(MechanicalTest):

@@ -472,13 +472,16 @@ class BiaxMainWindow(QMainWindow):
             
     def __calculateLoads (self):
 
+        self._mecTest = MechanicalTest()
+        self._mecTest.signal_update_charts.connect(self.__update_charts)
+        self._mecTest.start()
 
-        
+        '''
         self._calc_loads_window = LoadCalculatorWindow()
         self._calc_loads_window.signal_loads_calculated.connect(self.__setLoads)
 
         self._calc_loads_window.show()
-        
+        '''
 
     
     def __setLoads(self, load1, load2):
@@ -539,6 +542,9 @@ class BiaxMainWindow(QMainWindow):
         This function is connected to MechanicalTest classes with signal/slot mechanism
         """
 
+        print(self._t)
+        print(self._ch1)
+
         self._t.append(t)
         self._ch1.append(ch1) 
         self._ch2.append(ch2) 
@@ -549,8 +555,8 @@ class BiaxMainWindow(QMainWindow):
         self._v1.append(v1) 
         self._v2.append(v2)
         
-        t_s = [0, self.test_duration]
-        f_s = [0, self.end_force1]
+        #t_s = [0, self.test_duration]
+        #f_s = [0, self.end_force1]
     
         
 
@@ -558,10 +564,10 @@ class BiaxMainWindow(QMainWindow):
         self.ChartWidget_1.clear()
         self.ChartWidget_1.plot(self._t, self._ch1, pen=pg.mkPen(color='b', width=2))  
         self.ChartWidget_1.plot(self._t, self._ch2, pen=pg.mkPen(color='r', width=2))  
-        if 0 == self.tabWidget.currentIndex():
-            self.ChartWidget_1.plot(t_s, f_s)
+        #if 0 == self.tabWidget.currentIndex():
+        #    self.ChartWidget_1.plot(t_s, f_s)
 
-
+        
         self.ChartWidget_2.clear()
         self.ChartWidget_2.plot(self._v1, pen=pg.mkPen(color='b', width=2))  
         self.ChartWidget_2.plot(self._v2, pen=pg.mkPen(color='r', width=2))  
@@ -573,7 +579,7 @@ class BiaxMainWindow(QMainWindow):
         else:
             self.ChartWidget_3.plot(self._l1, self._ch1, pen=pg.mkPen(color='b', width=2)) 
             self.ChartWidget_3.plot(self._l2, self._ch2, pen=pg.mkPen(color='r', width=2)) 
-
+        
         """
         self.MplWidget_1.canvas.axes.clear()
         self.MplWidget_1.canvas.axes.plot(self._t, self._ch1)
