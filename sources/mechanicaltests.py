@@ -30,12 +30,12 @@ class MechanicalTest (QThread):
     '''
 
     #Signal to update matplotlib
-    signal_update_charts = pyqtSignal(float,float,float,float,float,float,float,float,float)
+    signal_update_charts = pyqtSignal(list)
     #Signal to start/stop tracking marks when test is run
     #start_stop_tracking_signal = pyqtSignal(bool)
     #Signal to update live force in GUI
-    update_force_label_signal = pyqtSignal(float, float)
-    change_pixmap_signal = pyqtSignal(np.ndarray)
+    signal_update_force_label = pyqtSignal(float, float)
+    signal_change_pixmap = pyqtSignal(np.ndarray)
     
     _force1_0 = 0 
     _force2_0 = 0
@@ -52,21 +52,11 @@ class MechanicalTest (QThread):
     def __init__(self):
         super().__init__()
 
-        '''
         self.__initMorors()
         self.__initDAQ()
-        '''
+        
         self._initVariables() 
-        
-
-
-        self.use_camera = False
-        #why?
-        #self.marks_recorded = True
-  
-        
-
-           
+          
     
     def __del__(self):
         self._axis1.stop()
@@ -146,8 +136,8 @@ class MechanicalTest (QThread):
         self._len_ax1 = self._len_ax2 = 0
         
         # Supplementary image to show tracks
-        self.img_track = np.zeros((MechanicalTest.res_y, MechanicalTest.res_x, 1), dtype=np.uint8)
-        self.img_track.fill(0)
+        self._img_track = np.zeros((MechanicalTest.res_y, MechanicalTest.res_x, 1), dtype=np.uint8)
+        self._img_track.fill(0)
         
         #record start time
         self._start_time = time.perf_counter()
@@ -227,7 +217,7 @@ class MechanicalTest (QThread):
         if self._force1 is not None and self._force2 is not None:
             rel_force_ax1 = self._force1 - self._force1_0
             rel_force_ax2 = self._force2 - self._force2_0
-            self.update_force_label_signal.emit(rel_force_ax1, rel_force_ax2)
+            self.signal_update_force_label.emit(rel_force_ax1, rel_force_ax2)
     
     def _readForce(self):
         """
@@ -358,8 +348,8 @@ class MechanicalTest (QThread):
 
         # If videoextensometer is on and more than 10 marker positions were recorded
         # Write to CSV positions of markers
-        if self._fl_marks or True:
-            combined_lists = zip(self._time, self.point1, self.point2, self.point3, self.point4)
+        if self._fl_marks:
+            combined_lists = zip(self._time, self._point1, self._point2, self._point3, self._point4)
             with open(self._workfolder + '\Test_'+formatted_datetime+'_markers.csv', 'w', newline='') as file:
                 writer = csv.writer(file, delimiter=';')
                 writer.writerow(["Time","Marker_1", "Marker_2", "Marker_3", "Marker_4"])  # Header row, if needed
@@ -375,25 +365,25 @@ class MechanicalTest (QThread):
         self._fl_marks = True
 
         # Variables to store markers position
-        self.marks_groups = []
-        self.point1 = []
-        self.point2 = []
-        self.point3 = []
-        self.point4 = []
+        self._marks_groups = []
+        self._point1 = []
+        self._point2 = []
+        self._point3 = []
+        self._point4 = []
         
-        self.marks_groups.append(self.point1)
-        self.marks_groups.append(self.point2)
-        self.marks_groups.append(self.point3)
-        self.marks_groups.append(self.point4)
+        self._marks_groups.append(self._point1)
+        self._marks_groups.append(self._point2)
+        self._marks_groups.append(self._point3)
+        self._marks_groups.append(self._point4)
 
 
-        self.point1.append(lst[0][0])
-        self.point2.append(lst[1][0])
-        self.point3.append(lst[2][0])
-        self.point4.append(lst[3][0])
+        self._point1.append(lst[0][0])
+        self._point2.append(lst[1][0])
+        self._point3.append(lst[2][0])
+        self._point4.append(lst[3][0])
 
         print("Marks recorded")
-        print(self.marks_groups)
+        print(self._marks_groups)
 
     def getMarksStatus(self):
         """
@@ -415,17 +405,17 @@ class MechanicalTest (QThread):
                 img, coord_temp = markersDetection().detectMarkers(self._img_cv) #detection of Markers
                 
                 #draw track of the markers
-                for group in self.marks_groups:
+                for group in self._marks_groups:
                     lg = len(group)
                     if lg > 1:
                         x1 = int(group[lg-2][0])
                         y1  = int(group[lg-2][1])
                         x2 = int(group[lg-1][0])
                         y2  = int(group[lg-1][1])
-                        cv2.line(self.img_track, (x1,y1), (x2, y2), 200, 1)
+                        cv2.line(self._img_track, (x1,y1), (x2, y2), 200, 1)
                 
                 #distribute marks in the groups
-                for gr in self.marks_groups:
+                for gr in self._marks_groups:
                     if len(gr) > 0:
                         min_dist = 2000
                         el = None
@@ -446,21 +436,21 @@ class MechanicalTest (QThread):
                 
 
                 #Calculate strains
-                if len(self.point1) > 1:
+                if len(self._point1) > 1:
 
                     #calculate strain
                     #along horizontal axis - upper and lower groups]
                     #the algorithm find contours arranges points along y axis of an image
     
                     #Coordinates of initial and final points
-                    p1_0 = self.point1[0]
-                    p1 = self.point1[-1]
-                    p2_0 = self.point2[0]
-                    p2 = self.point2[-1]
-                    p3_0 = self.point3[0]
-                    p3 = self.point3[-1]
-                    p4_0 = self.point4[0]
-                    p4 = self.point4[-1]
+                    p1_0 = self._point1[0]
+                    p1 = self._point1[-1]
+                    p2_0 = self._point2[0]
+                    p2 = self._point2[-1]
+                    p3_0 = self._point3[0]
+                    p3 = self._point3[-1]
+                    p4_0 = self._point4[0]
+                    p4 = self._point4[-1]
 
                     L1_0 = (math.dist(p1_0, p2_0) + math.dist(p3_0,p4_0)) / 2
                     L1_last = (math.dist(p1, p2) + math.dist(p3, p4)) / 2
@@ -483,9 +473,9 @@ class MechanicalTest (QThread):
                     self._E11.append(E11)
                     self._E22.append(E22)
 
-                    img = cv2.addWeighted(self.img_track, 0.2, img, 0.8, 0)
+                    img = cv2.addWeighted(self._img_track, 0.2, img, 0.8, 0)
 
-                    self.change_pixmap_signal.emit(img)
+                    self.signal_change_pixmap.emit(img)
 
     def _sendRandSignal(self):
        
@@ -499,7 +489,7 @@ class MechanicalTest (QThread):
         self._E22 = np.random.rand(1) 
         self._vel_1 = np.random.rand(1) 
         self._vel_2 = np.random.rand(1) 
-        self.signal_update_charts.emit(self._counter, self._ch1[-1], self._ch2[-1], self._l1[-1], self._l2[-1], self._E11[-1], self._E22[-1], self._vel_1[-1],self._vel_2[-1])
+        self.signal_update_charts.emit([self._counter, self._ch1[-1], self._ch2[-1], self._l1[-1], self._l2[-1], self._E11[-1], self._E22[-1], self._vel_1[-1],self._vel_2[-1]])
 
 
 class DisplacementControlTest(MechanicalTest):
@@ -548,56 +538,11 @@ class DisplacementControlTest(MechanicalTest):
         self._axis2.move_velocity(self._vel_ax2, Units.VELOCITY_MILLIMETRES_PER_SECOND)
         
         
-        '''
-        if self.use_camera:
-            #Vimba.get_instance() should always be in with-block
-            #This is why camera is in this thread
-            with Vimba.get_instance() as vimba:
-                cameras = vimba.get_all_cameras()
-                if not cameras:
-                    raise RuntimeError('No Allied Vision Cameras found')
-                    
-                #while not exceed max extension or sample rupture
-                while self._len_ax1 < 73 and self._len_ax2 < 73 and self._current_time < 400 and self._execute:
-                    t = time.perf_counter()
-                    self.__makeOneAnalogReading()
-                    self.captureImageTrackMarks(cameras[0])
-                    print("One cycle is {} sec".format(time.perf_counter()-t))
-        
-        else:
-        
-            #while not exceed max extension or sample rupture
-            while self._len_ax1 < 73 and self._len_ax2 < 73 and self._current_time < 400 and self._execute:
-                t = time.perf_counter()
-                self.__makeOneAnalogReading()
-                time.sleep(self._sample_time)
-                print("One cycle is {} sec".format(time.perf_counter()-t))
-        '''
-        
         
         #while not exceed max extension or sample rupture
         while self._len_ax1 < 73 and self._len_ax2 < 73 and self._current_time < 400 and self._execute:
-            #t = time.perf_counter()
-            self.__oneCycle()
-            time.sleep(self._sample_time)
             
-        # Stop motors after measurement cycle is finished
-        self.stop_measurement()
-        #self.start_stop_tracking_signal.emit(False)
-        self._writeDataToFile()
-        
-        
-  
-            
-            
-            
-    def __oneCycle(self):
-            """
-            A function to perform one cycle of reading force values, calculating relative forces, 
-            updating lengths, and recording time.
-            """
-            
-            
+
             #read force values
             try:
                 self._force1,self._force2 = self._readForce()
@@ -623,9 +568,6 @@ class DisplacementControlTest(MechanicalTest):
             #record time
             self._current_time = time.perf_counter() - self._start_time
             
-            
-            #print("Value1: {}".format(self._force1))
-            #print("Value2: {}".format(self._force2))
        
             
             roundDecimals = 5
@@ -635,9 +577,22 @@ class DisplacementControlTest(MechanicalTest):
             self._l1.append(round(self._len_ax1, roundDecimals))
             self._l2.append(round(self._len_ax2, roundDecimals))
             self._time.append(round(self._current_time, roundDecimals))
+
+            
          
             
-            self.signal_update_charts.emit(self._ch1[-1], self._ch2[-1], self._l1[-1], self._l2[-1], self._time[-1],0,0,0,0)
+            self.signal_update_charts.emit([self._ch1[-1], self._ch2[-1], self._l1[-1], self._l2[-1], self._time[-1]])
+
+
+            time.sleep(self._sample_time)
+            
+        # Stop motors after measurement cycle is finished
+        self.stop_measurement()
+        #self.start_stop_tracking_signal.emit(False)
+        self._writeDataToFile()
+        
+        
+            
             
 
 class LoadControlTest(MechanicalTest):
@@ -785,7 +740,7 @@ class LoadControlTest(MechanicalTest):
                 current_datetime = datetime.now()
                 formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
                 cv2.imwrite(self._workfolder + '\Test_'+formatted_datetime+'_last_frame.jpg', self._img_cv)
-                cv2.imwrite(self._workfolder + '\Test_'+formatted_datetime+'_tracks.jpg', self.img_track)
+                cv2.imwrite(self._workfolder + '\Test_'+formatted_datetime+'_tracks.jpg', self._img_track)
 
         #Cyclic test
         else:
@@ -855,7 +810,7 @@ class LoadControlTest(MechanicalTest):
                 
 
             if cam is not None:
-                cv2.imwrite(self._workfolder + '\Test_'+formatted_datetime+'_tracks.jpg', self.img_track)
+                cv2.imwrite(self._workfolder + '\Test_'+formatted_datetime+'_tracks.jpg', self._img_track)
 
         
         #After test is finished (all the loops finished)
@@ -906,8 +861,13 @@ class LoadControlTest(MechanicalTest):
         self._l1.append(round(self._len_ax1, roundDecimals))
         self._l2.append(round(self._len_ax2, roundDecimals))
         self._time.append(round(self._current_time, roundDecimals))
+
+        print(f"self._time[-1] {self._time[-1]}")
         
-        self.signal_update_charts.emit(self._time[-1], self._ch1[-1], self._ch2[-1], self._l1[-1], self._l2[-1], self._E11[-1], self._E22[-1], self._vel_1[-1],self._vel_2[-1])
+        if 0 <  len(self._E11):
+            self.signal_update_charts.emit([self._time[-1], self._ch1[-1], self._ch2[-1], self._l1[-1], self._l2[-1], self._E11[-1], self._E22[-1], self._vel_1[-1],self._vel_2[-1]])
+        else:
+            self.signal_update_charts.emit([self._time[-1], self._ch1[-1], self._ch2[-1], self._l1[-1], self._l2[-1]])
 
         if len(self._time) > 10:
             corr_force1 = self._moving_average(self._ch1[-10:-1], 4)[-1]

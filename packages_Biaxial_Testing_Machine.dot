@@ -1,0 +1,21 @@
+digraph "packages_Biaxial_Testing_Machine" {
+rankdir=BT
+charset="utf-8"
+"sources" [color="black", label=<sources>, shape="box", style="solid"];
+"sources.biaxmainwindow" [color="black", label=<sources.biaxmainwindow>, shape="box", style="solid"];
+"sources.camerawindow" [color="black", label=<sources.camerawindow>, shape="box", style="solid"];
+"sources.loadcalculator" [color="black", label=<sources.loadcalculator>, shape="box", style="solid"];
+"sources.markersdetection" [color="black", label=<sources.markersdetection>, shape="box", style="solid"];
+"sources.mechanicaltests" [color="black", label=<sources.mechanicaltests>, shape="box", style="solid"];
+"sources.mplwidget" [color="black", label=<sources.mplwidget>, shape="box", style="solid"];
+"sources.pid" [color="black", label=<sources.pid>, shape="box", style="solid"];
+"sources" -> "sources.biaxmainwindow" [arrowhead="open", arrowtail="none"];
+"sources" -> "sources.mechanicaltests" [arrowhead="open", arrowtail="none"];
+"sources" -> "sources.mplwidget" [arrowhead="open", arrowtail="none"];
+"sources.biaxmainwindow" -> "sources.camerawindow" [arrowhead="open", arrowtail="none"];
+"sources.biaxmainwindow" -> "sources.loadcalculator" [arrowhead="open", arrowtail="none"];
+"sources.biaxmainwindow" -> "sources.mechanicaltests" [arrowhead="open", arrowtail="none"];
+"sources.camerawindow" -> "sources.markersdetection" [arrowhead="open", arrowtail="none"];
+"sources.mechanicaltests" -> "sources.markersdetection" [arrowhead="open", arrowtail="none"];
+"sources.mechanicaltests" -> "sources.pid" [arrowhead="open", arrowtail="none"];
+}

@@ -177,6 +177,14 @@ class BiaxMainWindow(QMainWindow):
         self._v1 = [] 
         self._v2 = []
 
+
+        #datastructures to store tracks of marks
+        self._marks_groups = []
+        self._point1 = []
+        self._point2 = []
+        self._point3 = []
+        self._point4 = []
+
         
     def closeEvent(self, event):
         # This method is called when the window is closed.
@@ -295,7 +303,7 @@ class BiaxMainWindow(QMainWindow):
 
 
                     self._mecTest.signal_update_charts.connect(self.__update_charts)
-                    self._mecTest.update_force_label_signal.connect(self.__updateLabelForce)
+                    self._mecTest.signal_update_force_label.connect(self.__updateLabelForce)
         
             elif 2 == self.tabWidget.currentIndex():
                 '''
@@ -506,9 +514,9 @@ class BiaxMainWindow(QMainWindow):
             self._video_window = VideoWindow(self._video_thread)
 
             self._video_thread.signal_marks_recorded.connect(self._mecTest.marksRecorded)
-            self._video_thread.change_pixmap_signal.connect(self._video_window.update_image)
+            self._video_thread.signal_change_pixmap.connect(self._video_window.update_image)
             #self._mecTest.start_stop_tracking_signal.connect(self._video_window.startStopTracking)
-            self._mecTest.change_pixmap_signal.connect(self._video_window.update_image)
+            self._mecTest.signal_change_pixmap.connect(self._video_window.update_image)
 
             
             self._video_window.show()
@@ -536,24 +544,25 @@ class BiaxMainWindow(QMainWindow):
     
         
 
-    def __update_charts(self, t, ch1, ch2, l1, l2, E11, E22, v1, v2):
+    def __update_charts(self, array):
         """
         Updates charts on matplotlib widgets
         This function is connected to MechanicalTest classes with signal/slot mechanism
+        Order:
+        self._time, self._ch1[-1], self._ch2[-1], self._l1[-1], self._l2[-1], self._E11[-1], self._E22[-1], self._vel_1[-1],self._vel_2[-1]
         """
 
-        print(self._t)
-        print(self._ch1)
+        self._t.append(array[0])
+        self._ch1.append(array[1]) 
+        self._ch2.append(array[2]) 
+        self._l1.append(array[3]) 
+        self._l2.append(array[4]) 
 
-        self._t.append(t)
-        self._ch1.append(ch1) 
-        self._ch2.append(ch2) 
-        self._l1.append(l1) 
-        self._l2.append(l2) 
-        self._E11.append(E11) 
-        self._E22.append(E22) 
-        self._v1.append(v1) 
-        self._v2.append(v2)
+        if 9 == len(array):
+            self._E11.append(array[5]) 
+            self._E22.append(array[6]) 
+            self._v1.append(array[7]) 
+            self._v2.append(array[8])
         
         #t_s = [0, self.test_duration]
         #f_s = [0, self.end_force1]
@@ -621,7 +630,11 @@ class BiaxMainWindow(QMainWindow):
         self.MplWidget_3.canvas.draw()
         """
         
-
+    def __update_markers(self, array):
+        self._point1.append(array[0])
+        self._point2.append(array[1])
+        self._point3.append(array[2])
+        self._point4.append(array[3])
         
     def __updateLabelForce(self, force1, force2):
         if force1 is not None:
