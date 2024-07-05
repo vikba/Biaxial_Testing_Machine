@@ -120,16 +120,6 @@ class BiaxMainWindow(QMainWindow):
         self.ChartWidget_1.setLabel('left', 'Load, N', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
         self.ChartWidget_1.setLabel('bottom', 'Time, s', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
 
-        # Generate data
-        x = [1,2,3,4,20]
-        y = [1,1,2,2,3]
-        y2 = [2,5,6,1,2]
-
-        # Plot data with classic line style
-        self.ChartWidget_1.plot(x, y, pen=pg.mkPen(color='b', width=2))  
-        self.ChartWidget_1.plot(x, y2, pen=pg.mkPen(color='r', width=2))  
-        self.ChartWidget_1.clear()
-
         self.ChartWidget_2.setBackground('w')  # Set background to white
         self.ChartWidget_2.getAxis('left').setPen(pg.mkPen(color='k', width=1))
         self.ChartWidget_2.getAxis('bottom').setPen(pg.mkPen(color='k', width=1))
@@ -176,14 +166,6 @@ class BiaxMainWindow(QMainWindow):
         self._E22 = [] 
         self._v1 = [] 
         self._v2 = []
-
-
-        #datastructures to store tracks of marks
-        self._marks_groups = []
-        self._point1 = []
-        self._point2 = []
-        self._point3 = []
-        self._point4 = []
 
         
     def closeEvent(self, event):
@@ -513,7 +495,7 @@ class BiaxMainWindow(QMainWindow):
             self._video_thread = VideoThread()
             self._video_window = VideoWindow(self._video_thread)
 
-            self._video_thread.signal_marks_recorded.connect(self._mecTest.marksRecorded)
+            self._video_thread.signal_markers_recorded.connect(self._mecTest.init_markers)
             self._video_thread.signal_change_pixmap.connect(self._video_window.update_image)
             #self._mecTest.start_stop_tracking_signal.connect(self._video_window.startStopTracking)
             self._mecTest.signal_change_pixmap.connect(self._video_window.update_image)
@@ -630,11 +612,7 @@ class BiaxMainWindow(QMainWindow):
         self.MplWidget_3.canvas.draw()
         """
         
-    def __update_markers(self, array):
-        self._point1.append(array[0])
-        self._point2.append(array[1])
-        self._point3.append(array[2])
-        self._point4.append(array[3])
+
         
     def __updateLabelForce(self, force1, force2):
         if force1 is not None:

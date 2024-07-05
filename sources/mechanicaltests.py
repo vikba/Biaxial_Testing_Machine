@@ -283,6 +283,70 @@ class MechanicalTest (QThread):
         
         return k1*val1, k2*val2
     
+    def init_markers(self, array):
+        #datastructures to store tracks of marks
+        self._marks_groups = []
+        self._point1 = []
+        self._point2 = []
+        self._point3 = []
+        self._point4 = []
+        
+        self._marks_groups.append(self._point1)
+        self._marks_groups.append(self._point2)
+        self._marks_groups.append(self._point3)
+        self._marks_groups.append(self._point4)
+
+        self._point1.append(array[0])
+        self._point2.append(array[1])
+        self._point3.append(array[2])
+        self._point4.append(array[3])
+    
+    def update_markers(self, array):
+
+        self._point1.append(array[0])
+        self._point2.append(array[1])
+        self._point3.append(array[2])
+        self._point4.append(array[3])
+
+
+        #Calculate strains
+        if len(self._point1) > 1:
+
+            #calculate strain
+            #along horizontal axis - upper and lower groups]
+            #the algorithm find contours arranges points along y axis of an image
+
+            #Coordinates of initial and final points
+            p1_0 = self._point1[0]
+            p1 = self._point1[-1]
+            p2_0 = self._point2[0]
+            p2 = self._point2[-1]
+            p3_0 = self._point3[0]
+            p3 = self._point3[-1]
+            p4_0 = self._point4[0]
+            p4 = self._point4[-1]
+
+            L1_0 = (math.dist(p1_0, p2_0) + math.dist(p3_0,p4_0)) / 2
+            L1_last = (math.dist(p1, p2) + math.dist(p3, p4)) / 2
+
+            if (p1_0[1]-p3_0[1] < p1_0[1]-p4_0[1]):
+                L2_0 = (math.dist(p1_0, p3_0) + math.dist(p2_0,p4_0)) / 2
+                L2_last = (math.dist(p1, p3) + math.dist(p2, p4)) / 2
+            else:
+                L2_0 = (math.dist(p1_0, p4_0) + math.dist(p2_0, p3_0)) / 2
+                L2_last = (math.dist(p1, p4) + math.dist(p2, p3)) / 2
+            
+            
+            # Calculate strains
+            lambda1 = 1 + (L1_last - L1_0) / L1_0
+            lambda2 = 1 + (L2_last - L2_0) / L2_0
+
+            E11 = (lambda1*lambda1 - 1)/2
+            E22 = (lambda2*lambda2 - 1)/2
+
+            self._E11.append(E11)
+            self._E22.append(E22)
+
             
     def moveSamplePosition(self):
         """
@@ -348,7 +412,7 @@ class MechanicalTest (QThread):
 
         # If videoextensometer is on and more than 10 marker positions were recorded
         # Write to CSV positions of markers
-        if self._fl_marks:
+        if 1 < len(self._point1):
             combined_lists = zip(self._time, self._point1, self._point2, self._point3, self._point4)
             with open(self._workfolder + '\Test_'+formatted_datetime+'_markers.csv', 'w', newline='') as file:
                 writer = csv.writer(file, delimiter=';')
@@ -356,126 +420,7 @@ class MechanicalTest (QThread):
                 for row in combined_lists:
                     writer.writerow(row)
 
-
-
-    def marksRecorded(self, lst):
-        '''
-        This function is connected with signal in video_thread which is emitted when marks are recorded
-        '''
-        self._fl_marks = True
-
-        # Variables to store markers position
-        self._marks_groups = []
-        self._point1 = []
-        self._point2 = []
-        self._point3 = []
-        self._point4 = []
-        
-        self._marks_groups.append(self._point1)
-        self._marks_groups.append(self._point2)
-        self._marks_groups.append(self._point3)
-        self._marks_groups.append(self._point4)
-
-
-        self._point1.append(lst[0][0])
-        self._point2.append(lst[1][0])
-        self._point3.append(lst[2][0])
-        self._point4.append(lst[3][0])
-
-        print("Marks recorded")
-        print(self._marks_groups)
-
-    def getMarksStatus(self):
-        """
-        Check if the marks are recorded. Required in the main window to decide whether to show strain or displacement
-        """
-        return self._fl_marks
-
-         
-    def _captureImageTrackMarks(self, camera):
-        """
-        Captures an image and tracks marks using the provided camera. Results are written to _E11, _E22 class attributes
-        """
-        with camera:
-            frame = camera.get_frame ()
-            if frame: 
-                self._img_cv = cv2.resize(frame.as_opencv_image(), (MechanicalTest.res_x, MechanicalTest.res_y))
-                
-                #detect markers
-                img, coord_temp = markersDetection().detectMarkers(self._img_cv) #detection of Markers
-                
-                #draw track of the markers
-                for group in self._marks_groups:
-                    lg = len(group)
-                    if lg > 1:
-                        x1 = int(group[lg-2][0])
-                        y1  = int(group[lg-2][1])
-                        x2 = int(group[lg-1][0])
-                        y2  = int(group[lg-1][1])
-                        cv2.line(self._img_track, (x1,y1), (x2, y2), 200, 1)
-                
-                #distribute marks in the groups
-                for gr in self._marks_groups:
-                    if len(gr) > 0:
-                        min_dist = 2000
-                        el = None
-                        #element - pair of (x,y) coordinates of a mark
-                        for element in coord_temp: 
-                            #last = gr[len(gr) - 1]
-                            dist = math.dist(element, gr[-1])
-                            #print(dist)
-                            #print("dist {} and {} = {}".format(element, last, dist))
-                            if dist < min_dist and dist < 70:
-                                el = element
-                                min_dist = dist
-                        if el is not None:
-                            gr.append(el)
-                            #print(gr)
-
-                        
-                
-
-                #Calculate strains
-                if len(self._point1) > 1:
-
-                    #calculate strain
-                    #along horizontal axis - upper and lower groups]
-                    #the algorithm find contours arranges points along y axis of an image
-    
-                    #Coordinates of initial and final points
-                    p1_0 = self._point1[0]
-                    p1 = self._point1[-1]
-                    p2_0 = self._point2[0]
-                    p2 = self._point2[-1]
-                    p3_0 = self._point3[0]
-                    p3 = self._point3[-1]
-                    p4_0 = self._point4[0]
-                    p4 = self._point4[-1]
-
-                    L1_0 = (math.dist(p1_0, p2_0) + math.dist(p3_0,p4_0)) / 2
-                    L1_last = (math.dist(p1, p2) + math.dist(p3, p4)) / 2
-
-                    if (p1_0[1]-p3_0[1] < p1_0[1]-p4_0[1]):
-                        L2_0 = (math.dist(p1_0, p3_0) + math.dist(p2_0,p4_0)) / 2
-                        L2_last = (math.dist(p1, p3) + math.dist(p2, p4)) / 2
-                    else:
-                        L2_0 = (math.dist(p1_0, p4_0) + math.dist(p2_0, p3_0)) / 2
-                        L2_last = (math.dist(p1, p4) + math.dist(p2, p3)) / 2
-                    
-                    
-                    # Calculate strains
-                    lambda1 = 1 + (L1_last - L1_0) / L1_0
-                    lambda2 = 1 + (L2_last - L2_0) / L2_0
-
-                    E11 = (lambda1*lambda1 - 1)/2
-                    E22 = (lambda2*lambda2 - 1)/2
-
-                    self._E11.append(E11)
-                    self._E22.append(E22)
-
-                    img = cv2.addWeighted(self._img_track, 0.2, img, 0.8, 0)
-
-                    self.signal_change_pixmap.emit(img)
+            
 
     def _sendRandSignal(self):
        
@@ -668,37 +613,19 @@ class LoadControlTest(MechanicalTest):
         #start performing test
         #this function is required to perform test with or without camera
 
-        #I can get camera from Vimba only within with-block
-        #This is why such a weird construction
 
-        if self._fl_marks:
-            self._sample_time = 0.05
-            with Vimba.get_instance () as vimba:
-                cams = vimba.get_all_cameras ()
-                with cams [0] as cam:
-                    
-                    cam.Gain.set(10)
-                    cam.ExposureTime.set(1500)
-
-                    frame = cam.get_frame ()
-                    if frame: 
-                        img_cv = frame.as_opencv_image()
-
-                        #Get current date for filename
-                        current_datetime = datetime.now()
-                        formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-                        cv2.imwrite(self._workfolder + '\Test_'+formatted_datetime+'_first_frame.jpg', img_cv)
-
-                    self.__performTest(cam) #True means to perform test with camera
-
-        else:
-            #without camera
-            self._sample_time = 0.15
-            self.__performTest(None)
+        self._sample_time = 0.15
 
 
+        """
+        #Get current date for filename
+        current_datetime = datetime.now()
+        formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
+        cv2.imwrite(self._workfolder + '\Test_'+formatted_datetime+'_first_frame.jpg', img_cv)
 
-    def __performTest(self, cam):
+        self.__performTest(cam) #True means to perform test with camera
+        """
+
 
         self._initVariables()
         
@@ -731,16 +658,8 @@ class LoadControlTest(MechanicalTest):
 
             while self._execute and self._current_time < 1.5*self._test_duration and (rel_force_ax1 < self._end_force1 or rel_force_ax2 < self._end_force2):
                 #Image capture should go first E11, E22 calculated in this funciton and after emitted in __oneCycle funciton
-                if cam is not None:
-                    self._captureImageTrackMarks(cam)
                 rel_force_ax1, rel_force_ax2 = self.__oneCycle(self._start_time, 0, 0, self._end_force1, self._end_force2)
                 
-            #Last image frame
-            if cam is not None:
-                current_datetime = datetime.now()
-                formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-                cv2.imwrite(self._workfolder + '\Test_'+formatted_datetime+'_last_frame.jpg', self._img_cv)
-                cv2.imwrite(self._workfolder + '\Test_'+formatted_datetime+'_tracks.jpg', self._img_track)
 
         #Cyclic test
         else:
@@ -771,8 +690,6 @@ class LoadControlTest(MechanicalTest):
 
                 
                 while self._execute and (rel_force_ax1 < self._end_force1 or rel_force_ax2 < self._end_force2):
-                    if cam is not None:
-                        self._captureImageTrackMarks(cam)
                     rel_force_ax1, rel_force_ax2 = self.__oneCycle(start_half_cycle_time, 0.03, 0.03, self._end_force1, self._end_force2)
                 
                 time.sleep(0.1)
@@ -800,17 +717,12 @@ class LoadControlTest(MechanicalTest):
                 self._pid_1.reset()
                 self._pid_2.reset()
                 while self._execute and (rel_force_ax1 > 0.02 or rel_force_ax2 > 0.02):
-                    if cam is not None:
-                        self._captureImageTrackMarks(cam)
                     rel_force_ax1, rel_force_ax2 = self.__oneCycle(start_half_cycle_time, self._end_force1, self._end_force2, 0.03, 0.03)
 
                 self._axis1.stop()
                 self._axis2.stop()
                 time.sleep(2)
                 
-
-            if cam is not None:
-                cv2.imwrite(self._workfolder + '\Test_'+formatted_datetime+'_tracks.jpg', self._img_track)
 
         
         #After test is finished (all the loops finished)
