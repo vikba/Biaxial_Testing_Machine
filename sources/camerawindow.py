@@ -140,12 +140,12 @@ class VideoThread(QThread):
             return False
         
 
-    """
-    def startStopTracking(self, flag):
+    
+    def start_stop_tracking(self, flag):
         
-        This function starts or stops tracking based on the value of the flag parameter.
+        """This function starts or stops tracking based on the value of the flag parameter.
         It takes in the flag parameter, which is a boolean to indicate whether to start or stop tracking.
-        There are no return types specified for this function.
+        There are no return types specified for this function."""
         
         if flag:
             print("Start tracking")
@@ -157,7 +157,7 @@ class VideoThread(QThread):
             self._execute = False
             self.stop()
 
-    """
+    
     
     def save_image(self, address):
         cv2.imwrite(address, self._img)

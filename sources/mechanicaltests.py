@@ -6,8 +6,6 @@
 """
 
 from PyQt6.QtCore import QThread, pyqtSignal, Qt, QTimer
-from PyQt6.QtGui import QImage, QPixmap
-from PyQt6.QtWidgets import QMessageBox
 import numpy as np
 import time
 import csv
@@ -31,10 +29,10 @@ class MechanicalTest (QThread):
     #Signal to update matplotlib
     signal_update_charts = pyqtSignal(list)
     #Signal to start/stop tracking marks when test is run
-    #start_stop_tracking_signal = pyqtSignal(bool)
+    signal_start_stop_tracking = pyqtSignal(bool)
+    signal_make_photo = pyqtSignal(str)
     #Signal to update live force in GUI
     signal_update_force_label = pyqtSignal(float, float)
-    signal_change_pixmap = pyqtSignal(np.ndarray)
     
     _force1_0 = 0 
     _force2_0 = 0
@@ -86,6 +84,7 @@ class MechanicalTest (QThread):
         self._execute = False
         self._axis1.stop()
         self._axis2.stop()
+        self.signal_start_stop_tracking.emit(False)
         #self._startForceLive()
         
 
@@ -115,7 +114,7 @@ class MechanicalTest (QThread):
         self._E11 = []
         self._E22 = []
 
-        self._fl_marks = False #Flag indicating whether marks are recorded
+        self._use_video = False #Flag indicating whether marks are recorded
         
         self._vel_1 = []
         self._vel_2 = []
@@ -206,9 +205,9 @@ class MechanicalTest (QThread):
         """
         self._force1,self._force2 = self._readForce()
         if self._force1 is not None and self._force2 is not None:
-            rel_force_ax1 = self._force1 - self._force1_0
-            rel_force_ax2 = self._force2 - self._force2_0
-            self.signal_update_force_label.emit(rel_force_ax1, rel_force_ax2)
+            self._rel_force_ax1 = self._force1 - self._force1_0
+            self._rel_force_ax2 = self._force2 - self._force2_0
+            self.signal_update_force_label.emit(self._rel_force_ax1, self._rel_force_ax2)
     
     def _readForce(self):
         """
@@ -276,6 +275,8 @@ class MechanicalTest (QThread):
     
     def init_markers(self, array):
 
+        self._use_video = True
+
         #datastructures to store tracks of marks
         self._marks_groups = []
         self._point1 = []
@@ -302,19 +303,33 @@ class MechanicalTest (QThread):
         self._temp_p3 = array[2]
         self._temp_p4 = array[3]
 
-    def _calc_video_strains(self):
+    def _update_arrays_emit_data(self):
 
-        self._point1.append(self._temp_p1)
-        self._point2.append(self._temp_p2)
-        self._point3.append(self._temp_p3)
-        self._point4.append(self._temp_p4)
+        #Append common variables for all tests
+        
+        roundDecimals = 5
+        #Add them to current variables
+        self._time.append(round(self._current_time, roundDecimals))
+        self._ch1.append(round(self._rel_force_ax1, roundDecimals)) #force channel 1
+        self._ch2.append(round(self._rel_force_ax2, roundDecimals))
+        self._l1.append(round(self._len_ax1, roundDecimals))
+        self._l2.append(round(self._len_ax2, roundDecimals))
+        self._vel_1.append(self._vel_ax1)
+        self._vel_2.append(self._vel_ax2)
+        
 
-        #Calculate strains
-        if len(self._point1) > 1:
-
+        if not self._use_video:
+            self.signal_update_charts.emit([self._time[-1], self._ch1[-1], self._ch2[-1], self._l1[-1], self._l2[-1]])
+        else:
             #calculate strain
             #along horizontal axis - upper and lower groups]
             #the algorithm find contours arranges points along y axis of an image
+
+            #Append points from a temporary buffer that is updated though signal/slot mechanism
+            self._point1.append(self._temp_p1)
+            self._point2.append(self._temp_p2)
+            self._point3.append(self._temp_p3)
+            self._point4.append(self._temp_p4)
 
             #Coordinates of initial and final points
             p1_0 = self._point1[0]
@@ -346,6 +361,8 @@ class MechanicalTest (QThread):
 
             self._E11.append(E11)
             self._E22.append(E22)
+
+            self.signal_update_charts.emit([self._time[-1], self._ch1[-1], self._ch2[-1], self._l1[-1], self._l2[-1], self._E11[-1], self._E22[-1], self._vel_1[-1],self._vel_2[-1]])
 
             
     def moveSamplePosition(self):
@@ -471,12 +488,11 @@ class DisplacementControlTest(MechanicalTest):
 
         """
         
-        
-        
         self._initVariables()
-        
-        #self.thread.startTracking()
-        #self.start_stop_tracking_signal.emit(True)
+
+        if (self._use_video):
+            self.signal_start_stop_tracking.emit(True)
+            self.signal_make_photo.emit(True)
         
         #start moving the motors
         self._axis1.move_velocity(self._vel_ax1, Units.VELOCITY_MILLIMETRES_PER_SECOND)
@@ -504,8 +520,8 @@ class DisplacementControlTest(MechanicalTest):
             
             
             #Calculate relative forces
-            rel_force_ax1 = self._force1 - self._force1_0
-            rel_force_ax2 = self._force2 - self._force2_0
+            self._rel_force_ax1 = self._force1 - self._force1_0
+            self._rel_force_ax2 = self._force2 - self._force2_0
             
             #update length for each axis
             self._len_ax1 = 2*(self._pos1_0 - self._axis1.get_position(Units.LENGTH_MILLIMETRES))
@@ -513,21 +529,7 @@ class DisplacementControlTest(MechanicalTest):
             #record time
             self._current_time = time.perf_counter() - self._start_time
             
-       
-            
-            roundDecimals = 5
-            #Add them to current variables
-            self._ch1.append(round(rel_force_ax1, roundDecimals)) #force channel 1
-            self._ch2.append(round(rel_force_ax2, roundDecimals))
-            self._l1.append(round(self._len_ax1, roundDecimals))
-            self._l2.append(round(self._len_ax2, roundDecimals))
-            self._time.append(round(self._current_time, roundDecimals))
-
-            
-         
-            
-            self.signal_update_charts.emit([self._ch1[-1], self._ch2[-1], self._l1[-1], self._l2[-1], self._time[-1]])
-
+            self._update_arrays_emit_data()
 
             time.sleep(self._sample_time)
             
@@ -629,8 +631,8 @@ class LoadControlTest(MechanicalTest):
 
         self._initVariables()
         
-        rel_force_ax1 = 0
-        rel_force_ax2 = 0
+        self._rel_force_ax1 = 0
+        self._rel_force_ax2 = 0
 
         #initial LOW velocities for motors
         #to stretch a sample velocity should be negarive. It'll become negative before stretching cycle
@@ -656,9 +658,9 @@ class LoadControlTest(MechanicalTest):
                 formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
                 cv2.imwrite('Test_'+formatted_datetime+'_first_frame.jpg', self._img_cv) '''
 
-            while self._execute and self._current_time < 1.5*self._test_duration and (rel_force_ax1 < self._end_force1 or rel_force_ax2 < self._end_force2):
+            while self._execute and self._current_time < 1.5*self._test_duration and (self._rel_force_ax1 < self._end_force1 or self._rel_force_ax2 < self._end_force2):
                 #Image capture should go first E11, E22 calculated in this funciton and after emitted in __oneCycle funciton
-                rel_force_ax1, rel_force_ax2 = self.__oneCycle(self._start_time, 0, 0, self._end_force1, self._end_force2)
+                self._rel_force_ax1, self._rel_force_ax2 = self.__oneCycle(self._start_time, 0, 0, self._end_force1, self._end_force2)
                 
 
         #Cyclic test
@@ -689,8 +691,8 @@ class LoadControlTest(MechanicalTest):
                 self._pid_2.reset()
 
                 
-                while self._execute and (rel_force_ax1 < self._end_force1 or rel_force_ax2 < self._end_force2):
-                    rel_force_ax1, rel_force_ax2 = self.__oneCycle(start_half_cycle_time, 0.03, 0.03, self._end_force1, self._end_force2)
+                while self._execute and (self._rel_force_ax1 < self._end_force1 or self._rel_force_ax2 < self._end_force2):
+                    self._rel_force_ax1, self._rel_force_ax2 = self.__oneCycle(start_half_cycle_time, 0.03, 0.03, self._end_force1, self._end_force2)
                 
                 time.sleep(self._sample_time)
 
@@ -716,8 +718,8 @@ class LoadControlTest(MechanicalTest):
                 start_half_cycle_time = time.perf_counter()
                 self._pid_1.reset()
                 self._pid_2.reset()
-                while self._execute and (rel_force_ax1 > 0.02 or rel_force_ax2 > 0.02):
-                    rel_force_ax1, rel_force_ax2 = self.__oneCycle(start_half_cycle_time, self._end_force1, self._end_force2, 0.03, 0.03)
+                while self._execute and (self._rel_force_ax1 > 0.02 or self._rel_force_ax2 > 0.02):
+                    self._rel_force_ax1, self._rel_force_ax2 = self.__oneCycle(start_half_cycle_time, self._end_force1, self._end_force2, 0.03, 0.03)
 
                 self._axis1.stop()
                 self._axis2.stop()
@@ -756,55 +758,41 @@ class LoadControlTest(MechanicalTest):
         self._len_ax2 = 2*(self._pos2_0 - self._axis2.get_position(Units.LENGTH_MILLIMETRES))
         
         #Calculate relative forces
-        rel_force_ax1 = self._force1 - self._force1_0
-        rel_force_ax2 = self._force2 - self._force2_0
+        self._rel_force_ax1 = self._force1 - self._force1_0
+        self._rel_force_ax2 = self._force2 - self._force2_0
     
         
-        #print("self._force12: {}".format(rel_force_ax1))
-        #print("self._force2: {}".format(rel_force_ax2))
+        #print("self._force12: {}".format(self._rel_force_ax1))
+        #print("self._force2: {}".format(self._rel_force_ax2))
         #print("Desired Force: {}".format(desired_force1))
         #print("PID_1: {}".format(pid_1))
         #print("PID_2: {}".format(pid_2))
         
-        roundDecimals = 5
-        #Add them to current variables
-        self._ch1.append(round(rel_force_ax1, roundDecimals)) #force channel 1
-        self._ch2.append(round(rel_force_ax2, roundDecimals))
-        self._l1.append(round(self._len_ax1, roundDecimals))
-        self._l2.append(round(self._len_ax2, roundDecimals))
-        self._time.append(round(self._current_time, roundDecimals))
-
-        print(f"self._time[-1] {self._time[-1]}")
         
-        if 0 <  len(self._E11):
-            self.signal_update_charts.emit([self._time[-1], self._ch1[-1], self._ch2[-1], self._l1[-1], self._l2[-1], self._E11[-1], self._E22[-1], self._vel_1[-1],self._vel_2[-1]])
-        else:
-            self.signal_update_charts.emit([self._time[-1], self._ch1[-1], self._ch2[-1], self._l1[-1], self._l2[-1]])
-
+        #Corr force is smoothed force for PID
         if len(self._time) > 10:
             corr_force1 = self._moving_average(self._ch1[-10:-1], 4)[-1]
             corr_force2 = self._moving_average(self._ch2[-10:-1], 4)[-1]
         else:
-            corr_force1 = rel_force_ax1
-            corr_force2 = rel_force_ax2
+            corr_force1 = self._rel_force_ax1
+            corr_force2 = self._rel_force_ax2
         
-        vel_ax1 = -self._pid_1.updateOutput(corr_force1)
-        vel_ax2 = -self._pid_2.updateOutput(corr_force2)
-        
-        self._vel_1.append(vel_ax1)
-        self._vel_2.append(vel_ax2)
+        self._vel_ax1 = -self._pid_1.updateOutput(corr_force1)
+        self._vel_ax2 = -self._pid_2.updateOutput(corr_force2)
     
         # Apply motor output adjustments
-        self._axis1.move_velocity(vel_ax1, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+        self._axis1.move_velocity(self._vel_ax1, Units.VELOCITY_MILLIMETRES_PER_SECOND)
             
         # Apply motor output adjustments
-        self._axis2.move_velocity(vel_ax2, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+        self._axis2.move_velocity(self._vel_ax2, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+
+        self._update_arrays_emit_data()
     
         
         
         #print("Cycle finished")
 
-        return rel_force_ax1, rel_force_ax2
+        return self._rel_force_ax1, self._rel_force_ax2
          
             
 

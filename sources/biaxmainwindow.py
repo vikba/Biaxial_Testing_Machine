@@ -498,8 +498,8 @@ class BiaxMainWindow(QMainWindow):
             self._video_thread.signal_markers_recorded.connect(self._mecTest.init_markers)
             self._video_thread.signal_markers_coordinates.connect(self._mecTest.update_markers)
             self._video_thread.signal_change_pixmap.connect(self._video_window.update_image)
-            #self._mecTest.start_stop_tracking_signal.connect(self._video_window.startStopTracking)
-            self._mecTest.signal_change_pixmap.connect(self._video_window.update_image)
+            
+            self._mecTest.signal_start_stop_tracking.connect(self._video_thread.start_stop_tracking)
 
             
             self._video_window.show()
