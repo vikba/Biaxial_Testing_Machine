@@ -164,19 +164,6 @@ class VideoThread(QThread):
 
     
     def run(self):
-
-        cap = cv2.VideoCapture(0)
-
-        if not cap.isOpened():
-            print("Error: Could not open webcam.")
-            exit()
-
-        while True:
-            # Read a frame from the webcam
-            ret, frame = cap.read()
-
-            self.signal_change_pixmap.emit(frame)
-
         """
         The run function controls the execution of the main camera loop. 
         It initializes the camera and sets its parameters, then enters a loop where it 
@@ -205,7 +192,7 @@ class VideoThread(QThread):
                 while self._execute:
                     
                     t = time.perf_counter()
-                    time.sleep(0.05)
+                    time.sleep(0.1)
                     frame = cam.get_frame ()
                     
                     if frame:
@@ -455,6 +442,7 @@ class VideoWindow(QWidget):
         self._start_point = self._end_point = None
         
         self._track_marks = False
+        self._draw_rectangle = False
          
         
         self.thread = thread
@@ -468,10 +456,12 @@ class VideoWindow(QWidget):
         """
         self._start_point = event.pos()
         self._end_point = None
+
         self.update()
 
     def mouseMoveEvent(self, event):
         self._end_point = event.pos()
+        self._draw_rectangle = True
 
         
         self.update()
@@ -482,6 +472,7 @@ class VideoWindow(QWidget):
         print("start point {}".format(self._start_point))
         print("end point {}".format(self._end_point))
         self.signal_update_roi.emit(self._start_point.x(), self._start_point.y(), self._end_point.x(), self._end_point.y())
+        self._draw_rectangle = False
 
     def startStopTracking(self, flag):
         self.thread.startStopTracking(flag)
@@ -502,7 +493,7 @@ class VideoWindow(QWidget):
             cv_img: The OpenCV image to update the display with.
         """
         
-        if self._start_point and self._end_point:
+        if self._start_point and self._end_point and self._draw_rectangle:
             start_p = (self._start_point.x(), self._start_point.y())
             end_p = (self._end_point.x(), self._end_point.y())
             if not self._track_marks:
