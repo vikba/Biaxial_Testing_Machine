@@ -33,8 +33,8 @@ class VideoThread(QThread):
     signal_markers_recorded = pyqtSignal(list)
     signal_markers_coordinates = pyqtSignal(list)
 
-    res_x_full = 1024
-    res_y_full = 768
+    RES_X_FULL = 1024
+    RES_Y_FULL = 768
 
     
     def __init__(self):
@@ -47,8 +47,8 @@ class VideoThread(QThread):
             
         self._roi_x1 = 0
         self._roi_y1 = 0
-        self._roi_x2 = VideoThread.res_x_full
-        self._roi_y2 = VideoThread.res_y_full
+        self._roi_x2 = VideoThread.RES_X_FULL
+        self._roi_y2 = VideoThread.RES_Y_FULL
 
         self.__initVariables()
 
@@ -72,6 +72,11 @@ class VideoThread(QThread):
         self._E11 = []
         self._E22 = []
 
+        self._temp_p1 = None
+        self._temp_p2 = None
+        self._temp_p3 = None
+        self._temp_p4 = None
+
     def stop(self):
         #self.timer.stop()
         #self.cam._close()
@@ -90,10 +95,10 @@ class VideoThread(QThread):
         """
 
         #Adjust to difference between VideoThread and VideoWindow resolution
-        x1 = int(x1 * VideoThread.res_x_full/VideoWindow.res_x)
-        y1 = int(y1 * VideoThread.res_y_full/VideoWindow.res_y)
-        x2 = int(x2 * VideoThread.res_x_full/VideoWindow.res_x)
-        y2 = int(y2 * VideoThread.res_y_full/VideoWindow.res_y)
+        x1 = int(x1 * VideoThread.RES_X_FULL/VideoWindow.RES_X)
+        y1 = int(y1 * VideoThread.RES_Y_FULL/VideoWindow.RES_Y)
+        x2 = int(x2 * VideoThread.RES_X_FULL/VideoWindow.RES_X)
+        y2 = int(y2 * VideoThread.RES_Y_FULL/VideoWindow.RES_Y)
         
         #The roi should have the same orientation independent on how user indicated it on the screen
         if x2 < x1:
@@ -154,8 +159,24 @@ class VideoThread(QThread):
 
     """
     
+    def save_image(self, address):
+        cv2.imwrite(address, self._img)
+
     
     def run(self):
+
+        cap = cv2.VideoCapture(0)
+
+        if not cap.isOpened():
+            print("Error: Could not open webcam.")
+            exit()
+
+        while True:
+            # Read a frame from the webcam
+            ret, frame = cap.read()
+
+            self.signal_change_pixmap.emit(frame)
+
         """
         The run function controls the execution of the main camera loop. 
         It initializes the camera and sets its parameters, then enters a loop where it 
@@ -168,9 +189,9 @@ class VideoThread(QThread):
         *if self._init_marks: Record first marks
         *after continiosly record marks and send them to MechanicalTest
         """
-        #self.cap = cv2.VideoCapture(0)
         
-        img_track = np.zeros((VideoThread.res_y_full, VideoThread.res_x_full, 1), dtype=np.uint8)
+        
+        img_track = np.zeros((VideoThread.RES_Y_FULL, VideoThread.RES_X_FULL, 1), dtype=np.uint8)
         img_track.fill(0)
         self._time = []
         
@@ -199,6 +220,7 @@ class VideoThread(QThread):
                         #Draw all the markers
                         img = cv2.addWeighted(img_track, 1, img, 1, 0)
 
+                        #Draw point numbers on image
                         if 0 < len(self._point1):
                             font = cv2.FONT_HERSHEY_SIMPLEX
 
@@ -211,9 +233,11 @@ class VideoThread(QThread):
                             p = (int(self._point4[-1][0]+10),int(self._point4[-1][1]+10))
                             cv2.putText(img, "4", p, font, 1, 155, 2)
 
+                        #Variable to be accessed in other functions
+                        self._img = img
                         
                         #Decrease the resolution to decrease amount of data sent via signal-slot mechanism
-                        img = cv2.resize(img, (VideoWindow.res_x, VideoWindow.res_y))
+                        img = cv2.resize(img, (VideoWindow.RES_X, VideoWindow.RES_Y))
                         self.signal_change_pixmap.emit(img)
                            
                         # True only one time to record initial position of the marks
@@ -400,8 +424,8 @@ class VideoWindow(QWidget):
     signal_update_roi = pyqtSignal(int, int, int, int)
     #start_tracking_signal = pyqtSignal(bool)  # Signal to start tracking marks
     
-    res_x = int(1024/2)
-    res_y = int(768/2)
+    RES_X = 640# int(1024/2)
+    RES_Y = 480#int(768/2)
     
 
     def __init__(self, thread):
@@ -414,7 +438,7 @@ class VideoWindow(QWidget):
         super().__init__()
         self.setWindowTitle("Video Stream")
         self._image_label = QLabel(self)
-        self._image_label.resize(VideoWindow.res_x, VideoWindow.res_y)
+        self._image_label.resize(VideoWindow.RES_X, VideoWindow.RES_Y)
         self._layout = QVBoxLayout()
         self._layout.addWidget(self._image_label)
         self.setLayout(self._layout)
@@ -434,7 +458,7 @@ class VideoWindow(QWidget):
          
         
         self.thread = thread
-        #self.thread.change_pixmap_signal.connect(self.update_image)
+        self.thread.signal_change_pixmap.connect(self.update_image)
         self.signal_update_roi.connect(self.thread.update_roi)
         
             
@@ -494,16 +518,13 @@ class VideoWindow(QWidget):
         
         bytes_per_line = ch * w
         convert_to_Qt_format = QImage(cv_img.data, w, h, bytes_per_line, QImage.Format.Format_Grayscale8)
-        p = convert_to_Qt_format.scaled(VideoWindow.res_x, VideoWindow.res_y, Qt.AspectRatioMode.KeepAspectRatio)
+        p = convert_to_Qt_format.scaled(VideoWindow.RES_X, VideoWindow.RES_Y, Qt.AspectRatioMode.KeepAspectRatio)
         
  
         
-        '''
-        h, w, ch = cv_img.shape
-        bytes_per_line = ch * w
-        convert_to_Qt_format = QImage(cv_img.data, w, h, bytes_per_line, QImage.Format_RGB888)
-        p = convert_to_Qt_format.scaled(640, 480, Qt.KeepAspectRatio)
-        '''
+        
+    
+        
         
         qt_img = QPixmap.fromImage(p)
         self._image_label.setPixmap(qt_img)

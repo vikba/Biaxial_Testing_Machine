@@ -16,7 +16,6 @@ import os
 from .mechanicaltests import DisplacementControlTest, LoadControlTest, MechanicalTest
 from .camerawindow import VideoThread, VideoWindow
 from .loadcalculator import LoadCalculatorWindow
-#from .mplwidget import MplWidget
 
 
 
@@ -250,7 +249,8 @@ class BiaxMainWindow(QMainWindow):
 
     def __connect(self):
         '''
-        Connects to the appropriate test based on the current tab in the tabWidget
+        Created an instance of appropriate test based on the tab in the tabWidget
+        And after connects to motors and DAQ
         
         tabWidget:
         0 - load control
@@ -496,6 +496,7 @@ class BiaxMainWindow(QMainWindow):
             self._video_window = VideoWindow(self._video_thread)
 
             self._video_thread.signal_markers_recorded.connect(self._mecTest.init_markers)
+            self._video_thread.signal_markers_coordinates.connect(self._mecTest.update_markers)
             self._video_thread.signal_change_pixmap.connect(self._video_window.update_image)
             #self._mecTest.start_stop_tracking_signal.connect(self._video_window.startStopTracking)
             self._mecTest.signal_change_pixmap.connect(self._video_window.update_image)

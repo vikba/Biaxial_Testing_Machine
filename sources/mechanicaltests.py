@@ -20,7 +20,6 @@ from zaber_motion import Units
 from vimba import *
 import ginsapy.giutility.connect.PyQStationConnectWin as Qstation #module with communication functions to Gantner Q.Station under windows environment
 
-from .markersdetection import markersDetection
 from .pid import PID
 
 
@@ -41,10 +40,6 @@ class MechanicalTest (QThread):
     _force2_0 = 0
     _pos1_0 = 0
     _pos2_0 = 0
-
-    res_x = 1024
-    res_y = 768
-
     
     _sample_time = 0.1  # seconds
    
@@ -134,10 +129,6 @@ class MechanicalTest (QThread):
         
         self._force1 = self._force2 = 0
         self._len_ax1 = self._len_ax2 = 0
-        
-        # Supplementary image to show tracks
-        self._img_track = np.zeros((MechanicalTest.res_y, MechanicalTest.res_x, 1), dtype=np.uint8)
-        self._img_track.fill(0)
         
         #record start time
         self._start_time = time.perf_counter()
@@ -284,6 +275,7 @@ class MechanicalTest (QThread):
         return k1*val1, k2*val2
     
     def init_markers(self, array):
+
         #datastructures to store tracks of marks
         self._marks_groups = []
         self._point1 = []
@@ -296,18 +288,26 @@ class MechanicalTest (QThread):
         self._marks_groups.append(self._point3)
         self._marks_groups.append(self._point4)
 
-        self._point1.append(array[0])
-        self._point2.append(array[1])
-        self._point3.append(array[2])
-        self._point4.append(array[3])
+        #Temporary coordinates 
+        self._temp_p1 = array[0]
+        self._temp_p2 = array[1]
+        self._temp_p3 = array[2]
+        self._temp_p4 = array[3]
     
     def update_markers(self, array):
 
-        self._point1.append(array[0])
-        self._point2.append(array[1])
-        self._point3.append(array[2])
-        self._point4.append(array[3])
+        #Temporary coordinates 
+        self._temp_p1 = array[0]
+        self._temp_p2 = array[1]
+        self._temp_p3 = array[2]
+        self._temp_p4 = array[3]
 
+    def _calc_video_strains(self):
+
+        self._point1.append(self._temp_p1)
+        self._point2.append(self._temp_p2)
+        self._point3.append(self._temp_p3)
+        self._point4.append(self._temp_p4)
 
         #Calculate strains
         if len(self._point1) > 1:
@@ -692,7 +692,7 @@ class LoadControlTest(MechanicalTest):
                 while self._execute and (rel_force_ax1 < self._end_force1 or rel_force_ax2 < self._end_force2):
                     rel_force_ax1, rel_force_ax2 = self.__oneCycle(start_half_cycle_time, 0.03, 0.03, self._end_force1, self._end_force2)
                 
-                time.sleep(0.1)
+                time.sleep(self._sample_time)
 
                 #Decreasing force loop
                 print("Start decreasing force")
@@ -708,11 +708,11 @@ class LoadControlTest(MechanicalTest):
                 self._axis2.move_velocity(vel_ax2*0.1, Units.VELOCITY_MILLIMETRES_PER_SECOND)
 
                 #For the last frame we need to capture highest force
-                if cam is not None:
+                '''if cam is not None:
                     current_datetime = datetime.now()
                     formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
                     cv2.imwrite(self._workfolder + '\Test_'+formatted_datetime+'_last_frame.jpg', self._img_cv)
-                
+                '''
                 start_half_cycle_time = time.perf_counter()
                 self._pid_1.reset()
                 self._pid_2.reset()
