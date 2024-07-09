@@ -199,7 +199,7 @@ class VideoThread(QThread):
         if cam is not None:
             while self._execute:
                 t = time.perf_counter()
-                time.sleep(0.1)
+                QThread.sleep(0.1)
                 frame = cam.get_frame ()
                 
                 if frame:

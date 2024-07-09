@@ -157,7 +157,7 @@ class MechanicalTest (QThread):
         self._buffer=self._conn_q.yield_buffer()
         #first data are usually broken. Just read them to 
         next(self._buffer) #remove first values
-        time.sleep(0.5)
+        QThread.sleep(0.5)
         
         #read load cell data before installing sample
         val1, val2 = self._readForce()
@@ -170,7 +170,7 @@ class MechanicalTest (QThread):
         #This method is redefined in subclassess
         while (self._counter < 100):
             self._sendRandSignal()
-            time.sleep(0.1)
+            QThread.sleep(0.1)
     
     def stop(self):
         """
@@ -238,7 +238,7 @@ class MechanicalTest (QThread):
         """
         Performs a zero force calibration by sleeping for 0.1 seconds, reading force values, and printing the initial force 1 and force 2 values.
         """
-        time.sleep(0.1)
+        QThread.sleep(0.1)
         self._force1_0, self._force2_0 = self._readForce()
         print("Init force 1: {}".format(self._force1_0))
         print("Init force 2: {}".format(self._force2_0))
@@ -533,7 +533,7 @@ class DisplacementControlTest(MechanicalTest):
             
             self._update_arrays_emit_data()
 
-            time.sleep(self._sample_time)
+            QThread.sleep(self._sample_time)
             
         # Stop motors after measurement cycle is finished
         self.stop_measurement()
@@ -696,7 +696,7 @@ class LoadControlTest(MechanicalTest):
                 while self._execute and (self._rel_force_ax1 < self._end_force1 or self._rel_force_ax2 < self._end_force2):
                     self._rel_force_ax1, self._rel_force_ax2 = self.__oneCycle(start_half_cycle_time, 0.03, 0.03, self._end_force1, self._end_force2)
                 
-                time.sleep(self._sample_time)
+                QThread.sleep(self._sample_time)
 
                 #Decreasing force loop
                 print("Start decreasing force")
@@ -725,7 +725,7 @@ class LoadControlTest(MechanicalTest):
 
                 self._axis1.stop()
                 self._axis2.stop()
-                time.sleep(2)
+                QThread.sleep(2)
                 
 
         
@@ -740,7 +740,7 @@ class LoadControlTest(MechanicalTest):
     def __oneCycle(self, start_cycle_time, start_force1, start_force2, end_force1, end_force2):
 
         # Wait before the next loop iteration
-        time.sleep(self._sample_time)
+        QThread.sleep(self._sample_time)
 
         self._current_time = time.perf_counter() - self._start_time
         current_cycle_time = time.perf_counter() - start_cycle_time
