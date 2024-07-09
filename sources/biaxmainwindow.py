@@ -462,16 +462,12 @@ class BiaxMainWindow(QMainWindow):
             
     def __calculateLoads (self):
 
-        self._mecTest = MechanicalTest()
-        self._mecTest.signal_update_charts.connect(self.__update_charts)
-        self._mecTest.start()
-
-        '''
+        
         self._calc_loads_window = LoadCalculatorWindow()
         self._calc_loads_window.signal_loads_calculated.connect(self.__setLoads)
 
         self._calc_loads_window.show()
-        '''
+        
 
     
     def __setLoads(self, load1, load2):

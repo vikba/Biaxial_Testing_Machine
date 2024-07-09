@@ -5,7 +5,7 @@
 
 """
 
-from PyQt6.QtCore import QThread, pyqtSignal, Qt, QTimer
+from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot,  Qt, QTimer
 import numpy as np
 import time
 import csv
@@ -57,40 +57,6 @@ class MechanicalTest (QThread):
         self._connection_z.close()
         self._conn_q.close_connection() #Connection to DAQ Qstation
         self.quit()
-        
-        
-    def run(self):
-        #Generation of random signal to test the class
-        #This method is redefined in subclassess
-        while (self._counter < 100):
-            self._sendRandSignal()
-            time.sleep(0.1)
-    
-    def stop(self):
-        """
-        Stops movemets, connections and  the execution of the current QThread
-        """
-        self._execute = False
-        self._axis1.stop()
-        self._axis2.stop()
-        self._connection_z.close() #Connection to Zaber motors
-        self._conn_q.close_connection() #Connection to DAQ Qstation
-        self.quit()
-    
-    def stop_measurement(self):
-        """
-        Stop the measurement by setting the _execute flag to False and stopping axis1 and axis2.
-        """
-        self._execute = False
-        self._axis1.stop()
-        self._axis2.stop()
-        self.signal_start_stop_tracking.emit(False)
-        #self._startForceLive()
-        
-
-        #what is it for?
-    def setThread(self, thread):
-        self.thread = thread
         
         
     def _initVariables(self):
@@ -199,8 +165,42 @@ class MechanicalTest (QThread):
         print("Initial force at channel 2: {}".format(val2))
         
     
+    def run(self):
+        #Generation of random signal to test the class
+        #This method is redefined in subclassess
+        while (self._counter < 100):
+            self._sendRandSignal()
+            time.sleep(0.1)
+    
+    def stop(self):
+        """
+        Stops movemets, connections and  the execution of the current QThread
+        """
+        self._execute = False
+        self._axis1.stop()
+        self._axis2.stop()
+        self._connection_z.close() #Connection to Zaber motors
+        self._conn_q.close_connection() #Connection to DAQ Qstation
+        self.quit()
+    
+    def stop_measurement(self):
+        """
+        Stop the measurement by setting the _execute flag to False and stopping axis1 and axis2.
+        """
+        self._execute = False
+        self._axis1.stop()
+        self._axis2.stop()
+        self.signal_start_stop_tracking.emit(False)
+        #self._startForceLive()
+        
+
+        #what is it for?
+    def setThread(self, thread):
+        self.thread = thread
+    
     def readForceLive(self):
         """
+        Called by QTimer in BiaxMainWindow.
         Updates the live forces and emits a signal with the relative forces along two axes.
         """
         self._force1,self._force2 = self._readForce()
@@ -273,6 +273,7 @@ class MechanicalTest (QThread):
         
         return k1*val1, k2*val2
     
+    @pyqtSlot(list)
     def init_markers(self, array):
 
         self._use_video = True
@@ -295,6 +296,7 @@ class MechanicalTest (QThread):
         self._temp_p3 = array[2]
         self._temp_p4 = array[3]
     
+    @pyqtSlot(list)
     def update_markers(self, array):
 
         #Temporary coordinates 
@@ -439,7 +441,7 @@ class MechanicalTest (QThread):
 
             
 
-    def _sendRandSignal(self):
+    def _send_rand_signal(self):
        
         print("Sending random")
         self._counter +=1
