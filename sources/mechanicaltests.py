@@ -7,10 +7,10 @@
 
 from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot,  Qt, QTimer
 import numpy as np
-import time
 import csv
 import cv2
 import math
+import time
 from datetime import datetime
 
 from zaber_motion.ascii import Connection

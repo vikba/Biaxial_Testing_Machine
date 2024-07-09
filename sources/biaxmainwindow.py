@@ -6,7 +6,7 @@
 
 from PyQt6.QtWidgets import*
 from PyQt6.uic import loadUi
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QTimer, pyqtSlot
 from PyQt6.QtGui import QFont
 #from PyQt5.QtChart import QLineSeries
 import pyqtgraph as pg
@@ -522,7 +522,7 @@ class BiaxMainWindow(QMainWindow):
             self._mecTest.updatePID(P1, I1, D1, P2, I2, D2)
     
         
-
+    @pyqtSlot(list)
     def __update_charts(self, array):
         """
         Updates charts on matplotlib widgets

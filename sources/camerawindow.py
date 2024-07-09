@@ -11,8 +11,8 @@ import math
 import numpy as np
 import time
 
-from PyQt6.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QLabel, QMessageBox
-from PyQt6.QtCore import QThread, pyqtSignal, Qt, QTimer
+from PyQt6.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QLabel
+from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot, Qt, QTimer
 from PyQt6.QtGui import QImage, QPixmap
 from datetime import datetime
 
@@ -138,8 +138,7 @@ class VideoThread(QThread):
         else:
             return False
         
-
-    
+    @pyqtSlot(bool)
     def start_stop_tracking(self, flag):
         
         """This function starts or stops tracking based on the value of the flag parameter.
@@ -157,7 +156,7 @@ class VideoThread(QThread):
             self.stop()
 
     
-    
+    @pyqtSlot(str)
     def save_image(self, address):
         cv2.imwrite(address, self._img)
 
@@ -177,8 +176,8 @@ class VideoThread(QThread):
         """
         
         
-        img_track = np.zeros((VideoThread.RES_Y_FULL, VideoThread.RES_X_FULL, 1), dtype=np.uint8)
-        img_track.fill(0)
+        self.__img_track = np.zeros((VideoThread.RES_Y_FULL, VideoThread.RES_X_FULL, 1), dtype=np.uint8)
+        self.__img_track.fill(0)
         self._time = []
         
         with Vimba.get_instance () as vimba:
@@ -187,140 +186,162 @@ class VideoThread(QThread):
                 
                 cam.Gain.set(15)
                 cam.ExposureTime.set(700)
-        
-                self.__next_video_frame(cam)
+
+                while self._execute:
+                    t = time.perf_counter()
+                    self.__grab_frame(cam)
+                    QThread.sleep(0.1)
+                    print("One frame {}".format(time.perf_counter()-t))
+
+                '''self._timer_video = QTimer()
+                self._timer_video.timeout.connect(self.grab_frame)
+                self._timer_video.start(300)  # Grab a frame every 300ms (about 3.3fps)'''
 
                 
                 #Record to the file
                 #self.writeDataToFile()
                 self.quit()
 
-    def __next_video_frame(self, cam):
-        if cam is not None:
-            while self._execute:
-                t = time.perf_counter()
-                QThread.sleep(0.1)
-                frame = cam.get_frame ()
+    #Decorator to calculate execution time
+    def calculate_time(func):
+        # added arguments inside the inner1,
+        # if function takes any arguments,
+        # can be added like this.
+        def inner1(*args, **kwargs):
+
+            # storing time before function execution
+            begin = time.time()
+            
+            func(*args, **kwargs)
+
+            # storing time after function execution
+            end = time.time()
+            print("Total time taken in : ", func.__name__, end - begin)
+
+        return inner1
+    
+    @calculate_time
+    def __grab_frame(self, cam):
+        if cam is not None and self._execute:
+
+            frame = cam.get_frame ()
+            
+            if frame:
                 
-                if frame:
+                img_cv = frame.as_opencv_image()
+                
+                #print("Time 1 {}".format(time.perf_counter()-t))
+                
+                #detect markers
+                img, coord_temp = self.__detectMarkers(img_cv) #detection of Markers
+
+                #Draw all the markers
+                img = cv2.addWeighted(self.__img_track, 1, img, 1, 0)
+
+                #Draw point numbers on image
+                if 0 < len(self._point1):
+                    font = cv2.FONT_HERSHEY_SIMPLEX
+
+                    p = (int(self._point1[-1][0]+10),int(self._point1[-1][1]+10))
+                    cv2.putText(img, "1", p, font, 1, 155, 2)
+                    p = (int(self._point2[-1][0]+10),int(self._point2[-1][1]+10))
+                    cv2.putText(img, "2", p, font, 1, 155, 2)
+                    p = (int(self._point3[-1][0]+10),int(self._point3[-1][1]+10))
+                    cv2.putText(img, "3", p, font, 1, 155, 2)
+                    p = (int(self._point4[-1][0]+10),int(self._point4[-1][1]+10))
+                    cv2.putText(img, "4", p, font, 1, 155, 2)
+
+                #Variable to be accessed in other functions
+                self._img = img
+                
+                #Decrease the resolution to decrease amount of data sent via signal-slot mechanism
+                img = cv2.resize(img, (VideoWindow.RES_X, VideoWindow.RES_Y))
+                self.signal_change_pixmap.emit(img)
                     
-                    img_cv = frame.as_opencv_image()
+                # True only one time to record initial position of the marks
+                if self._init_marks:
+
+                    self.__initVariables()
                     
-                    #print("Time 1 {}".format(time.perf_counter()-t))
-                    
-                    #detect markers
-                    img, coord_temp = self.__detectMarkers(img_cv) #detection of Markers
+                    print("Start recording")
+                    print("Point 1 {},  {}".format(self._roi_x1, self._roi_y1))
+                    print("Point 2 {},  {}".format(self._roi_x2, self._roi_y2))
 
-                    #Draw all the markers
-                    img = cv2.addWeighted(img_track, 1, img, 1, 0)
+                    filtered_coord = [coord for coord in coord_temp if self._if_within_roi(coord)]
 
-                    #Draw point numbers on image
-                    if 0 < len(self._point1):
-                        font = cv2.FONT_HERSHEY_SIMPLEX
+                    #We need to ensure constant point order on the image
+                    #sort by y coord to separate upper and lower marks
+                    sorted_y = sorted(filtered_coord, key=lambda x: x[1])
+                    #split into upper and lower
+                    upper_coord = sorted_y[:2]
+                    lower_coord = sorted_y[2:]
+                    #sort by x coord
+                    upper_sorted = sorted(upper_coord, key=lambda x: x[0], reverse=False)
+                    lower_sorted = sorted(lower_coord, key=lambda x: x[0], reverse=True)
 
-                        p = (int(self._point1[-1][0]+10),int(self._point1[-1][1]+10))
-                        cv2.putText(img, "1", p, font, 1, 155, 2)
-                        p = (int(self._point2[-1][0]+10),int(self._point2[-1][1]+10))
-                        cv2.putText(img, "2", p, font, 1, 155, 2)
-                        p = (int(self._point3[-1][0]+10),int(self._point3[-1][1]+10))
-                        cv2.putText(img, "3", p, font, 1, 155, 2)
-                        p = (int(self._point4[-1][0]+10),int(self._point4[-1][1]+10))
-                        cv2.putText(img, "4", p, font, 1, 155, 2)
+                    sorted_coord = lower_sorted + upper_sorted
 
-                    #Variable to be accessed in other functions
-                    self._img = img
-                    
-                    #Decrease the resolution to decrease amount of data sent via signal-slot mechanism
-                    img = cv2.resize(img, (VideoWindow.RES_X, VideoWindow.RES_Y))
-                    self.signal_change_pixmap.emit(img)
-                        
-                    # True only one time to record initial position of the marks
-                    if self._init_marks:
-
-                        self.__initVariables()
-                        
-                        print("Start recording")
-                        print("Point 1 {},  {}".format(self._roi_x1, self._roi_y1))
-                        print("Point 2 {},  {}".format(self._roi_x2, self._roi_y2))
-
-                        filtered_coord = [coord for coord in coord_temp if self._if_within_roi(coord)]
-
-                        #We need to ensure constant point order on the image
-                        #sort by y coord to separate upper and lower marks
-                        sorted_y = sorted(filtered_coord, key=lambda x: x[1])
-                        #split into upper and lower
-                        upper_coord = sorted_y[:2]
-                        lower_coord = sorted_y[2:]
-                        #sort by x coord
-                        upper_sorted = sorted(upper_coord, key=lambda x: x[0], reverse=False)
-                        lower_sorted = sorted(lower_coord, key=lambda x: x[0], reverse=True)
-
-                        sorted_coord = lower_sorted + upper_sorted
-
-                        print ("Sorted: ")
-                        print(sorted_coord)
-                        n_marks = len(filtered_coord)
+                    print ("Sorted: ")
+                    print(sorted_coord)
+                    n_marks = len(filtered_coord)
 
 
-                        if n_marks == 4:
+                    if n_marks == 4:
 
-                            #allocate (x,y) in first empty sub(list)
-                            i = 0
-                            for coord in sorted_coord:
-                                #print a number on the image
-                                # Font type
-                                if self._if_within_roi(coord)  and i < len(self._marks_groups):
-                                    self._marks_groups[i].append(coord)
-                                    i += 1
+                        #allocate (x,y) in first empty sub(list)
+                        i = 0
+                        for coord in sorted_coord:
+                            #print a number on the image
+                            # Font type
+                            if self._if_within_roi(coord)  and i < len(self._marks_groups):
+                                self._marks_groups[i].append(coord)
+                                i += 1
 
-                            print("Marks count: {}".format(i))
-
-                            self.signal_markers_recorded.emit([self._point1[-1],self._point2[-1],self._point3[-1],self._point4[-1]])
-
-
-                        else:
-                            print("Wrong number of marks. Expected 4. Detected {}".format(n_marks))
-                                    
-                        #Switch to continous monitoring mode
-                        self._init_marks = False
-                        self.signal_markers_recorded.emit([self._point1[-1],self._point2[-1],self._point3[-1],self._point4[-1]])
-
-                    elif self._track_marks:
-                        
-                        #distribute marks in the groups
-                        #go by all points and find a closest marker to it
-                        for group in self._marks_groups:
-                            if len(group) > 0:
-                                min_dist = 2000
-                                el = None
-                                #element - pair of (x,y) coordinates of a mark
-                                for element in coord_temp: 
-                                    #last = gr[len(gr) - 1]
-                                    dist = math.dist(element, group[-1])
-                                    #print(dist)
-                                    #print("dist {} and {} = {}".format(element, last, dist))
-                                    if dist < min_dist and dist < 70:
-                                        el = element
-                                        min_dist = dist
-                                if el is not None:
-                                    group.append(el)
-                                    #print(gr)
+                        print("Marks count: {}".format(i))
 
                         self.signal_markers_recorded.emit([self._point1[-1],self._point2[-1],self._point3[-1],self._point4[-1]])
 
-                        
+
+                    else:
+                        print("Wrong number of marks. Expected 4. Detected {}".format(n_marks))
+                                
+                    #Switch to continous monitoring mode
+                    self._init_marks = False
+                    self.signal_markers_recorded.emit([self._point1[-1],self._point2[-1],self._point3[-1],self._point4[-1]])
+
+                elif self._track_marks:
                     
-                    
-                    
-                    #draw track of the markers
+                    #distribute marks in the groups
+                    #go by all points and find a closest marker to it
                     for group in self._marks_groups:
-                        lg = len(group)
-                        if lg > 1:
-                            cv2.line(img_track, group[lg-2], group[lg-1], 150, 1)
-                
-                
+                        if len(group) > 0:
+                            min_dist = 2000
+                            el = None
+                            #element - pair of (x,y) coordinates of a mark
+                            for element in coord_temp: 
+                                #last = gr[len(gr) - 1]
+                                dist = math.dist(element, group[-1])
+                                #print(dist)
+                                #print("dist {} and {} = {}".format(element, last, dist))
+                                if dist < min_dist and dist < 70:
+                                    el = element
+                                    min_dist = dist
+                            if el is not None:
+                                group.append(el)
+                                #print(gr)
+
+                    self.signal_markers_recorded.emit([self._point1[-1],self._point2[-1],self._point3[-1],self._point4[-1]])
+
                     
-                print("One frame {}".format(time.perf_counter()-t))
+                #draw track of the markers
+                for group in self._marks_groups:
+                    lg = len(group)
+                    if lg > 1:
+                        cv2.line(self.__img_track, group[lg-2], group[lg-1], 150, 1)
+            
+            
+
+
 
     def __detectMarkers(self, image):
         """
@@ -474,10 +495,10 @@ class VideoWindow(QWidget):
         self.signal_update_roi.emit(self._start_point.x(), self._start_point.y(), self._end_point.x(), self._end_point.y())
         self._draw_rectangle = False
 
-    def startStopTracking(self, flag):
+    '''def startStopTracking(self, flag):
         self.thread.startStopTracking(flag)
         
-        self._track_marks = flag
+        self._track_marks = flag'''
         
 
     def stop_webcam(self):
@@ -485,6 +506,7 @@ class VideoWindow(QWidget):
         self.close()
         
 
+    @pyqtSlot(np.ndarray)
     def update_image(self, cv_img):
         """
         Update the image displayed in the image label with the given cv_img.
