@@ -8,7 +8,6 @@
 from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot,  Qt, QTimer
 import numpy as np
 import csv
-import cv2
 import math
 import time
 from datetime import datetime
