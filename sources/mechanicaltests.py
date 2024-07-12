@@ -432,7 +432,7 @@ class MechanicalTest (QThread):
 
         # If videoextensometer is on and more than 10 marker positions were recorded
         # Write to CSV positions of markers
-        if 1 < len(self._point1):
+        if hasattr(self, '_point1'):
             combined_lists = zip(self._time, self._point1, self._point2, self._point3, self._point4)
             with open(self._workfolder + '\Test_'+formatted_datetime+'_markers.csv', 'w', newline='') as file:
                 writer = csv.writer(file, delimiter=';')

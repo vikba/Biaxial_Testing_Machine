@@ -302,14 +302,14 @@ class VideoThread(QThread):
                         print("Marks count: {}".format(i))
 
                         self.signal_markers_recorded.emit([self._point1[-1],self._point2[-1],self._point3[-1],self._point4[-1]])
+                        self._init_marks = False
 
 
                     else:
                         print("Wrong number of marks. Expected 4. Detected {}".format(n_marks))
                                 
-                    #Switch to continous monitoring mode
-                    self._init_marks = False
-                    self.signal_markers_recorded.emit([self._point1[-1],self._point2[-1],self._point3[-1],self._point4[-1]])
+                    
+            
 
                 elif self._track_marks:
                     print("Tracking marks")
