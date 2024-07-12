@@ -142,20 +142,15 @@ class BiaxMainWindow(QMainWindow):
         self.ChartWidget_3.getAxis('bottom').setTickFont(font)
         self.ChartWidget_3.setLabel('left', 'Stress, MPa', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
         self.ChartWidget_3.setLabel('bottom', 'Strain, %', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
-
-
-        
-      
-
-        
-        #event to stop execution of "start" thread
-        #self._mainThread = threading.currentThread()
         
         # Read motor speed
         self._vel_ax1 = -int(self.factorSpeedAx1.text())/60 #Convert from per minute to per second
         self._vel_ax2 = -int(self.factorSpeedAx2.text())/60
 
+        self.__init_variables()
         
+
+    def __init_variables(self):
         self._t = [] 
         self._ch1 = [] 
         self._ch2 = [] 
@@ -166,7 +161,7 @@ class BiaxMainWindow(QMainWindow):
         self._v1 = [] 
         self._v2 = []
 
-        
+
     def closeEvent(self, event):
         # This method is called when the window is closed.
         self.__terminate_application()
@@ -205,6 +200,9 @@ class BiaxMainWindow(QMainWindow):
         If not, display a warning message to connect to motors and DAQ first.
         """
 
+        #Reset all the variables
+        self.__init_variables()
+
         if hasattr(self, '_mecTest'):
 
             self._liveforce_timer.stop()
@@ -236,6 +234,15 @@ class BiaxMainWindow(QMainWindow):
 
                 self.upperLabel_1.setText("Warning!")
                 self.upperLabel_2.setText("Load control test")
+                self._mecTest.start()
+
+            elif isinstance(self._mecTest, DisplacementControlTest):
+                self._vel_ax1 = -float(self.factorSpeedAx1.text())/60
+                self._vel_ax2 = -float(self.factorSpeedAx2.text())/60
+                self._mecTest.update_speed(self._vel_ax1, self._vel_ax2)
+
+                self.upperLabel_1.setText("Warning!")
+                self.upperLabel_2.setText("Displacement control test")
                 self._mecTest.start()
             
         else:
@@ -304,7 +311,7 @@ class BiaxMainWindow(QMainWindow):
                     #Close old object to prevent issues in connection with devices
                     self._mecTest = DisplacementControlTest(self._work_folder, self._vel_ax1, self._vel_ax2)
                     self._mecTest.signal_update_charts.connect(self.__update_charts)
-                    self._mecTest.update_force_label_signal.connect(self.__updateLabelForce)
+                    self._mecTest.signal_update_force_label.connect(self.__updateLabelForce)
                 
                 # Update UI labels
                 self.upperLabel_1.setText("Warning!")

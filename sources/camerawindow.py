@@ -79,6 +79,7 @@ class VideoThread(QThread):
     def stop(self):
         #self.timer.stop()
         #self.cam._close()
+        #self._timer_video.stop()
         self._execute = False
         self.quit()
         
@@ -190,12 +191,12 @@ class VideoThread(QThread):
                 while self._execute:
                     t = time.perf_counter()
                     self.__grab_frame(cam)
-                    QThread.sleep(0.1)
-                    print("One frame {}".format(time.perf_counter()-t))
+                    QThread.msleep(100)
+                    #print("One frame {}".format(time.perf_counter()-t))
 
                 '''self._timer_video = QTimer()
-                self._timer_video.timeout.connect(self.grab_frame)
-                self._timer_video.start(300)  # Grab a frame every 300ms (about 3.3fps)'''
+                self._timer_video.timeout.connect(lambda: self.__grab_frame(cam))
+                self._timer_video.start(1)  # Grab a frame every 300ms (about 3.3fps)'''
 
                 
                 #Record to the file
@@ -220,11 +221,12 @@ class VideoThread(QThread):
 
         return inner1
     
-    @calculate_time
+    #@calculate_time
     def __grab_frame(self, cam):
         if cam is not None and self._execute:
 
             frame = cam.get_frame ()
+
             
             if frame:
                 
@@ -300,16 +302,17 @@ class VideoThread(QThread):
                         print("Marks count: {}".format(i))
 
                         self.signal_markers_recorded.emit([self._point1[-1],self._point2[-1],self._point3[-1],self._point4[-1]])
+                        self._init_marks = False
 
 
                     else:
                         print("Wrong number of marks. Expected 4. Detected {}".format(n_marks))
                                 
-                    #Switch to continous monitoring mode
-                    self._init_marks = False
-                    self.signal_markers_recorded.emit([self._point1[-1],self._point2[-1],self._point3[-1],self._point4[-1]])
+                    
+            
 
                 elif self._track_marks:
+                    print("Tracking marks")
                     
                     #distribute marks in the groups
                     #go by all points and find a closest marker to it
@@ -337,7 +340,8 @@ class VideoThread(QThread):
                 for group in self._marks_groups:
                     lg = len(group)
                     if lg > 1:
-                        cv2.line(self.__img_track, group[lg-2], group[lg-1], 150, 1)
+                        print(group[lg-2])
+                        cv2.line(self.__img_track, tuple(int(x) for x in group[lg-2]), tuple(int(x) for x in group[lg-1]), 150, 1)
             
             
 

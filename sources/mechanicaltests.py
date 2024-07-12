@@ -38,7 +38,7 @@ class MechanicalTest (QThread):
     _pos1_0 = 0
     _pos2_0 = 0
     
-    _sample_time = 0.1  # seconds
+    _sample_time = 100  #milli seconds
    
     
     def __init__(self):
@@ -46,6 +46,8 @@ class MechanicalTest (QThread):
 
         self.__initMorors()
         self.__initDAQ()
+
+        self._use_video = False #Flag indicating whether marks are recorded
         
         self._initVariables() 
           
@@ -78,8 +80,6 @@ class MechanicalTest (QThread):
 
         self._E11 = []
         self._E22 = []
-
-        self._use_video = False #Flag indicating whether marks are recorded
         
         self._vel_1 = []
         self._vel_2 = []
@@ -156,7 +156,7 @@ class MechanicalTest (QThread):
         self._buffer=self._conn_q.yield_buffer()
         #first data are usually broken. Just read them to 
         next(self._buffer) #remove first values
-        QThread.sleep(0.5)
+        QThread.msleep(500)
         
         #read load cell data before installing sample
         val1, val2 = self._readForce()
@@ -169,7 +169,7 @@ class MechanicalTest (QThread):
         #This method is redefined in subclassess
         while (self._counter < 100):
             self._sendRandSignal()
-            QThread.sleep(0.1)
+            QThread.msleep(100)
     
     def stop(self):
         """
@@ -237,7 +237,7 @@ class MechanicalTest (QThread):
         """
         Performs a zero force calibration by sleeping for 0.1 seconds, reading force values, and printing the initial force 1 and force 2 values.
         """
-        QThread.sleep(0.1)
+        QThread.msleep(100)
         self._force1_0, self._force2_0 = self._readForce()
         print("Init force 1: {}".format(self._force1_0))
         print("Init force 2: {}".format(self._force2_0))
@@ -275,6 +275,7 @@ class MechanicalTest (QThread):
     @pyqtSlot(list)
     def init_markers(self, array):
 
+        print("Markers initialized")
         self._use_video = True
 
         #datastructures to store tracks of marks
@@ -430,7 +431,7 @@ class MechanicalTest (QThread):
 
         # If videoextensometer is on and more than 10 marker positions were recorded
         # Write to CSV positions of markers
-        if 1 < len(self._point1):
+        if hasattr(self, '_point1'):
             combined_lists = zip(self._time, self._point1, self._point2, self._point3, self._point4)
             with open(self._workfolder + '\Test_'+formatted_datetime+'_markers.csv', 'w', newline='') as file:
                 writer = csv.writer(file, delimiter=';')
@@ -492,12 +493,14 @@ class DisplacementControlTest(MechanicalTest):
         self._initVariables()
 
         if (self._use_video):
+            print(f"Point1 {self._point1}")
             self.signal_start_stop_tracking.emit(True)
-            self.signal_make_photo.emit(True)
+            #self.signal_make_photo.emit("Hello")
         
         #start moving the motors
         self._axis1.move_velocity(self._vel_ax1, Units.VELOCITY_MILLIMETRES_PER_SECOND)
         self._axis2.move_velocity(self._vel_ax2, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+        print(self._vel_ax1)
         
         
         
@@ -514,10 +517,10 @@ class DisplacementControlTest(MechanicalTest):
                     print('Exception while reading load cell data')
                     #continue
                 
-            else:
+            '''else:
                 print('')
                 print("force1 {}".format(self._force1))
-                print("force2 {}".format(self._force2))
+                print("force2 {}".format(self._force2))'''
             
             
             #Calculate relative forces
@@ -532,7 +535,7 @@ class DisplacementControlTest(MechanicalTest):
             
             self._update_arrays_emit_data()
 
-            QThread.sleep(self._sample_time)
+            QThread.msleep(self._sample_time)
             
         # Stop motors after measurement cycle is finished
         self.stop_measurement()
@@ -617,7 +620,7 @@ class LoadControlTest(MechanicalTest):
         #this function is required to perform test with or without camera
 
 
-        self._sample_time = 0.15
+        self._sample_time = 150
 
 
         """
@@ -695,7 +698,7 @@ class LoadControlTest(MechanicalTest):
                 while self._execute and (self._rel_force_ax1 < self._end_force1 or self._rel_force_ax2 < self._end_force2):
                     self._rel_force_ax1, self._rel_force_ax2 = self.__oneCycle(start_half_cycle_time, 0.03, 0.03, self._end_force1, self._end_force2)
                 
-                QThread.sleep(self._sample_time)
+                QThread.msleep(self._sample_time)
 
                 #Decreasing force loop
                 print("Start decreasing force")
@@ -724,7 +727,7 @@ class LoadControlTest(MechanicalTest):
 
                 self._axis1.stop()
                 self._axis2.stop()
-                QThread.sleep(2)
+                QThread.msleep(2000)
                 
 
         
@@ -739,7 +742,7 @@ class LoadControlTest(MechanicalTest):
     def __oneCycle(self, start_cycle_time, start_force1, start_force2, end_force1, end_force2):
 
         # Wait before the next loop iteration
-        QThread.sleep(self._sample_time)
+        QThread.msleep(self._sample_time)
 
         self._current_time = time.perf_counter() - self._start_time
         current_cycle_time = time.perf_counter() - start_cycle_time
