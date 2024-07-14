@@ -11,14 +11,6 @@ class MotorDAQInterface (QThread):
     '''
     General class to communicate with DAQ and motors equipment
     '''
-
-    
-    _force1_0 = 0 
-    _force2_0 = 0
-    _pos1_0 = 0
-    _pos2_0 = 0
-    
-    _sample_time = 0.1  # seconds
    
     
     def __init__(self):
@@ -27,7 +19,10 @@ class MotorDAQInterface (QThread):
         self.__initMorors()
         self.__initDAQ()
         
-        self._initVariables() 
+        self._force1 = self._force2 = 0
+        self._force1_0 = self._force2_0 = 0
+
+        self._pos1_0 = self._pos2_0 = 0
           
     
     def __del__(self):
@@ -38,18 +33,6 @@ class MotorDAQInterface (QThread):
         self.quit()
         
         
-    def _initVariables(self):
-        '''
-        Function to initialize variables before each measurement
-
-        Returns
-        -------
-        None.
-
-        '''
-        
-        self._force1 = self._force2 = 0
-        self._len_ax1 = self._len_ax2 = 0
         
     
     def __initMorors(self):
@@ -119,35 +102,28 @@ class MotorDAQInterface (QThread):
         
     
     def run(self):
-        #Generation of random signal to test the class
-        #This method is redefined in subclassess
-        while (self._counter < 100):
-            self._sendRandSignal()
-            QThread.sleep(0.1)
+        pass
     
     def stop(self):
         """
         Stops movemets, connections and  the execution of the current QThread
         """
-        self._execute = False
         self._axis1.stop()
         self._axis2.stop()
         self._connection_z.close() #Connection to Zaber motors
         self._conn_q.close_connection() #Connection to DAQ Qstation
         self.quit()
     
-    def stop_measurement(self):
+    def stop_motors(self):
         """
         Stop the measurement by setting the _execute flag to False and stopping axis1 and axis2.
         """
-        self._execute = False
         self._axis1.stop()
         self._axis2.stop()
-        self.signal_start_stop_tracking.emit(False)
-        #self._startForceLive()
+
         
     
-    def readForceLive(self):
+    def _readForceLive(self):
         """
         Called by QTimer in BiaxMainWindow.
         Updates the live forces and emits a signal with the relative forces along two axes.
@@ -181,7 +157,18 @@ class MotorDAQInterface (QThread):
             
         return self.__convertToNewtons(value1, value2)
             
-            
+    def get_forces (self):
+        force1, force2 = self._readForce()
+
+        return force1 - self._force1_0, force2 - self._force2_0
+    
+    def get_positions(self):
+
+        #update length for each axis
+        len1 = 2*(self._pos1_0 - self._axis1.get_position(Units.LENGTH_MILLIMETRES))
+        len2 = 2*(self._pos2_0 - self._axis2.get_position(Units.LENGTH_MILLIMETRES))
+
+        return len1, len2
               
     def zeroForce(self):
         """
@@ -249,7 +236,7 @@ class MotorDAQInterface (QThread):
         self._axis1.move_velocity(speed, Units.VELOCITY_MILLIMETRES_PER_SECOND)
         self._axis2.move_velocity(speed, Units.VELOCITY_MILLIMETRES_PER_SECOND)
         
-    def moveVelocityAx1(self, speed):
+    def move_velocity_ax1(self, speed):
         """
         Move the axis 1 with the specified speed.
 
@@ -258,7 +245,9 @@ class MotorDAQInterface (QThread):
         """
         self._axis1.move_velocity(speed, Units.VELOCITY_MILLIMETRES_PER_SECOND)
         
-    def moveVelocityAx2(self, speed):
+    def move_velocity_ax2(self, speed):
         self._axis2.move_velocity(speed, Units.VELOCITY_MILLIMETRES_PER_SECOND) 
+
+    
         
     

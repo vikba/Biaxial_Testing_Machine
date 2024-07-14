@@ -16,6 +16,7 @@ import os
 from .mechanicaltests import DisplacementControlTest, LoadControlTest, MechanicalTest
 from .camerawindow import VideoThread, VideoWindow
 from .loadcalculator import LoadCalculatorWindow
+from .motordaqinterface import MotorDAQInterface
 
 
 
@@ -203,12 +204,10 @@ class BiaxMainWindow(QMainWindow):
         #Reset all the variables
         self.__init_variables()
 
-        if hasattr(self, '_mecTest'):
+        if hasattr(self, '_mot_daq'):
 
+            #Setting lavel properties
             self._liveforce_timer.stop()
-
-            #if hasattr(self, '_video_thread'):
-                #self._mecTest.start_stop_tracking_signal.connect(self._video_thread.startStopTracking)
             
             if hasattr(self, '_label_timer'):
                 self._label_timer.stop()
@@ -218,32 +217,21 @@ class BiaxMainWindow(QMainWindow):
                 self._label_timer.timeout.connect(self.__changeLabelColor)
                 self._label_timer.start(1000)  # 1000 milliseconds = 1 second
             
-            #Load Control Test
+            
+            #Setting michanical test
+            self.__create_mec_test()
+
             if isinstance(self._mecTest, LoadControlTest):
-                self.end_force1 = float(self.factorForceAx1.text())
-                self.end_force2 = float(self.factorForceAx2.text())
-                self.test_duration = float(self.factorTimeAx.text())
-                self.cycl_num = int(self.factorCyclNum.text())
-
-                #If object of load control test exists just update test parameters
-                if self.checkBoxCycl.isChecked():
-                    self._mecTest.update_parameters(self.end_force1, self.end_force2, self.test_duration, self.cycl_num)
-                else:
-                    # 0 - one directional test
-                    self._mecTest.update_parameters(self.end_force1, self.end_force2, self.test_duration, 0)
-
                 self.upperLabel_1.setText("Warning!")
                 self.upperLabel_2.setText("Load control test")
-                self._mecTest.start()
 
             elif isinstance(self._mecTest, DisplacementControlTest):
-                self._vel_ax1 = -float(self.factorSpeedAx1.text())/60
-                self._vel_ax2 = -float(self.factorSpeedAx2.text())/60
-                self._mecTest.update_speed(self._vel_ax1, self._vel_ax2)
-
                 self.upperLabel_1.setText("Warning!")
                 self.upperLabel_2.setText("Displacement control test")
-                self._mecTest.start()
+
+            self._mecTest.start()
+
+
             
         else:
             warning_box = QMessageBox()
@@ -252,12 +240,9 @@ class BiaxMainWindow(QMainWindow):
             warning_box.setText("Connect to motors and DAQ first!")
             warning_box.exec()
 
-        
-
-    def __connect(self):
+    def __create_mec_test(self):
         '''
         Created an instance of appropriate test based on the tab in the tabWidget
-        And after connects to motors and DAQ
         
         tabWidget:
         0 - load control
@@ -268,9 +253,6 @@ class BiaxMainWindow(QMainWindow):
         try:
             if 0 == self.tabWidget.currentIndex():
                 
-                '''
-                Load Control Test!
-                '''
                 
                 # Get test parameters
                 self.end_force1 = float(self.factorForceAx1.text())
@@ -285,19 +267,17 @@ class BiaxMainWindow(QMainWindow):
                 else:
                     #Check if the test should be cycled
                     if self.checkBoxCycl.isChecked():
-                        self._mecTest = LoadControlTest(self._work_folder, self.end_force1, self.end_force2, self.test_duration, self.cycl_num)
+                        self._mecTest = LoadControlTest(self._mot_daq, self._work_folder, self.end_force1, self.end_force2, self.test_duration, self.cycl_num)
                     else:
                         #0 - one directional test
-                        self._mecTest = LoadControlTest(self._work_folder, self.end_force1, self.end_force2, self.test_duration, 0)
+                        self._mecTest = LoadControlTest(self._mot_daq, self._work_folder, self.end_force1, self.end_force2, self.test_duration, 0)
 
 
                     self._mecTest.signal_update_charts.connect(self.__update_charts)
                     self._mecTest.signal_update_force_label.connect(self.__updateLabelForce)
         
             elif 2 == self.tabWidget.currentIndex():
-                '''
-                Displacement Control Test!
-                '''
+                
                 
                 # Calculate velocity
                 self._vel_ax1 = -float(self.factorSpeedAx1.text())/60
@@ -309,14 +289,25 @@ class BiaxMainWindow(QMainWindow):
                     
                 else:
                     #Close old object to prevent issues in connection with devices
-                    self._mecTest = DisplacementControlTest(self._work_folder, self._vel_ax1, self._vel_ax2)
+                    self._mecTest = DisplacementControlTest(self._mot_daq, self._work_folder, self._vel_ax1, self._vel_ax2)
                     self._mecTest.signal_update_charts.connect(self.__update_charts)
                     self._mecTest.signal_update_force_label.connect(self.__updateLabelForce)
                 
                 # Update UI labels
                 self.upperLabel_1.setText("Warning!")
                 self.upperLabel_2.setText("Displacement control test")
-            
+
+        except Exception as e:
+            warning_box = QMessageBox()
+            warning_box.setIcon(QMessageBox.Icon.Warning)
+            warning_box.setWindowTitle("Warning")
+            warning_box.setText(e.__str__())
+            warning_box.exec()           
+
+    def __connect(self):
+        
+        try:
+            self._mot_daq = MotorDAQInterface()
     
         except Exception as e:
             warning_box = QMessageBox()
@@ -327,7 +318,7 @@ class BiaxMainWindow(QMainWindow):
             #delattr(self, '_mecTest')
         else:
             self._liveforce_timer = QTimer()
-            self._liveforce_timer.timeout.connect(self._mecTest.readForceLive)
+            self._liveforce_timer.timeout.connect(self._mot_daq.readForceLive)
             self._liveforce_timer.start(500)
 
             
@@ -335,8 +326,8 @@ class BiaxMainWindow(QMainWindow):
         
         
         
-        if hasattr(self, '_mecTest'):
-            self._mecTest.stop_measurement()
+        if hasattr(self, '_mot_daq'):
+            self._mot_daq.stop_motors()
         else:
             warning_box = QMessageBox()
             warning_box.setIcon(QMessageBox.Icon.Warning)
@@ -375,8 +366,8 @@ class BiaxMainWindow(QMainWindow):
             self.fl_label_color = True
         
     def __zeroForce(self):
-        if hasattr(self, '_mecTest'):
-            self._mecTest.zeroForce()
+        if hasattr(self, '_mot_daq'):
+            self._mot_daq.zeroForce()
         else:
             warning_box = QMessageBox()
             warning_box.setIcon(QMessageBox.Icon.Warning)
@@ -385,8 +376,8 @@ class BiaxMainWindow(QMainWindow):
             warning_box.exec()
         
     def __zeroPosition(self):
-        if hasattr(self, '_mecTest'):
-            self._mecTest.zeroPosition()
+        if hasattr(self, '_mot_daq'):
+            self._mot_daq.zeroPosition()
         else:
             warning_box = QMessageBox()
             warning_box.setIcon(QMessageBox.Icon.Warning)
@@ -396,8 +387,8 @@ class BiaxMainWindow(QMainWindow):
        
     def __moveSamplePosition(self):
         # MOve to position for sample attachment
-        if hasattr(self, '_mecTest'):
-            self._mecTest.moveSamplePosition()
+        if hasattr(self, '_mot_daq'):
+            self._mot_daq.moveSamplePosition()
         else:
             warning_box = QMessageBox()
             warning_box.setIcon(QMessageBox.Icon.Warning)
@@ -407,7 +398,7 @@ class BiaxMainWindow(QMainWindow):
             
     def __initializeMotors(self):
 
-        if hasattr(self, '_mecTest'):
+        if hasattr(self, '_mot_daq'):
             # Show a message box with Yes/No buttons
             reply = QMessageBox.question(self, 'Message',
                                         "Is the sample unmounted?",
@@ -417,7 +408,7 @@ class BiaxMainWindow(QMainWindow):
             # Check if 'Yes' was clicked
             if reply == QMessageBox.StandardButton.Yes:
                 #Initialize Zero position of the motors
-                self._mecTest.initMotZeroPos()
+                self._mot_daq.initMotZeroPos()
         else:
             warning_box = QMessageBox()
             warning_box.setIcon(QMessageBox.Icon.Warning)
@@ -426,8 +417,8 @@ class BiaxMainWindow(QMainWindow):
             warning_box.exec()
     
     def __moveForwardAxis1(self):
-        if hasattr(self, '_mecTest'):
-            self._mecTest.moveVelocityAx1(1)
+        if hasattr(self, '_mot_daq'):
+            self._mot_daq.moveVelocityAx1(1)
         else:
             warning_box = QMessageBox()
             warning_box.setIcon(QMessageBox.Icon.Warning)
@@ -436,8 +427,8 @@ class BiaxMainWindow(QMainWindow):
             warning_box.exec()
     
     def __moveBackwardAxis1(self):
-        if hasattr(self, '_mecTest'):
-            self._mecTest.moveVelocityAx1(-1)
+        if hasattr(self, '_mot_daq'):
+            self._mot_daq.moveVelocityAx1(-1)
         else:
             warning_box = QMessageBox()
             warning_box.setIcon(QMessageBox.Icon.Warning)
@@ -446,8 +437,8 @@ class BiaxMainWindow(QMainWindow):
             warning_box.exec()
     
     def __moveForwardAxis2(self):
-        if hasattr(self, '_mecTest'):
-            self._mecTest.moveVelocityAx2(1)
+        if hasattr(self, '_mot_daq'):
+            self._mot_daq.moveVelocityAx2(1)
         else:
             warning_box = QMessageBox()
             warning_box.setIcon(QMessageBox.Icon.Warning)
@@ -456,8 +447,8 @@ class BiaxMainWindow(QMainWindow):
             warning_box.exec()
     
     def __moveBackwardAxis2(self):
-        if hasattr(self, '_mecTest'):
-            self._mecTest.moveVelocityAx2(-1)
+        if hasattr(self, '_mot_daq'):
+            self._mot_daq.moveVelocityAx2(-1)
         else:
             warning_box = QMessageBox()
             warning_box.setIcon(QMessageBox.Icon.Warning)
@@ -493,7 +484,10 @@ class BiaxMainWindow(QMainWindow):
         attribute is not present, displays a warning message. 
         """
         
-        if hasattr(self, '_mecTest'):
+        if hasattr(self, '_mot_daq'):
+
+            #Creating an instance of mechanical test
+            self.__create_mec_test()
         
             self._video_thread = VideoThread()
             self._video_window = VideoWindow(self._video_thread)
