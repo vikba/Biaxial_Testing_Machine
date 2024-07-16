@@ -31,8 +31,10 @@ class MechanicalTest (QThread):
     _sample_time = 100  #milli seconds
    
     
-    def __init__(self):
+    def __init__(self, mot_daq):
         super().__init__()
+
+        self._mot_daq = mot_daq
 
 
         self._use_video = False #Flag indicating whether marks are recorded
@@ -40,8 +42,8 @@ class MechanicalTest (QThread):
         self._initVariables() 
           
     
-    def __del__(self):
-        self.quit()
+    #def __del__(self):
+        #self.quit()
         
         
     def _initVariables(self):
@@ -95,7 +97,7 @@ class MechanicalTest (QThread):
         """
         Stops movemets, connections and  the execution of the current QThread
         """
-        self._execute = False
+        self.stop_measurement()
         
         self.quit()
     
@@ -104,7 +106,7 @@ class MechanicalTest (QThread):
         Stop the measurement by setting the _execute flag to False and stopping axis1 and axis2.
         """
         self._execute = False
-        
+        self._mot_daq.stop_motors()
         self.signal_start_stop_tracking.emit(False)
     
     
@@ -134,6 +136,8 @@ class MechanicalTest (QThread):
     
     @pyqtSlot(list)
     def update_markers(self, array):
+
+        print("update markers")
 
         #Temporary coordinates 
         self._temp_p1 = array[0]
@@ -179,6 +183,8 @@ class MechanicalTest (QThread):
             p4_0 = self._point4[0]
             p4 = self._point4[-1]
 
+            
+
             L1_0 = (math.dist(p1_0, p2_0) + math.dist(p3_0,p4_0)) / 2
             L1_last = (math.dist(p1, p2) + math.dist(p3, p4)) / 2
 
@@ -190,12 +196,17 @@ class MechanicalTest (QThread):
                 L2_last = (math.dist(p1, p4) + math.dist(p2, p3)) / 2
             
             
+            print(f"p1 {p1}")
+
+
             # Calculate strains
             lambda1 = 1 + (L1_last - L1_0) / L1_0
             lambda2 = 1 + (L2_last - L2_0) / L2_0
 
             E11 = (lambda1*lambda1 - 1)/2
             E22 = (lambda2*lambda2 - 1)/2
+
+            
 
             self._E11.append(E11)
             self._E22.append(E22)
@@ -258,7 +269,7 @@ class DisplacementControlTest(MechanicalTest):
     
      
     def __init__(self, mot_daq, folder, val1, val2):
-        super().__init__()
+        super().__init__(mot_daq)
 
         self._mot_daq = mot_daq
         
@@ -346,7 +357,7 @@ class LoadControlTest(MechanicalTest):
     '''
 
     def __init__(self, mot_daq, folder, end_force1, end_force2, test_duration, num_cycles):
-        super().__init__()
+        super().__init__(mot_daq)
         self._mot_daq = mot_daq
         
         self._end_force1 = end_force1
@@ -368,9 +379,9 @@ class LoadControlTest(MechanicalTest):
 
 
     
-    def __del__(self):
-        self._execute = False
-        self.quit()
+    #def __del__(self):
+        #self._execute = False
+        #self.quit()
         
     def update_parameters (self, end_force1, end_force2, test_duration, num_cycles):
         self._end_force1 = end_force1
@@ -451,9 +462,9 @@ class LoadControlTest(MechanicalTest):
                 formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
                 cv2.imwrite('Test_'+formatted_datetime+'_first_frame.jpg', self._img_cv) '''
 
-            while self._execute and self._current_time < 1.5*self._test_duration and (self._rel_force_ax1 < self._end_force1 or self._rel_force_ax2 < self._end_force2):
+            while self._execute and self._current_time < 1.5*self._test_duration and (self._force1 < self._end_force1 or self._force2 < self._end_force2):
                 #Image capture should go first E11, E22 calculated in this funciton and after emitted in __oneCycle funciton
-                self._rel_force_ax1, self._rel_force_ax2 = self.__oneCycle(self._start_time, 0, 0, self._end_force1, self._end_force2)
+                self._force1, self._force2 = self.__oneCycle(self._start_time, 0, 0, self._end_force1, self._end_force2)
                 
 
         #Cyclic test
@@ -485,7 +496,7 @@ class LoadControlTest(MechanicalTest):
                 self._pid_2.reset()
 
                 
-                while self._execute and (self._rel_force_ax1 < self._end_force1 or self._rel_force_ax2 < self._end_force2):
+                while self._execute and (self._force1 < self._end_force1 or self._force2 < self._end_force2):
                     self._force1, self._force2 = self.__oneCycle(start_half_cycle_time, 0.03, 0.03, self._end_force1, self._end_force2)
                 
                 QThread.msleep(self._sample_time)
@@ -513,7 +524,7 @@ class LoadControlTest(MechanicalTest):
                 start_half_cycle_time = time.perf_counter()
                 self._pid_1.reset()
                 self._pid_2.reset()
-                while self._execute and (self._rel_force_ax1 > 0.02 or self._rel_force_ax2 > 0.02):
+                while self._execute and (self._force1 > 0.02 or self._force2 > 0.02):
                     self._force1, self._force2 = self.__oneCycle(start_half_cycle_time, self._end_force1, self._end_force2, 0.03, 0.03)
 
                 self._mot_daq.stop_motors()
@@ -549,8 +560,8 @@ class LoadControlTest(MechanicalTest):
         self._len_ax1, self._len_ax2 = self._mot_daq.get_positions()
     
         
-        #print("self._force12: {}".format(self._rel_force_ax1))
-        #print("self._force2: {}".format(self._rel_force_ax2))
+        #print("self._force12: {}".format(self._force1))
+        #print("self._force2: {}".format(self._force2))
         #print("Desired Force: {}".format(desired_force1))
         #print("PID_1: {}".format(pid_1))
         #print("PID_2: {}".format(pid_2))

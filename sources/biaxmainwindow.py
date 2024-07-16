@@ -262,7 +262,7 @@ class BiaxMainWindow(QMainWindow):
                 
                 if hasattr(self, '_mecTest') and isinstance(self._mecTest, LoadControlTest):
                     #If object of load control test exists just update test parameters
-                    self._mecTest.update_parameters(self.end_force1, self.end_force2, self.test_duration)
+                    self._mecTest.update_parameters(self.end_force1, self.end_force2, self.test_duration, self.cycl_num)
 
                 else:
                     #Check if the test should be cycled
@@ -306,7 +306,6 @@ class BiaxMainWindow(QMainWindow):
         
         try:
             self._mot_daq = MotorDAQInterface()
-            self._mot_daq.signal_update_force_label.connect(self.__updateLabelForce)
     
         except Exception as e:
             warning_box = QMessageBox()
@@ -317,7 +316,7 @@ class BiaxMainWindow(QMainWindow):
             #delattr(self, '_mecTest')
         else:
             self._liveforce_timer = QTimer()
-            self._liveforce_timer.timeout.connect(self._mot_daq.readForceLive)
+            self._liveforce_timer.timeout.connect(self.__updateLabelForce)
             self._liveforce_timer.start(500)
 
             
@@ -352,17 +351,17 @@ class BiaxMainWindow(QMainWindow):
 
         '''
         
-        if hasattr(self, 'fl_label_color'):
-            if self.fl_label_color:
+        if hasattr(self, '_fl_label_color'):
+            if self._fl_label_color:
                 self.upperLabel_1.setStyleSheet("color: red; font-size: 14px;")
                 self.upperLabel_2.setStyleSheet("color: red; font-size: 14px;")
             else:
                 self.upperLabel_1.setStyleSheet("color: black; font-size: 14px;")
                 self.upperLabel_2.setStyleSheet("color: black; font-size: 14px;")
                 
-            self.fl_label_color = not self.fl_label_color
+            self._fl_label_color = not self._fl_label_color
         else:
-            self.fl_label_color = True
+            self._fl_label_color = True
         
     def __zeroForce(self):
         if hasattr(self, '_mot_daq'):
@@ -417,7 +416,7 @@ class BiaxMainWindow(QMainWindow):
     
     def __moveForwardAxis1(self):
         if hasattr(self, '_mot_daq'):
-            self._mot_daq.moveVelocityAx1(1)
+            self._mot_daq.move_velocity_ax1(1)
         else:
             warning_box = QMessageBox()
             warning_box.setIcon(QMessageBox.Icon.Warning)
@@ -427,7 +426,7 @@ class BiaxMainWindow(QMainWindow):
     
     def __moveBackwardAxis1(self):
         if hasattr(self, '_mot_daq'):
-            self._mot_daq.moveVelocityAx1(-1)
+            self._mot_daq.move_velocity_ax1(-1)
         else:
             warning_box = QMessageBox()
             warning_box.setIcon(QMessageBox.Icon.Warning)
@@ -437,7 +436,7 @@ class BiaxMainWindow(QMainWindow):
     
     def __moveForwardAxis2(self):
         if hasattr(self, '_mot_daq'):
-            self._mot_daq.moveVelocityAx2(1)
+            self._mot_daq.move_velocity_ax2(1)
         else:
             warning_box = QMessageBox()
             warning_box.setIcon(QMessageBox.Icon.Warning)
@@ -447,7 +446,7 @@ class BiaxMainWindow(QMainWindow):
     
     def __moveBackwardAxis2(self):
         if hasattr(self, '_mot_daq'):
-            self._mot_daq.moveVelocityAx2(-1)
+            self._mot_daq.move_velocity_ax2(-1)
         else:
             warning_box = QMessageBox()
             warning_box.setIcon(QMessageBox.Icon.Warning)
@@ -562,6 +561,7 @@ class BiaxMainWindow(QMainWindow):
 
         self.ChartWidget_3.clear()
         if len(self._E11) == len (self._ch1):
+            #print(self._E11)
             self.ChartWidget_3.plot(self._E11, self._ch1, pen=pg.mkPen(color='b', width=2)) 
             self.ChartWidget_3.plot(self._E22, self._ch2, pen=pg.mkPen(color='r', width=2)) 
         else:
@@ -610,9 +610,10 @@ class BiaxMainWindow(QMainWindow):
         """
         
 
-    @pyqtSlot(float, float)    
-    def __updateLabelForce(self, force1, force2):
-        if force1 is not None:
+    def __updateLabelForce(self):
+        if self._mot_daq is not None:
+            force1, force2 = self._mot_daq.get_forces()
+
             self.upperLabel_1.setStyleSheet("color: black; font-size: 14px;")
             self.upperLabel_1.setText("Force 1: {}".format(force1))
             self.upperLabel_2.setStyleSheet("color: black; font-size: 14px;")

@@ -11,8 +11,6 @@ class MotorDAQInterface (QThread):
     '''
     General class to communicate with DAQ and motors equipment
     '''
-
-    signal_update_force_label = pyqtSignal(float, float)
    
     
     def __init__(self):
@@ -120,19 +118,11 @@ class MotorDAQInterface (QThread):
         """
         Stop the measurement by setting the _execute flag to False and stopping axis1 and axis2.
         """
+        print("Stop motors")
         self._axis1.stop()
         self._axis2.stop()
 
         
-    
-    def readForceLive(self):
-        """
-        Called by QTimer in BiaxMainWindow.
-        Updates the live forces and emits a signal with the relative forces along two axes.
-        """
-        self._force1,self._force2 = self._readForce()
-        if self._force1 is not None and self._force2 is not None:
-            self.signal_update_force_label.emit(self._force1 - self._force1_0, self._force2 - self._force2_0)
     
     def _readForce(self):
         """

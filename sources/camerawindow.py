@@ -333,7 +333,7 @@ class VideoThread(QThread):
                                 group.append(el)
                                 #print(gr)
 
-                    self.signal_markers_recorded.emit([self._point1[-1],self._point2[-1],self._point3[-1],self._point4[-1]])
+                    self.signal_markers_coordinates.emit([self._point1[-1],self._point2[-1],self._point3[-1],self._point4[-1]])
 
                     
                 #draw track of the markers

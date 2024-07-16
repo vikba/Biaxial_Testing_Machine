@@ -1,9 +1,6 @@
 
-#Decrease resolution of images for camera in signal slot mechanism
-#Optimize signal slot mechanism (not all array and reduce image resolution for display purposes)
-#Move first frame to mechanical test
-#Connect folder and writingin the file
-#Think about conditions of finishing the test
+#Markerk are not updated in temporary variables
+#Correct saving of images and data
 #Set motor limits in steps
 #Check logic of displacement test
 
