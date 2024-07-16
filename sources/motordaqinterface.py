@@ -1,4 +1,4 @@
-from PyQt6.QtCore import QThread
+from PyQt6.QtCore import QThread, pyqtSignal
 
 
 from zaber_motion.ascii import Connection
@@ -11,6 +11,8 @@ class MotorDAQInterface (QThread):
     '''
     General class to communicate with DAQ and motors equipment
     '''
+
+    signal_update_force_label = pyqtSignal(float, float)
    
     
     def __init__(self):
@@ -93,7 +95,7 @@ class MotorDAQInterface (QThread):
         self._buffer=self._conn_q.yield_buffer()
         #first data are usually broken. Just read them to 
         next(self._buffer) #remove first values
-        QThread.sleep(0.5)
+        QThread.msleep(200)
         
         #read load cell data before installing sample
         val1, val2 = self._readForce()
@@ -123,16 +125,14 @@ class MotorDAQInterface (QThread):
 
         
     
-    def _readForceLive(self):
+    def readForceLive(self):
         """
         Called by QTimer in BiaxMainWindow.
         Updates the live forces and emits a signal with the relative forces along two axes.
         """
         self._force1,self._force2 = self._readForce()
         if self._force1 is not None and self._force2 is not None:
-            self._rel_force_ax1 = self._force1 - self._force1_0
-            self._rel_force_ax2 = self._force2 - self._force2_0
-            self.signal_update_force_label.emit(self._rel_force_ax1, self._rel_force_ax2)
+            self.signal_update_force_label.emit(self._force1 - self._force1_0, self._force2 - self._force2_0)
     
     def _readForce(self):
         """
@@ -174,7 +174,7 @@ class MotorDAQInterface (QThread):
         """
         Performs a zero force calibration by sleeping for 0.1 seconds, reading force values, and printing the initial force 1 and force 2 values.
         """
-        QThread.sleep(0.1)
+        QThread.msleep(100)
         self._force1_0, self._force2_0 = self._readForce()
         print("Init force 1: {}".format(self._force1_0))
         print("Init force 2: {}".format(self._force2_0))

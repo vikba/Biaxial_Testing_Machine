@@ -12,11 +12,6 @@ import math
 import time
 from datetime import datetime
 
-from zaber_motion.ascii import Connection
-from zaber_motion import Units
-from vimba import *
-import ginsapy.giutility.connect.PyQStationConnectWin as Qstation #module with communication functions to Gantner Q.Station under windows environment
-
 from .pid import PID
 
 
@@ -31,7 +26,7 @@ class MechanicalTest (QThread):
     signal_start_stop_tracking = pyqtSignal(bool)
     signal_make_photo = pyqtSignal(str)
     #Signal to update live force in GUI
-    signal_update_force_label = pyqtSignal(float, float)
+    
     
     _sample_time = 100  #milli seconds
    

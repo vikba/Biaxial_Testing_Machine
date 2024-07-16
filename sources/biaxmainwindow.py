@@ -274,7 +274,6 @@ class BiaxMainWindow(QMainWindow):
 
 
                     self._mecTest.signal_update_charts.connect(self.__update_charts)
-                    self._mecTest.signal_update_force_label.connect(self.__updateLabelForce)
         
             elif 2 == self.tabWidget.currentIndex():
                 
@@ -291,7 +290,6 @@ class BiaxMainWindow(QMainWindow):
                     #Close old object to prevent issues in connection with devices
                     self._mecTest = DisplacementControlTest(self._mot_daq, self._work_folder, self._vel_ax1, self._vel_ax2)
                     self._mecTest.signal_update_charts.connect(self.__update_charts)
-                    self._mecTest.signal_update_force_label.connect(self.__updateLabelForce)
                 
                 # Update UI labels
                 self.upperLabel_1.setText("Warning!")
@@ -308,6 +306,7 @@ class BiaxMainWindow(QMainWindow):
         
         try:
             self._mot_daq = MotorDAQInterface()
+            self._mot_daq.signal_update_force_label.connect(self.__updateLabelForce)
     
         except Exception as e:
             warning_box = QMessageBox()
@@ -611,7 +610,7 @@ class BiaxMainWindow(QMainWindow):
         """
         
 
-        
+    @pyqtSlot(float, float)    
     def __updateLabelForce(self, force1, force2):
         if force1 is not None:
             self.upperLabel_1.setStyleSheet("color: black; font-size: 14px;")
