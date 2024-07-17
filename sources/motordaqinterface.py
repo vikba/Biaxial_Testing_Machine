@@ -1,4 +1,5 @@
 from PyQt6.QtCore import QThread, pyqtSignal
+import math
 
 
 from zaber_motion.ascii import Connection
@@ -238,6 +239,30 @@ class MotorDAQInterface (QThread):
     def move_velocity_ax2(self, speed):
         self._axis2.move_velocity(speed, Units.VELOCITY_MILLIMETRES_PER_SECOND) 
 
+    def autoload(self, load):
+        self.move_velocity_ax1(0.5)
+        self.move_velocity_ax2(0.5)
+
+        if math.abs(self._force1 - load) < 2 and math.abs(self._force2 - load) < 2:
+
+            #make autoload in 2 steps: first reach load/2 then load
+            while self._force1 < load/2 or self._force2 < load/2:
+                if self._force1 < load/2:
+                    self._axis1.stop()
+
+                if self._force2 < load/2:
+                    self._axis2.stop()
+
+                QThread.msleep(100)
+
+            while self._force1 < load or self._force2 < load:
+                if self._force1 < load/2:
+                    self._axis1.stop()
+
+                if self._force2 < load/2:
+                    self._axis2.stop()
+
+                QThread.msleep(100)
     
         
     
