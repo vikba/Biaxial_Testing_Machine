@@ -24,8 +24,7 @@ class MechanicalTest (QThread):
     signal_update_charts = pyqtSignal(list)
     #Signal to start/stop tracking marks when test is run
     signal_start_stop_tracking = pyqtSignal(bool)
-    signal_make_photo = pyqtSignal(str)
-    #Signal to update live force in GUI
+    signal_save_image = pyqtSignal(str)
     
     
     _sample_time = 100  #milli seconds
@@ -35,7 +34,6 @@ class MechanicalTest (QThread):
         super().__init__()
 
         self._mot_daq = mot_daq
-
 
         self._use_video = False #Flag indicating whether marks are recorded
         
@@ -306,7 +304,7 @@ class DisplacementControlTest(MechanicalTest):
         if (self._use_video):
             print(f"Point1 {self._point1}")
             self.signal_start_stop_tracking.emit(True)
-            #self.signal_make_photo.emit("Hello")
+            #self.signal_save_image.emit("Hello")
         
         #start moving the motors
         self._mot_daq.move_velocity_ax1(self._vel_ax1)
@@ -446,7 +444,12 @@ class LoadControlTest(MechanicalTest):
         if (self._use_video):
             print(f"Use video {self._point1}")
             self.signal_start_stop_tracking.emit(True)
-            #self.signal_make_photo.emit("Hello")
+            
+            #Get current date for filename
+            current_datetime = datetime.now()
+            formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
+            img_addr = self._workfolder + '\Test_'+formatted_datetime+'_first_frame.jpg'
+            self.signal_save_image.emit(img_addr)
 
 
         #One directional test

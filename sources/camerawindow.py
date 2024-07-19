@@ -12,9 +12,8 @@ import numpy as np
 import time
 
 from PyQt6.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QLabel
-from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot, Qt, QTimer
+from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot, Qt
 from PyQt6.QtGui import QImage, QPixmap
-from datetime import datetime
 
 from vimba import *
      
