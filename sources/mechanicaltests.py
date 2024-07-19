@@ -443,6 +443,11 @@ class LoadControlTest(MechanicalTest):
         vel_ax1 = 0.02#mm/sec
         vel_ax2 = 0.02 #mm/sec
 
+        if (self._use_video):
+            print(f"Use video {self._point1}")
+            self.signal_start_stop_tracking.emit(True)
+            #self.signal_make_photo.emit("Hello")
+
 
         #One directional test
         if 0 == self._num_cycles:

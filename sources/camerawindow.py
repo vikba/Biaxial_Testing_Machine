@@ -313,7 +313,7 @@ class VideoThread(QThread):
             
 
                 elif self._track_marks:
-                    print("Tracking marks")
+                    print("Tracking marks1")
                     
                     #distribute marks in the groups
                     #go by all points and find a closest marker to it
@@ -460,14 +460,8 @@ class VideoWindow(QWidget):
         self._button_stop.clicked.connect(self.stop_webcam)
         self._layout.addWidget(self._button_stop)
         
-        '''
-        self.button_tr_marks = QPushButton('Start tacking', self)
-        self.button_tr_marks.clicked.connect(self._track_marks_clicked)
-        self._layout.addWidget(self.button_tr_marks)
-        '''
         self._start_point = self._end_point = None
         
-        self._track_marks = False
         self._draw_rectangle = False
          
         
@@ -499,11 +493,6 @@ class VideoWindow(QWidget):
         print("end point {}".format(self._end_point))
         self.signal_update_roi.emit(self._start_point.x(), self._start_point.y(), self._end_point.x(), self._end_point.y())
         self._draw_rectangle = False
-
-    '''def startStopTracking(self, flag):
-        self.thread.startStopTracking(flag)
-        
-        self._track_marks = flag'''
         
 
     def stop_webcam(self):
@@ -523,8 +512,7 @@ class VideoWindow(QWidget):
         if self._start_point and self._end_point and self._draw_rectangle:
             start_p = (self._start_point.x(), self._start_point.y())
             end_p = (self._end_point.x(), self._end_point.y())
-            if not self._track_marks:
-                cv2.rectangle(cv_img, start_p, end_p, 170, 3)
+            cv2.rectangle(cv_img, start_p, end_p, 170, 3)
         
         ch = 1
         

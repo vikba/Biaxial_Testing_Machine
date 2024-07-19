@@ -25,3 +25,68 @@ zaber_motion.exceptions.command_failed_exception.CommandFailedException: Command
 
 
 -------------------
+
+
+Error after starting load control test for the second time
+
+c:\Users\vbalashov\Desktop\Biaxial_Testing_Machine\sources\motordaqinterface.py:137: RuntimeWarning: Mean of empty slice.
+  value1 = round(value[-100:-1,1].mean(),5) #mean last 100 values of the buffer
+C:\Users\vbalashov\AppData\Local\anaconda3\envs\biax_env\Lib\site-packages\numpy\core\_methods.py:129: RuntimeWarning: invalid value encountered in scalar divide
+  ret = ret.dtype.type(ret / rcount)
+c:\Users\vbalashov\Desktop\Biaxial_Testing_Machine\sources\motordaqinterface.py:138: RuntimeWarning: Mean of empty slice.
+  value2 = round(value[-100:-1,2].mean(), 5)
+Traceback (most recent call last):
+  File "c:\Users\vbalashov\Desktop\Biaxial_Testing_Machine\sources\mechanicaltests.py", line 505, in run
+    self._force1, self._force2 = self.__oneCycle(start_half_cycle_time, 0.03, 0.03, self._end_force1, self._end_force2)
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\vbalashov\Desktop\Biaxial_Testing_Machine\sources\mechanicaltests.py", line 587, in __oneCycle
+    self._mot_daq.move_velocity_ax1(self._vel_ax1) #mm/s
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\vbalashov\Desktop\Biaxial_Testing_Machine\sources\motordaqinterface.py", line 237, in move_velocity_ax1
+    self._axis1.move_velocity(speed, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+  File "C:\Users\vbalashov\AppData\Local\anaconda3\envs\biax_env\Lib\site-packages\zaber_motion\ascii\axis.py", line 689, in move_velocity
+    call("device/move", request)
+  File "C:\Users\vbalashov\AppData\Local\anaconda3\envs\biax_env\Lib\site-packages\zaber_motion\call.py", line 46, in call
+    process_response(response_buffers, response_data)
+  File "C:\Users\vbalashov\AppData\Local\anaconda3\envs\biax_env\Lib\site-packages\zaber_motion\call.py", line 122, in process_response
+    raise convert_exception(response_proto.error_type, response_proto.error_message, response_buffers[1])
+zaber_motion.exceptions.command_failed_exception.CommandFailedException: CommandFailedException: Command "move vel NaN" rejected: BADCOMMAND: The command or setting was incorrect or invalid; a firmware update may be required.
+Stop motors
+Empty buffer
+Traceback (most recent call last):
+  File "c:\Users\vbalashov\Desktop\Biaxial_Testing_Machine\sources\biaxmainwindow.py", line 615, in __updateLabelForce
+    force1, force2 = self._mot_daq.get_forces()
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\vbalashov\Desktop\Biaxial_Testing_Machine\sources\motordaqinterface.py", line 154, in get_forces
+    return force1 - self._force1_0, force2 - self._force2_0
+           ~~~~~~~^~~~~~~~~~~~~~~~
+TypeError: unsupported operand type(s) for -: 'NoneType' and 'float'
+Empty buffer
+Traceback (most recent call last):
+  File "c:\Users\vbalashov\Desktop\Biaxial_Testing_Machine\sources\biaxmainwindow.py", line 615, in __updateLabelForce
+    force1, force2 = self._mot_daq.get_forces()
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\vbalashov\Desktop\Biaxial_Testing_Machine\sources\motordaqinterface.py", line 154, in get_forces
+    return force1 - self._force1_0, force2 - self._force2_0
+           ~~~~~~~^~~~~~~~~~~~~~~~
+TypeError: unsupported operand type(s) for -: 'NoneType' and 'float'
+Empty buffer
+Traceback (most recent call last):
+  File "c:\Users\vbalashov\Desktop\Biaxial_Testing_Machine\sources\biaxmainwindow.py", line 615, in __updateLabelForce
+    force1, force2 = self._mot_daq.get_forces()
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\vbalashov\Desktop\Biaxial_Testing_Machine\sources\motordaqinterface.py", line 154, in get_forces
+    return force1 - self._force1_0, force2 - self._force2_0
+           ~~~~~~~^~~~~~~~~~~~~~~~
+TypeError: unsupported operand type(s) for -: 'NoneType' and 'float'
+Empty buffer
+Traceback (most recent call last):
+  File "c:\Users\vbalashov\Desktop\Biaxial_Testing_Machine\sources\biaxmainwindow.py", line 615, in __updateLabelForce
+    force1, force2 = self._mot_daq.get_forces()
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\vbalashov\Desktop\Biaxial_Testing_Machine\sources\motordaqinterface.py", line 154, in get_forces
+    return force1 - self._force1_0, force2 - self._force2_0
+           ~~~~~~~^~~~~~~~~~~~~~~~
+TypeError: unsupported operand type(s) for -: 'NoneType' and 'float'
+Stop motors
+Application terminated
