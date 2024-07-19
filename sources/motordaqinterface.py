@@ -1,4 +1,4 @@
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import QThread, QTimer, pyqtSignal
 import math
 
 
@@ -22,9 +22,10 @@ class MotorDAQInterface (QThread):
         
         self._force1 = self._force2 = 0
         self._force1_0 = self._force2_0 = 0
-
         self._pos1_0 = self._pos2_0 = 0
           
+        self._autoload_timer = QTimer()
+        self._autoload_timer.timeout.connect(self.__autoload_step)
     
     def __del__(self):
         self._axis1.stop()
@@ -240,29 +241,40 @@ class MotorDAQInterface (QThread):
         self._axis2.move_velocity(speed, Units.VELOCITY_MILLIMETRES_PER_SECOND) 
 
     def autoload(self, load):
-        self.move_velocity_ax1(0.5)
-        self.move_velocity_ax2(0.5)
 
-        if math.abs(self._force1 - load) < 2 and math.abs(self._force2 - load) < 2:
+        self._load = load
 
-            #make autoload in 2 steps: first reach load/2 then load
-            while self._force1 < load/2 or self._force2 < load/2:
-                if self._force1 < load/2:
-                    self._axis1.stop()
-
-                if self._force2 < load/2:
-                    self._axis2.stop()
-
-                QThread.msleep(100)
-
-            while self._force1 < load or self._force2 < load:
-                if self._force1 < load/2:
-                    self._axis1.stop()
-
-                if self._force2 < load/2:
-                    self._axis2.stop()
-
-                QThread.msleep(100)
+        self._force1, self._force2 = self.get_forces()
+        
+        if abs(self._force1 - self._load) < 2 and abs(self._force2 - self._load) < 2:
+            self.move_velocity_ax1(-0.1)
+            self.move_velocity_ax2(-0.1)
+            self.step = 1
+            self._autoload_timer.start(200)
+        else:
+            print("Autoload: The difference between current force and desired force is too high!")
     
         
-    
+    def __autoload_step(self):
+        self._force1, self._force2 = self.get_forces()
+        
+        if self.step == 1:
+            if self._force1 < self._load / 2 or self._force2 < self._load / 2:
+                if self._force1 > 1.2 * self._load / 2:
+                    self._axis1.stop()
+                if self._force2 > 1.2 * self._load / 2:
+                    self._axis2.stop()
+            else:
+                self.step = 2
+                print("Autoload: Half Load reached")
+        
+        if self.step == 2:
+            if self._force1 < self._load or self._force2 < self._load:
+                if self._force1 > 1.2 * self._load:
+                    self._axis1.stop()
+                if self._force2 > 1.2 * self._load:
+                    self._axis2.stop()
+            else:
+                print("Autoload: The Load reached")
+                self._autoload_timer.stop()  # Stop the timer when load is reached
+                #self.load_reached.emit()  # Emit the signal to indicate the load is reached

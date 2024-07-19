@@ -65,6 +65,7 @@ class BiaxMainWindow(QMainWindow):
         self.buttonZeroPosition.clicked.connect(self.__zeroPosition)
         self.buttonConnect.clicked.connect(self.__connect)
         self.buttonCalcLoad.clicked.connect(self.__calculateLoads)
+        self.buttonAutoload.clicked.connect(self.__autoload)
         
         self.buttonMoveCentAx1.pressed.connect(self.__moveForwardAxis1)
         self.buttonMoveCentAx2.pressed.connect(self.__moveForwardAxis2)
@@ -472,6 +473,19 @@ class BiaxMainWindow(QMainWindow):
 
         self.factorForceAx1.setText(str(load1))
         self.factorForceAx2.setText(str(load2))
+
+    def __autoload(self):
+        if hasattr(self, '_mot_daq'):
+
+            self._mot_daq.autoload(0.2)
+
+
+        else:
+            warning_box = QMessageBox()
+            warning_box.setIcon(QMessageBox.Icon.Warning)
+            warning_box.setWindowTitle("Warning")
+            warning_box.setText("Connect to motors and DAQ first!")
+            warning_box.exec()
     
     
     def __startCamera(self):

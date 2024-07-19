@@ -14,7 +14,7 @@ if __name__ == '__main__':
     app.setStyle('Fusion')
     window = BiaxMainWindow()
     window.show()
-    app.exec()
+    app.exec() 
 
  
  
