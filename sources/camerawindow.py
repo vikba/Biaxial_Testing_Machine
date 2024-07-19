@@ -83,6 +83,7 @@ class VideoThread(QThread):
         self._execute = False
         self.quit()
         
+    @pyqtSlot(int, int, int, int)
     def update_roi(self, x1,y1, x2, y2):
         """
         Update the region of interest (ROI) with the given coordinates.
