@@ -259,7 +259,7 @@ class BiaxMainWindow(QMainWindow):
                 self.end_force1 = float(self.factorForceAx1.text())
                 self.end_force2 = float(self.factorForceAx2.text())
                 self.test_duration = float(self.factorTimeAx.text())
-                self.cycl_num = int(self.factorCyclNum.text())
+                self.cycl_num = int(self.factorCyclNumL.text())
                 
                 if hasattr(self, '_mecTest') and isinstance(self._mecTest, LoadControlTest):
                     #If object of load control test exists just update test parameters
@@ -285,10 +285,12 @@ class BiaxMainWindow(QMainWindow):
 
                 self._length1 = float(self.factorLength1)
                 self._length2 = float(self.factorLength2)
+
+                self.cycl_num = int(self.factorCyclNumD.text())
                 
                 if hasattr(self, '_mecTest') and isinstance(self._mecTest, DisplacementControlTest):
                     #If object of displacement control test exists just update test parameters
-                    self._mecTest.update_parameters(self._vel_ax1, self._vel_ax2, self._length1, self._length2)
+                    self._mecTest.update_parameters(self._vel_ax1, self._vel_ax2, self._length1, self._length2, self.cycl_num)
                     
                 else:
                     #Close old object to prevent issues in connection with devices
