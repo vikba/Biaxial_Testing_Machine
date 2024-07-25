@@ -27,7 +27,7 @@ class MechanicalTest (QThread):
     signal_save_image = pyqtSignal(str)
     
     
-    _sample_time = 100  #milli seconds
+    _sample_time = 200  #milli seconds
    
     
     def __init__(self, mot_daq):
@@ -327,8 +327,11 @@ class DisplacementControlTest(MechanicalTest):
 
             #Set final positions
             self._len1, self._len2 = self._mot_daq.get_positions()
-            self._fin_len1 = self._len1 - self._disp1 #when sample is stretched, the position is decreased
-            self._fin_len2 = self._len2 - self._disp2
+
+            self._start_len1 = self._len1
+            self._start_len2 = self._len2
+            self._fin_len1 = self._start_len1 - self._disp1 #when sample is stretched, the position is decreased
+            self._fin_len2 = self._start_len2 - self._disp2
 
             #Start movement to final position
             self._mot_daq.move_position_ax1(self._fin_len1, self._vel_ax1)
@@ -355,13 +358,19 @@ class DisplacementControlTest(MechanicalTest):
                 self._update_arrays_emit_data()
                 
             else:
+                print("DisplacementControlTest: Half cycle finished")
                 self._half_cycle -= 1
                 self._direction =  -self._direction
-                self._fin_len1 = self._fin_len1 - self._direction * self._disp1 #this will do + or - disp1 between different cycles
-                self._fin_len2 = self._fin_len2 - self._direction * self._disp2
+
+                #Stretch cycle
+                if 0 < self._direction:
+                    self._fin_len1 = self._start_len1 - self._disp1 
+                    self._fin_len2 = self._start_len2 - self._disp2
+                elif: 0 > self._direction:
         
         else:
             # Stop motors after measurement cycle is finished
+            print("DisplacementControlTest: Test finished")
             self._execute = False
             self.stop_measurement()
             self._writeDataToFile()
