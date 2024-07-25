@@ -323,6 +323,7 @@ class DisplacementControlTest(MechanicalTest):
             #Set number of cycles and direction
             self._half_cycle = 2*self._num_cycles #double for each half cycle
             self._direction = 1 #Stretch sample; -1 relax
+            self._start_time = time.perf_counter()
 
             #Set final positions
             self._len1, self._len2 = self._mot_daq.get_positions()
@@ -361,6 +362,7 @@ class DisplacementControlTest(MechanicalTest):
         
         else:
             # Stop motors after measurement cycle is finished
+            self._execute = False
             self.stop_measurement()
             self._writeDataToFile()
             print("DisplacementControlTest: Test finished")

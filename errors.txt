@@ -90,3 +90,17 @@ Traceback (most recent call last):
 TypeError: unsupported operand type(s) for -: 'NoneType' and 'float'
 Stop motors
 Application terminated
+
+
+Traceback (most recent call last):
+  File "c:\Users\vbalashov\Desktop\Biaxial_Testing_Machine\sources\biaxmainwindow.py", line 634, in __updateLabelForce
+    force1, force2 = self._mot_daq.get_forces()
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\vbalashov\Desktop\Biaxial_Testing_Machine\sources\motordaqinterface.py", line 155, in get_forces
+    return force1 - self._force1_0, force2 - self._force2_0
+           ~~~~~~~^~~~~~~~~~~~~~~~
+TypeError: unsupported operand type(s) for -: 'NoneType' and 'float'
+Stop motors
+Application terminated
+QObject::killTimer: Timers cannot be stopped from another thread
+QObject::~QObject: Timers cannot be stopped from another thread

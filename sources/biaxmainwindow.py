@@ -283,8 +283,8 @@ class BiaxMainWindow(QMainWindow):
                 self._vel_ax1 = float(self.factorSpeedAx1.text())/60
                 self._vel_ax2 = float(self.factorSpeedAx2.text())/60
 
-                self._length1 = float(self.factorLength1)
-                self._length2 = float(self.factorLength2)
+                self._length1 = float(self.factorLength1.text())
+                self._length2 = float(self.factorLength2.text())
 
                 self.cycl_num = int(self.factorCyclNumD.text())
                 

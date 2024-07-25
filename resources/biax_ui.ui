@@ -164,7 +164,7 @@
            <item row="6" column="3">
             <widget class="QLineEdit" name="factorCyclNumL">
              <property name="text">
-              <string>5</string>
+              <string>3</string>
              </property>
             </widget>
            </item>
@@ -457,7 +457,7 @@
             </widget>
            </item>
            <item row="2" column="4">
-            <widget class="QLineEdit" name="factorLenght1_2">
+            <widget class="QLineEdit" name="factorLength2">
              <property name="text">
               <string>3</string>
              </property>
@@ -506,7 +506,11 @@
             </widget>
            </item>
            <item row="3" column="4">
-            <widget class="QLineEdit" name="factorCyclNumD"/>
+            <widget class="QLineEdit" name="factorCyclNumD">
+             <property name="text">
+              <string>2</string>
+             </property>
+            </widget>
            </item>
           </layout>
          </widget>
