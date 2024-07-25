@@ -227,6 +227,12 @@ class MotorDAQInterface (QThread):
         #start moving the motors
         self._axis1.move_velocity(speed, Units.VELOCITY_MILLIMETRES_PER_SECOND)
         self._axis2.move_velocity(speed, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+
+    def move_position_ax1(self, pos, vel):
+        self._axis1.move_absolute(self._pos1_0 + pos, Units.LENGTH_MILLIMETRES, velocity=vel, velocity_unit=Units.VELOCITY_MILLIMETRES_PER_SECOND, wait_until_idle=False)
+
+    def move_position_ax2(self, pos, vel):
+        self._axis2.move_absolute(self._pos1_0 + pos, Units.LENGTH_MILLIMETRES, velocity=vel, velocity_unit=Units.VELOCITY_MILLIMETRES_PER_SECOND, wait_until_idle=False)
         
     def move_velocity_ax1(self, speed):
         """

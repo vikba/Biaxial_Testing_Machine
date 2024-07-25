@@ -2,7 +2,6 @@
 #Markerk are not updated in temporary variables
 #Correct saving of images and data
 #Set motor limits in steps
-#Check logic of displacement test
 
 from PyQt6.QtWidgets import QApplication
 

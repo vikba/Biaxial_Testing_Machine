@@ -280,16 +280,19 @@ class BiaxMainWindow(QMainWindow):
                 
                 
                 # Calculate velocity
-                self._vel_ax1 = -float(self.factorSpeedAx1.text())/60
-                self._vel_ax2 = -float(self.factorSpeedAx2.text())/60
+                self._vel_ax1 = float(self.factorSpeedAx1.text())/60
+                self._vel_ax2 = float(self.factorSpeedAx2.text())/60
+
+                self._length1 = float(self.factorLength1)
+                self._length2 = float(self.factorLength2)
                 
                 if hasattr(self, '_mecTest') and isinstance(self._mecTest, DisplacementControlTest):
                     #If object of displacement control test exists just update test parameters
-                    self._mecTest.update_speed(self._vel_ax1, self._vel_ax2)
+                    self._mecTest.update_parameters(self._vel_ax1, self._vel_ax2, self._length1, self._length2)
                     
                 else:
                     #Close old object to prevent issues in connection with devices
-                    self._mecTest = DisplacementControlTest(self._mot_daq, self._work_folder, self._vel_ax1, self._vel_ax2)
+                    self._mecTest = DisplacementControlTest(self._mot_daq, self._work_folder, self._vel_ax1, self._vel_ax2, self._length1, self._length2, self.cycl_num)
                     self._mecTest.signal_update_charts.connect(self.__update_charts)
                 
                 # Update UI labels

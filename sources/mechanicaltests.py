@@ -76,7 +76,7 @@ class MechanicalTest (QThread):
         #self.idleReadForce()
         
         self._force1 = self._force2 = 0
-        self._len_ax1 = self._len_ax2 = 0
+        self._len1 = self._len2 = 0
         
         #record start time
         self._start_time = time.perf_counter()
@@ -104,8 +104,9 @@ class MechanicalTest (QThread):
         Stop the measurement by setting the _execute flag to False and stopping axis1 and axis2.
         """
         self._execute = False
-        self._mot_daq.stop_motors()
         self.signal_start_stop_tracking.emit(False)
+        self._mot_daq.stop_motors()
+        
     
     
     @pyqtSlot(list)
@@ -152,8 +153,8 @@ class MechanicalTest (QThread):
         self._time.append(round(self._current_time, roundDecimals))
         self._ch1.append(round(self._force1, roundDecimals)) #force channel 1
         self._ch2.append(round(self._force2, roundDecimals))
-        self._l1.append(round(self._len_ax1, roundDecimals))
-        self._l2.append(round(self._len_ax2, roundDecimals))
+        self._l1.append(round(self._len1, roundDecimals))
+        self._l2.append(round(self._len2, roundDecimals))
         self._vel_1.append(self._vel_ax1)
         self._vel_2.append(self._vel_ax2)
         
@@ -266,16 +267,21 @@ class MechanicalTest (QThread):
 class DisplacementControlTest(MechanicalTest):
     
      
-    def __init__(self, mot_daq, folder, val1, val2):
+    def __init__(self, mot_daq, folder, vel1, vel2, len1, len2, num_cycles):
         super().__init__(mot_daq)
 
         self._mot_daq = mot_daq
         
         # Set speed
-        self._vel_ax1 = val1
-        self._vel_ax2 = val2
+        self._vel_ax1 = vel1
+        self._vel_ax2 = vel2
+
+        self._disp1 = len1
+        self._disp2 = len2
         
         self._workfolder = folder
+
+        self._num_cycles = num_cycles
 
         #this timers should be created in class, but not in its parent class
 
@@ -283,11 +289,14 @@ class DisplacementControlTest(MechanicalTest):
     def __del__(self):
         self._execute = False
         
-    def update_speed(self, val1, val2):
+    def update_parameters(self, vel1, vel2, len1, len2):
         
         # Set speed
-        self._vel_ax1 = val1
-        self._vel_ax2 = val2
+        self._vel_ax1 = vel1
+        self._vel_ax2 = vel2
+
+        self._disp1 = len1
+        self._disp2 = len2
         
         
     def run(self):
@@ -306,40 +315,54 @@ class DisplacementControlTest(MechanicalTest):
             self.signal_start_stop_tracking.emit(True)
             #self.signal_save_image.emit("Hello")
         
-        #start moving the motors
-        self._mot_daq.move_velocity_ax1(self._vel_ax1)
-        self._mot_daq.move_velocity_ax2(self._vel_ax2)
-        print(self._vel_ax1)
-        
-        
-        
-        #while not exceed max extension or sample rupture
-        while self._len_ax1 < 73 and self._len_ax2 < 73 and self._current_time < 400 and self._execute:
-            
+        #Here should be a condition to start the test
+        if True:
 
-            #read force values
-            try:
+            #Set number of cycles and direction
+            self._step = 2*self._num_cycles #double for each half cycle
+            self._direction = 1 #Stretch sample; -1 relax
+
+            #Set final positions
+            self._len1, self._len2 = self._mot_daq.get_positions()
+            self._fin_len1 = self._len1 - self._disp1 #when sample is stretched, the position is decreased
+            self._fin_len2 = self._len2 - self._disp2
+
+            #Start movement to final position
+            self._mot_daq.move_position_ax1(self._fin_len1, self._vel_ax1)
+            self._mot_daq.move_position_ax2(self._fin_len2, self._vel_ax2)
+
+            #Start timer to periodically check length and control the test
+            self._test_timer = QTimer()
+            self._test_timer.timeout.connect(self.__one_cycle)
+            self._test_timer.start(200)
+        
+        
+
+    def __one_cycle(self):
+        #Condition to finish the testç positive number of steps left
+        if self._current_time < 400 and self._execute and self._step > 0:
+
+            #If Stretch or Relax
+            if self._direction > 0 and self._len1 > self._fin_len1 and self._len2 > self._fin_len2 or self._direction < 0 and self._len1 < self._fin_len1 and self._len2 < self._fin_len2:
+
+                self._len1, self._len2 = self._mot_daq.get_positions()
                 self._force1,self._force2 = self._mot_daq.get_forces()
-                
-            except:
-                if np.isnan(self._force1) or np.isnan(self._force2):
-                    print('Exception while reading load cell data')
-                    #continue
-    
-            
-            #update length for each axis
-            self._len_ax1, self._len_ax2 = self._mot_daq.get_positions()
-            #record time
-            self._current_time = time.perf_counter() - self._start_time
-            
-            self._update_arrays_emit_data()
+                self._current_time = time.perf_counter() - self._start_time
 
-            QThread.msleep(self._sample_time)
-            
-        # Stop motors after measurement cycle is finished
-        self.stop_measurement()
-        #self.start_stop_tracking_signal.emit(False)
-        self._writeDataToFile()
+                self._update_arrays_emit_data()
+                
+            else:
+                self._step -= 1
+                self._direction =  -self._direction
+                self._fin_len1 = self._fin_len1 - self._direction * self._disp1 #this will do + or - disp1 between different cycles
+                self._fin_len2 = self._fin_len2 - self._direction * self._disp2
+        
+        else:
+            # Stop motors after measurement cycle is finished
+            self.stop_measurement()
+            self._writeDataToFile()
+            print("DisplacementControlTest: Test finished")
+            self._test_timer.stop()
         
         
             
@@ -565,7 +588,7 @@ class LoadControlTest(MechanicalTest):
 
         # Read current forces, positions, time 
         self._force1,self._force2 = self._mot_daq.get_forces() #try/except is inside
-        self._len_ax1, self._len_ax2 = self._mot_daq.get_positions()
+        self._len1, self._len2 = self._mot_daq.get_positions()
     
         
         #print("self._force12: {}".format(self._force1))
