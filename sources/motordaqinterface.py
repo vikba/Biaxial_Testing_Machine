@@ -157,8 +157,8 @@ class MotorDAQInterface (QThread):
     def get_positions(self):
 
         #update length for each axis
-        len1 = 2*(self._pos1_0 - self._axis1.get_position(Units.LENGTH_MILLIMETRES))
-        len2 = 2*(self._pos2_0 - self._axis2.get_position(Units.LENGTH_MILLIMETRES))
+        len1 = self._axis1.get_position(Units.LENGTH_MILLIMETRES) - self._pos1_0
+        len2 = self._axis2.get_position(Units.LENGTH_MILLIMETRES) - self._pos2_0
 
         return len1, len2
               

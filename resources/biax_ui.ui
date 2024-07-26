@@ -431,7 +431,7 @@
            <item row="1" column="4">
             <widget class="QLineEdit" name="factorSpeedAx2">
              <property name="text">
-              <string>3</string>
+              <string>30</string>
              </property>
             </widget>
            </item>
@@ -445,7 +445,7 @@
            <item row="1" column="2">
             <widget class="QLineEdit" name="factorSpeedAx1">
              <property name="text">
-              <string>3</string>
+              <string>30</string>
              </property>
             </widget>
            </item>

@@ -165,8 +165,8 @@ class MechanicalTest (QThread):
         self._time.append(round(self._current_time, roundDecimals))
         self._ch1.append(round(self._force1, roundDecimals)) #force channel 1
         self._ch2.append(round(self._force2, roundDecimals))
-        self._l1.append(round(self._pos1, roundDecimals))
-        self._l2.append(round(self._pos2, roundDecimals))
+        self._l1.append(round(-2*self._pos1, roundDecimals)) #Movement of sample is twice as holder
+        self._l2.append(round(-2*self._pos2, roundDecimals))
         self._vel_1.append(self._vel_ax1)
         self._vel_2.append(self._vel_ax2)
         
@@ -396,8 +396,8 @@ class DisplacementControlTest(MechanicalTest):
 
             self._start_pos1 = self._pos1
             self._start_pos2 = self._pos2
-            self._fin_pos1 = self._start_pos1 - self._disp1 #when sample is stretched, the position is decreased
-            self._fin_pos2 = self._start_pos2 - self._disp2
+            self._fin_pos1 = self._start_pos1 - self._disp1/2 #when sample is stretched, the position is decreased
+            self._fin_pos2 = self._start_pos2 - self._disp2/2
 
             #Start movement to final position
             self._mot_daq.move_position_ax1(self._fin_pos1, self._vel_ax1)
@@ -405,24 +405,35 @@ class DisplacementControlTest(MechanicalTest):
 
             #Start timer to periodically check length and control the test
             self._test_timer = QTimer()
-            self._test_timer.timeout.connect(self.__one_cycle)
-            self._test_timer.start(self._sample_time)
+            self._test_timer.timeout.connect(self._one_cycle)
+            #self._test_timer.moveToThread(self)
+            self._test_timer.start(200)
+            print("Timer started")
+            self.exec()
         
         
 
-    def __one_cycle(self):
+    def _one_cycle(self):
+        print("Timmer triggered")
         #Condition to finish the test: positive number of steps left
         if self._current_time < 400 and self._execute and self._half_cycle > 0:
 
-            #If Stretch or Relax
-            if self._direction > 0 and self._pos1 > self._fin_pos1 and self._pos2 > self._fin_pos2 or self._direction < 0 and self._pos1 < self._fin_pos1 and self._pos2 < self._fin_pos2:
+            #Update variables
+            self._pos1, self._pos2 = self._mot_daq.get_positions()
+            self._force1,self._force2 = self._mot_daq.get_forces()
+            self._current_time = time.perf_counter() - self._start_time
 
-                self._pos1, self._pos2 = self._mot_daq.get_positions()
-                self._force1,self._force2 = self._mot_daq.get_forces()
-                self._current_time = time.perf_counter() - self._start_time
+            print(f"self._fin_pos1 {self._fin_pos1}")
+            print(f"self._fin_pos2 {self._fin_pos2}")
+            print(f"self._pos1 {self._pos1}")
+            print(f"self._pos2 {self._pos2}")
+
+            #If Stretch or Relax continue - send data 
+            if 0 < self._direction and (1.03*self._pos1 >= self._fin_pos1 or 1.03*self._pos2 >= self._fin_pos2) or 0 > self._direction and (self._pos1 < 1.03*self._fin_pos1 or self._pos2 < 1.03*self._fin_pos2):
 
                 self._update_arrays_emit_data()
                 
+            #If Half cycle finished - change direction
             else:
                 print("DisplacementControlTest: Half cycle finished")
                 self._half_cycle -= 1
@@ -431,8 +442,8 @@ class DisplacementControlTest(MechanicalTest):
                 #Set final posistion based on stretch or relax cycle
                 #Stretch cycle
                 if 0 < self._direction:
-                    self._fin_pos1 = self._start_pos1 - self._disp1 
-                    self._fin_pos2 = self._start_pos2 - self._disp2
+                    self._fin_pos1 = self._start_pos1 - self._disp1/2 
+                    self._fin_pos2 = self._start_pos2 - self._disp2/2
 
                 #Relax cycle
                 elif 0 > self._direction:
@@ -522,7 +533,7 @@ class LoadControlTest(MechanicalTest):
         self._pid_2.setPID(P2, I2, D2)
 
        
-    def run(self):
+    def run2(self):
         """
         This function is implemented when the QTHread starts. Implements load control test.
         """
@@ -531,8 +542,6 @@ class LoadControlTest(MechanicalTest):
         #start performing test
         #this function is required to perform test with or without camera
 
-
-        self._sample_time = 150
 
 
         """
@@ -709,7 +718,7 @@ class LoadControlTest(MechanicalTest):
 
 
 
-    def run2(self):
+    def run(self):
         """
         This function is implemented when the QTHread starts. Implements load control test.
         """

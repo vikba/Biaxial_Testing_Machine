@@ -56,7 +56,7 @@ class BiaxMainWindow(QMainWindow):
 
         #init buttons
         self.buttonStart.clicked.connect(self.__start_measurement)
-        self.buttonStop.clicked.connect(self.__stop_movement)
+        self.buttonStop.clicked.connect(self.__stop_test)
         self.buttonSampleP.clicked.connect(self.__moveSamplePosition)
         self.buttonInitMot.clicked.connect(self.__initializeMotors)
         self.buttonCamera.clicked.connect(self.__startCamera)
@@ -329,6 +329,17 @@ class BiaxMainWindow(QMainWindow):
     def __stop_movement(self):
         
         
+        if hasattr(self, '_mot_daq'):
+            self._mot_daq.stop_motors()
+        else:
+            warning_box = QMessageBox()
+            warning_box.setIcon(QMessageBox.Icon.Warning)
+            warning_box.setWindowTitle("Warning")
+            warning_box.setText("Connect to motors and DAQ first!")
+            warning_box.exec()
+
+    def __stop_test(self):
+        
         
         if hasattr(self, '_mot_daq'):
             self._mot_daq.stop_motors()
@@ -338,6 +349,9 @@ class BiaxMainWindow(QMainWindow):
             warning_box.setWindowTitle("Warning")
             warning_box.setText("Connect to motors and DAQ first!")
             warning_box.exec()
+
+        if hasattr(self, '_mecTest'):
+            self._mecTest.stop_measurement()
 
         if hasattr(self, '_label_timer'):
             self._label_timer.stop()
