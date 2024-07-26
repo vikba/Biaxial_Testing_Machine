@@ -76,7 +76,7 @@ class MechanicalTest (QThread):
         #self.idleReadForce()
         
         self._force1 = self._force2 = 0
-        self._len1 = self._len2 = 0
+        self._pos1 = self._pos2 = 0
         
         #record start time
         self._start_time = time.perf_counter()
@@ -146,6 +146,18 @@ class MechanicalTest (QThread):
 
     def _update_arrays_emit_data(self):
 
+        """
+        Edge and node arrangement for central quad
+                     edge 3
+                3_______________4
+                |               |
+                |               |
+        edge 2  |               | edge 4
+                |               |
+                |_______________|
+                2    edge 1     1
+        """
+
         #Append common variables for all tests
         
         roundDecimals = 5
@@ -153,8 +165,8 @@ class MechanicalTest (QThread):
         self._time.append(round(self._current_time, roundDecimals))
         self._ch1.append(round(self._force1, roundDecimals)) #force channel 1
         self._ch2.append(round(self._force2, roundDecimals))
-        self._l1.append(round(self._len1, roundDecimals))
-        self._l2.append(round(self._len2, roundDecimals))
+        self._l1.append(round(self._pos1, roundDecimals))
+        self._l2.append(round(self._pos2, roundDecimals))
         self._vel_1.append(self._vel_ax1)
         self._vel_2.append(self._vel_ax2)
         
@@ -172,6 +184,7 @@ class MechanicalTest (QThread):
             self._point3.append(self._temp_p3)
             self._point4.append(self._temp_p4)
 
+            
             #Coordinates of initial and final points
             p1_0 = self._point1[0]
             p1 = self._point1[-1]
@@ -184,6 +197,63 @@ class MechanicalTest (QThread):
 
             
 
+            #decomposed initial coordinates for each node by axis
+            X11 = p1_0[0]; X21 = p1_0[1]
+            X12 = p2_0[0]; X22 = p2_0[1]
+            X13 = p3_0[0]; X23 = p3_0[1]
+            X14 = p4_0[0]; X24 = p4_0[1]
+
+            # component X of displacement on isoparametric coordinates
+            dX1_dS1 = 0.25*(X11-X12-X13+X14)
+            dX1_dS2 = 0.25*(X11+X12-X13-X14)
+            # component Y of displacement on isoparametric coordinates
+            dX2_dS1 = 0.25*(X21-X22-X23+X24)
+            dX2_dS2 = 0.25*(X21+X22-X23-X24)
+            # jacobian of the initial with isoparametric coordinates
+            J = dX1_dS1*dX2_dS2 - dX1_dS2*dX2_dS1
+
+            #displacement for each node
+            u1 = math.dist(p1, p1_0)
+            u2 = math.dist(p2, p2_0)
+            u3 = math.dist(p3, p3_0)
+            u4 = math.dist(p4, p4_0)
+
+            #decomposed displacement for each node by axis
+            u11 = u1[0]; u21 = u1[1]
+            u12 = u2[0]; u22 = u2[1]
+            u13 = u3[0]; u23 = u3[1]
+            u14 = u4[0]; u24 = u4[1]
+
+            # component X of displacement on isoparametric coordinates
+            du1_dS1 = 0.25*(u11-u12-u13+u14)
+            du1_dS2 = 0.25*(u11+u12-u13-u14)
+            # component Y of displacement on isoparametric coordinates
+            du2_dS1 = 0.25*(u21-u22-u23+u24)
+            du2_dS2 = 0.25*(u21+u22-u23-u24)
+
+            # gradient of displacement u1 on spatial coordinates
+            du1_dX1 = (dX2_dS2*du1_dS1 - dX2_dS1*du1_dS2)/J
+            du1_dX2 = (-dX1_dS2*du1_dS1 + dX1_dS1*du1_dS2)/J
+            # gradient of displacement u2 on spatial coordinates
+            du2_dX1 = (dX2_dS2*du2_dS1 - dX2_dS1*du2_dS2)/J
+            du2_dX2 = (-dX1_dS2*du2_dS1 + dX1_dS1*du2_dS2)/J
+
+            # deformation gradient, F
+            F11 = du1_dX1 + 1.0                # lambda1
+            F12 = du1_dX2                      # kappa1
+            F21 = du2_dX1                      # kappa2
+            F22 = du2_dX2 + 1.0                # lambda2
+            F33 = 1.0/(F11*F22 - F12*F21)      # lambda3
+
+            E11 = 0.5*(F11**2 + F21**2 - 1.0)
+            E22 = 0.5*(F22**2 + F12**2 - 1.0)
+            E12 = 0.5*(F11*F12 + F22*F21)
+            
+
+            
+
+            '''
+            #Old formula for strain calculation
             L1_0 = (math.dist(p1_0, p2_0) + math.dist(p3_0,p4_0)) / 2
             L1_last = (math.dist(p1, p2) + math.dist(p3, p4)) / 2
 
@@ -193,17 +263,13 @@ class MechanicalTest (QThread):
             else:
                 L2_0 = (math.dist(p1_0, p4_0) + math.dist(p2_0, p3_0)) / 2
                 L2_last = (math.dist(p1, p4) + math.dist(p2, p3)) / 2
-            
-            
-            print(f"p1 {p1}")
-
 
             # Calculate strains
             lambda1 = 1 + (L1_last - L1_0) / L1_0
             lambda2 = 1 + (L2_last - L2_0) / L2_0
 
             E11 = (lambda1*lambda1 - 1)/2
-            E22 = (lambda2*lambda2 - 1)/2
+            E22 = (lambda2*lambda2 - 1)/2'''
 
             
 
@@ -326,16 +392,16 @@ class DisplacementControlTest(MechanicalTest):
             self._start_time = time.perf_counter()
 
             #Set final positions
-            self._len1, self._len2 = self._mot_daq.get_positions()
+            self._pos1, self._pos2 = self._mot_daq.get_positions()
 
-            self._start_len1 = self._len1
-            self._start_len2 = self._len2
-            self._fin_len1 = self._start_len1 - self._disp1 #when sample is stretched, the position is decreased
-            self._fin_len2 = self._start_len2 - self._disp2
+            self._start_pos1 = self._pos1
+            self._start_pos2 = self._pos2
+            self._fin_pos1 = self._start_pos1 - self._disp1 #when sample is stretched, the position is decreased
+            self._fin_pos2 = self._start_pos2 - self._disp2
 
             #Start movement to final position
-            self._mot_daq.move_position_ax1(self._fin_len1, self._vel_ax1)
-            self._mot_daq.move_position_ax2(self._fin_len2, self._vel_ax2)
+            self._mot_daq.move_position_ax1(self._fin_pos1, self._vel_ax1)
+            self._mot_daq.move_position_ax2(self._fin_pos2, self._vel_ax2)
 
             #Start timer to periodically check length and control the test
             self._test_timer = QTimer()
@@ -349,9 +415,9 @@ class DisplacementControlTest(MechanicalTest):
         if self._current_time < 400 and self._execute and self._half_cycle > 0:
 
             #If Stretch or Relax
-            if self._direction > 0 and self._len1 > self._fin_len1 and self._len2 > self._fin_len2 or self._direction < 0 and self._len1 < self._fin_len1 and self._len2 < self._fin_len2:
+            if self._direction > 0 and self._pos1 > self._fin_pos1 and self._pos2 > self._fin_pos2 or self._direction < 0 and self._pos1 < self._fin_pos1 and self._pos2 < self._fin_pos2:
 
-                self._len1, self._len2 = self._mot_daq.get_positions()
+                self._pos1, self._pos2 = self._mot_daq.get_positions()
                 self._force1,self._force2 = self._mot_daq.get_forces()
                 self._current_time = time.perf_counter() - self._start_time
 
@@ -362,19 +428,28 @@ class DisplacementControlTest(MechanicalTest):
                 self._half_cycle -= 1
                 self._direction =  -self._direction
 
+                #Set final posistion based on stretch or relax cycle
                 #Stretch cycle
                 if 0 < self._direction:
-                    self._fin_len1 = self._start_len1 - self._disp1 
-                    self._fin_len2 = self._start_len2 - self._disp2
-                elif: 0 > self._direction:
+                    self._fin_pos1 = self._start_pos1 - self._disp1 
+                    self._fin_pos2 = self._start_pos2 - self._disp2
+
+                #Relax cycle
+                elif 0 > self._direction:
+                    self._fin_pos1 = self._start_pos1
+                    self._fin_pos2 = self._start_pos2
+
+                #Start movement to final position
+                self._mot_daq.move_position_ax1(self._fin_pos1, self._vel_ax1)
+                self._mot_daq.move_position_ax2(self._fin_pos2, self._vel_ax2)
         
+        #Test finished
         else:
             # Stop motors after measurement cycle is finished
             print("DisplacementControlTest: Test finished")
             self._execute = False
             self.stop_measurement()
             self._writeDataToFile()
-            print("DisplacementControlTest: Test finished")
             self._test_timer.stop()
         
         
@@ -601,7 +676,7 @@ class LoadControlTest(MechanicalTest):
 
         # Read current forces, positions, time 
         self._force1,self._force2 = self._mot_daq.get_forces() #try/except is inside
-        self._len1, self._len2 = self._mot_daq.get_positions()
+        self._pos1, self._pos2 = self._mot_daq.get_positions()
     
         
         #print("self._force12: {}".format(self._force1))
@@ -732,7 +807,7 @@ class LoadControlTest(MechanicalTest):
 
                 # Read current forces, positions, time 
                 self._force1,self._force2 = self._mot_daq.get_forces() #try/except is inside
-                self._len1, self._len2 = self._mot_daq.get_positions()
+                self._pos1, self._pos2 = self._mot_daq.get_positions()
 
                 #print("self._force12: {}".format(self._force1))
                 #print("self._force2: {}".format(self._force2))
@@ -777,8 +852,8 @@ class LoadControlTest(MechanicalTest):
                     self._end_force1 = self._max_force1
                     self._end_force2 = self._max_force2
 
-                    vel_ax1 = -self._max_len1/self._test_duration #Negative velocity for stretching
-                    vel_ax2 = -self._max_len2/self._test_duration
+                    vel_ax1 = -self._max_pos1/self._test_duration #Negative velocity for stretching
+                    vel_ax2 = -self._max_pos2/self._test_duration
 
                     print("Vel1: {}".format(vel_ax1))
                     print("Vel2: {}".format(vel_ax2))
@@ -800,11 +875,11 @@ class LoadControlTest(MechanicalTest):
                     self._end_force2 = 0.03
 
                     #Max length is calculated at maximum stretch
-                    self._max_len1 = self._l1[-1]
-                    self._max_len2 = self._l2[-1]
+                    self._max_pos1 = self._l1[-1]
+                    self._max_pos2 = self._l2[-1]
 
-                    vel_ax1 = self._max_len1/self._test_duration
-                    vel_ax2 = self._max_len2/self._test_duration
+                    vel_ax1 = self._max_pos1/self._test_duration
+                    vel_ax2 = self._max_pos2/self._test_duration
 
                     print("Vel1: {}".format(vel_ax1))
                     print("Vel2: {}".format(vel_ax2))
