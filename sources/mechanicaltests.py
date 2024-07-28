@@ -91,13 +91,18 @@ class MechanicalTest (QThread):
             self._sendRandSignal()
             QThread.msleep(100)
     
+    @pyqtSlot()
     def stop(self):
         """
         Stops movemets, connections and  the execution of the current QThread
         """
-        self.stop_measurement()
-        
+        self._execute = False
+
+        if isinstance(self._test_timer, QTimer):
+            self._test_timer.stop()
+
         self.quit()
+        self.wait()
     
     def stop_measurement(self):
         """
@@ -350,10 +355,6 @@ class DisplacementControlTest(MechanicalTest):
         self._num_cycles = num_cycles
 
         #this timers should be created in class, but not in its parent class
-
-    
-    def __del__(self):
-        self._execute = False
         
     def update_parameters(self, vel1, vel2, len1, len2, num_cycles):
         
@@ -851,7 +852,7 @@ class LoadControlTest(MechanicalTest):
                 self._pid_1.reset()
                 self._pid_2.reset()
                 
-                #Stretch loop
+                #Change behaviour to stretch loop
                 if self._direction > 0:
                     #Increase force loop
                     print("LoadControlTest: Start increasing force")
@@ -873,7 +874,7 @@ class LoadControlTest(MechanicalTest):
 
                     
 
-                #Relax loop
+                #Change behaviour to relax loop
                 else:
                     #Decrease force loop
                     print("LoadControlTest: Start decreasing force")

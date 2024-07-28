@@ -1,4 +1,4 @@
-from PyQt6.QtCore import QThread, QTimer, pyqtSignal
+from PyQt6.QtCore import QThread, QTimer, pyqtSignal, pyqtSlot
 import math
 
 
@@ -26,16 +26,7 @@ class MotorDAQInterface (QThread):
           
         self._autoload_timer = QTimer()
         self._autoload_timer.timeout.connect(self.__autoload_step)
-    
-    def __del__(self):
-        self._axis1.stop()
-        self._axis2.stop()
-        self._connection_z.close()
-        self._conn_q.close_connection() #Connection to DAQ Qstation
-        self.quit()
-        
-        
-        
+   
     
     def __initMorors(self):
         """
@@ -106,15 +97,18 @@ class MotorDAQInterface (QThread):
     def run(self):
         pass
     
+    @pyqtSlot()
     def stop(self):
         """
         Stops movemets, connections and  the execution of the current QThread
         """
+        self._autoload_timer.stop()
         self._axis1.stop()
         self._axis2.stop()
         self._connection_z.close() #Connection to Zaber motors
         self._conn_q.close_connection() #Connection to DAQ Qstation
         self.quit()
+        self.wait()
     
     def stop_motors(self):
         """
@@ -248,6 +242,7 @@ class MotorDAQInterface (QThread):
 
     def autoload(self, load):
 
+        
         self._load = load
 
         self._force1, self._force2 = self.get_forces()
@@ -259,6 +254,9 @@ class MotorDAQInterface (QThread):
             self._autoload_timer.start(200)
         else:
             print("Autoload: The difference between current force and desired force is too high!")
+
+
+        self.exec()
     
         
     def __autoload_step(self):

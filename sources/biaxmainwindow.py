@@ -6,7 +6,7 @@
 
 from PyQt6.QtWidgets import*
 from PyQt6.uic import loadUi
-from PyQt6.QtCore import QTimer, pyqtSlot
+from PyQt6.QtCore import QTimer, pyqtSlot, pyqtSignal
 from PyQt6.QtGui import QFont
 #from PyQt5.QtChart import QLineSeries
 import pyqtgraph as pg
@@ -17,6 +17,7 @@ from .mechanicaltests import DisplacementControlTest, LoadControlTest, Mechanica
 from .camerawindow import VideoThread, VideoWindow
 from .loadcalculator import LoadCalculatorWindow
 from .motordaqinterface import MotorDAQInterface
+from .ringbuffer import RingBuffer
 
 
 
@@ -28,6 +29,8 @@ class BiaxMainWindow(QMainWindow):
     This class is the main application window for a biaxial testing machine.
     It sets up the user interface and connects GUI elements to their functionalities.
     """
+
+    signal_stop = pyqtSignal()
     
     def __init__(self):
         """
@@ -145,9 +148,8 @@ class BiaxMainWindow(QMainWindow):
         self.ChartWidget_3.setLabel('left', 'Stress, MPa', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
         self.ChartWidget_3.setLabel('bottom', 'Strain, %', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
         
-        # Read motor speed
-        self._vel_ax1 = -int(self.factorSpeedAx1.text())/60 #Convert from per minute to per second
-        self._vel_ax2 = -int(self.factorSpeedAx2.text())/60
+        self._ringbuffer1 = RingBuffer(100) #Ring buffer for live force display of channel1
+        self._ringbuffer2 = RingBuffer(100) #Ring buffer for live force display of channel2
 
         self.__init_variables()
         
@@ -167,11 +169,14 @@ class BiaxMainWindow(QMainWindow):
     def closeEvent(self, event):
         # This method is called when the window is closed.
         self.__terminate_application()
+        event.accept()
 
     def __terminate_application(self):
         
+        self.signal_stop.emit()
+        
         # Terminate Threads
-        if hasattr(self, '_mecTest'):
+        '''if hasattr(self, '_mecTest'):
             self._mecTest.stop()
 
         if hasattr(self, '_video_thread'):
@@ -186,8 +191,10 @@ class BiaxMainWindow(QMainWindow):
         if hasattr(self, '_liveforce_timer'):
             self._liveforce_timer.stop()
             
+        self.close()'''
             
-        self.close()
+            
+        
         
         print('Application terminated')
         
@@ -266,14 +273,9 @@ class BiaxMainWindow(QMainWindow):
                     self._mecTest.update_parameters(self.end_force1, self.end_force2, self.test_duration, self.cycl_num)
 
                 else:
-                    #Check if the test should be cycled
-                    if self.checkBoxCycl.isChecked():
-                        self._mecTest = LoadControlTest(self._mot_daq, self._work_folder, self.end_force1, self.end_force2, self.test_duration, self.cycl_num)
-                    else:
-                        #0 - one directional test
-                        self._mecTest = LoadControlTest(self._mot_daq, self._work_folder, self.end_force1, self.end_force2, self.test_duration, 0)
-
-
+                    self._mecTest = LoadControlTest(self._mot_daq, self._work_folder, self.end_force1, self.end_force2, self.test_duration, self.cycl_num)
+                    
+                    self.signal_stop.connect(self._mecTest.stop)
                     self._mecTest.signal_update_charts.connect(self.__update_charts)
         
             elif 2 == self.tabWidget.currentIndex():
@@ -312,6 +314,7 @@ class BiaxMainWindow(QMainWindow):
         
         try:
             self._mot_daq = MotorDAQInterface()
+            self.signal_stop.connect(self._mot_daq.stop)
     
         except Exception as e:
             warning_box = QMessageBox()
@@ -323,7 +326,7 @@ class BiaxMainWindow(QMainWindow):
         else:
             self._liveforce_timer = QTimer()
             self._liveforce_timer.timeout.connect(self.__updateLabelForce)
-            self._liveforce_timer.start(500)
+            self._liveforce_timer.start(200)
 
             
     def __stop_movement(self):
@@ -386,6 +389,8 @@ class BiaxMainWindow(QMainWindow):
     def __zeroForce(self):
         if hasattr(self, '_mot_daq'):
             self._mot_daq.zeroForce()
+            self._ringbuffer1.reset()
+            self._ringbuffer2.reset()
         else:
             warning_box = QMessageBox()
             warning_box.setIcon(QMessageBox.Icon.Warning)
@@ -521,6 +526,7 @@ class BiaxMainWindow(QMainWindow):
             self.__create_mec_test()
         
             self._video_thread = VideoThread()
+            self.signal_stop.connect(self._video_thread.stop)
             self._video_window = VideoWindow(self._video_thread)
 
             self._video_thread.signal_markers_recorded.connect(self._mecTest.init_markers)
@@ -647,10 +653,22 @@ class BiaxMainWindow(QMainWindow):
         if self._mot_daq is not None:
             force1, force2 = self._mot_daq.get_forces()
 
+            #update label with current forces
             self.upperLabel_1.setStyleSheet("color: black; font-size: 14px;")
             self.upperLabel_1.setText("Force 1: {}".format(force1))
             self.upperLabel_2.setStyleSheet("color: black; font-size: 14px;")
             self.upperLabel_2.setText("Force 2: {}".format(force2))
+
+            #add forces to the ring buffer
+            self._ringbuffer1.append(force1)
+            self._ringbuffer2.append(force2)
+
+            #draw them in the chart
+            self.ChartWidget_1.clear()
+            self.ChartWidget_1.plot(self._ringbuffer1.get_buffer(), pen=pg.mkPen(color='b', width=2))  
+            self.ChartWidget_1.plot(self._ringbuffer12get_buffer(), pen=pg.mkPen(color='r', width=2))  
+
+
 
 
 

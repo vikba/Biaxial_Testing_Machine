@@ -75,12 +75,14 @@ class VideoThread(QThread):
         self._temp_p3 = None
         self._temp_p4 = None
 
+    @pyqtSlot()
     def stop(self):
         #self.timer.stop()
         #self.cam._close()
         #self._timer_video.stop()
         self._execute = False
         self.quit()
+        self.wait()
         
     @pyqtSlot(int, int, int, int)
     def update_roi(self, x1,y1, x2, y2):
@@ -198,10 +200,7 @@ class VideoThread(QThread):
                 self._timer_video.timeout.connect(lambda: self.__grab_frame(cam))
                 self._timer_video.start(1)  # Grab a frame every 300ms (about 3.3fps)'''
 
-                
-                #Record to the file
-                #self.writeDataToFile()
-                self.quit()
+
 
     #Decorator to calculate execution time
     def calculate_time(func):

@@ -1,6 +1,4 @@
 
-#Send stop signal or stop funcaiton is ok?
-#Save thread and timer exit
 #Correct saving of images and data
 #Set motor limits in steps
 #Removed -2* in get_positions - check loadcontroltest
