@@ -5,7 +5,7 @@
 
 """
 
-from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot,  Qt, QTimer
+from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot,  Qt, QTimer, QMetaObject
 import numpy as np
 import csv
 import math
@@ -37,14 +37,14 @@ class MechanicalTest (QThread):
 
         self._use_video = False #Flag indicating whether marks are recorded
         
-        self._initVariables() 
+        self._init_variables() 
           
     
     #def __del__(self):
         #self.quit()
         
         
-    def _initVariables(self):
+    def _init_variables(self):
         '''
         Function to initialize variables before each measurement
 
@@ -98,7 +98,7 @@ class MechanicalTest (QThread):
         """
         self._execute = False
 
-        if isinstance(self._test_timer, QTimer):
+        if hasattr(self, "_test_timer") and isinstance(self._test_timer, QTimer):
             self._test_timer.stop()
 
         self.quit()
@@ -140,8 +140,6 @@ class MechanicalTest (QThread):
     
     @pyqtSlot(list)
     def update_markers(self, array):
-
-        print("update markers")
 
         #Temporary coordinates 
         self._temp_p1 = array[0]
@@ -218,10 +216,10 @@ class MechanicalTest (QThread):
             J = dX1_dS1*dX2_dS2 - dX1_dS2*dX2_dS1
 
             #displacement for each node
-            u1 = math.dist(p1, p1_0)
-            u2 = math.dist(p2, p2_0)
-            u3 = math.dist(p3, p3_0)
-            u4 = math.dist(p4, p4_0)
+            u1 = tuple(a - b for a, b in zip(p1, p1_0))
+            u2 = tuple(a - b for a, b in zip(p2, p2_0))
+            u3 = tuple(a - b for a, b in zip(p3, p3_0))
+            u4 = tuple(a - b for a, b in zip(p4, p4_0))
 
             #decomposed displacement for each node by axis
             u11 = u1[0]; u21 = u1[1]
@@ -284,7 +282,12 @@ class MechanicalTest (QThread):
             self.signal_update_charts.emit([self._time[-1], self._ch1[-1], self._ch2[-1], self._l1[-1], self._l2[-1], self._E11[-1], self._E22[-1], self._vel_1[-1],self._vel_2[-1]])
 
 
+    def _finish_test(self):
         
+        self._use_video = False
+        
+        self._init_variables()     
+    
     def _moving_average(self, x, w):
         return np.convolve(x, np.ones(w), 'valid') / w
     
@@ -302,7 +305,7 @@ class MechanicalTest (QThread):
 
         
         # Write to CSV file
-        with open(self._workfolder + '\Test_'+formatted_datetime+'.csv', 'w', newline='') as file:
+        with open(self._workfolder + '\\Test_'+formatted_datetime+'.csv', 'w', newline='') as file:
             writer = csv.writer(file, delimiter=';')
             writer.writerow(["Time", "Load_1", "Load_2", "Disp_1", "Disp_2", "E11", "E22"])  # Header row, if needed
             for row in combined_lists:
@@ -312,7 +315,7 @@ class MechanicalTest (QThread):
         # Write to CSV positions of markers
         if hasattr(self, '_point1'):
             combined_lists = zip(self._time, self._point1, self._point2, self._point3, self._point4)
-            with open(self._workfolder + '\Test_'+formatted_datetime+'_markers.csv', 'w', newline='') as file:
+            with open(self._workfolder + '\\Test_'+formatted_datetime+'_markers.csv', 'w', newline='') as file:
                 writer = csv.writer(file, delimiter=';')
                 writer.writerow(["Time","Marker_1", "Marker_2", "Marker_3", "Marker_4"])  # Header row, if needed
                 for row in combined_lists:
@@ -377,12 +380,17 @@ class DisplacementControlTest(MechanicalTest):
 
         """
         
-        self._initVariables()
+        self._init_variables()
 
         if (self._use_video):
-            print(f"Point1 {self._point1}")
+            print(f"Start of Displacement control test with video")
             self.signal_start_stop_tracking.emit(True)
-            #self.signal_save_image.emit("Hello")
+            
+            #Get current date for filename
+            current_datetime = datetime.now()
+            formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
+            img_addr = self._workfolder + '\\Test_'+formatted_datetime+'_first_frame.jpg'
+            self.signal_save_image.emit(img_addr)
         
         #Here should be a condition to start the test
         if True:
@@ -405,17 +413,19 @@ class DisplacementControlTest(MechanicalTest):
             self._mot_daq.move_position_ax2(self._fin_pos2, self._vel_ax2)
 
             #Start timer to periodically check length and control the test
-            self._test_timer = QTimer()
+            
+            self._test_timer = QTimer(self)
             self._test_timer.timeout.connect(self._one_cycle)
             #self._test_timer.moveToThread(self)
             self._test_timer.start(200)
             print("Timer started")
             self.exec()
+            
         
         
 
     def _one_cycle(self):
-        print("Timmer triggered")
+
         #Condition to finish the test: positive number of steps left
         if self._current_time < 400 and self._execute and self._half_cycle > 0:
 
@@ -424,15 +434,13 @@ class DisplacementControlTest(MechanicalTest):
             self._force1,self._force2 = self._mot_daq.get_forces()
             self._current_time = time.perf_counter() - self._start_time
 
-            print(f"self._fin_pos1 {self._fin_pos1}")
-            print(f"self._fin_pos2 {self._fin_pos2}")
-            print(f"self._pos1 {self._pos1}")
-            print(f"self._pos2 {self._pos2}")
-
             #If Stretch or Relax continue - send data 
-            if 0 < self._direction and (1.03*self._pos1 >= self._fin_pos1 or 1.03*self._pos2 >= self._fin_pos2) or 0 > self._direction and (self._pos1 < 1.03*self._fin_pos1 or self._pos2 < 1.03*self._fin_pos2):
+            if 0 < self._direction and (self._pos1 >= self._fin_pos1+0.08 or self._pos2 >= self._fin_pos2+0.08) or 0 > self._direction and (self._pos1 < self._fin_pos1-0.08 or self._pos2 < self._fin_pos2-0.08):
 
                 self._update_arrays_emit_data()
+
+                #print(f"positions current: {self._pos1} , final: {self._fin_pos1}")
+                #print(f"positions current: {self._pos2} , final: {self._fin_pos2}")
                 
             #If Half cycle finished - change direction
             else:
@@ -451,18 +459,31 @@ class DisplacementControlTest(MechanicalTest):
                     self._fin_pos1 = self._start_pos1
                     self._fin_pos2 = self._start_pos2
 
-                #Start movement to final position
-                self._mot_daq.move_position_ax1(self._fin_pos1, self._vel_ax1)
-                self._mot_daq.move_position_ax2(self._fin_pos2, self._vel_ax2)
+                if (self._use_video):
+                    #Get current date for filename
+                    current_datetime = datetime.now()
+                    formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
+                    img_addr = self._workfolder + '\\Test_'+formatted_datetime+'_last_frame.jpg'
+                    self.signal_save_image.emit(img_addr)
+                
+                if self._half_cycle > 0:
+                    print(f"positions current: {self._pos1} , final: {self._fin_pos1}")
+                    print(f"positions current: {self._pos2} , final: {self._fin_pos2}")
+                    
+                    #Start movement to final position
+                    self._mot_daq.move_position_ax1(self._fin_pos1, self._vel_ax1)
+                    self._mot_daq.move_position_ax2(self._fin_pos2, self._vel_ax2)
         
         #Test finished
         else:
             # Stop motors after measurement cycle is finished
+            #self._test_timer.stop()
+            QMetaObject.invokeMethod(self._test_timer, "stop", Qt.ConnectionType.QueuedConnection)
             print("DisplacementControlTest: Test finished")
-            self._execute = False
             self.stop_measurement()
             self._writeDataToFile()
-            self._test_timer.stop()
+            self._finish_test()
+            
         
         
             
@@ -477,12 +498,12 @@ class LoadControlTest(MechanicalTest):
     etc
     '''
 
-    def __init__(self, mot_daq, folder, end_force1, end_force2, test_duration, num_cycles):
+    def __init__(self, mot_daq, folder, max_force1, max_force2, test_duration, num_cycles):
         super().__init__(mot_daq)
         self._mot_daq = mot_daq
         
-        self._end_force1 = end_force1
-        self._end_force2 = end_force2
+        self._max_force1 = max_force1
+        self._max_force2 = max_force2
         self._test_duration = test_duration
         
         self._workfolder = folder
@@ -497,12 +518,6 @@ class LoadControlTest(MechanicalTest):
         Kd2 = 0
         Ki2 = 0.002
         self._pid_2 = PID(Kp2, Ki2, Kd2)
-
-
-    
-    #def __del__(self):
-        #self._execute = False
-        #self.quit()
         
     def update_parameters (self, end_force1, end_force2, test_duration, num_cycles):
         self._end_force1 = end_force1
@@ -555,7 +570,7 @@ class LoadControlTest(MechanicalTest):
         """
 
 
-        self._initVariables()
+        self._init_variables()
 
         #initial LOW velocities for motors
         #to stretch a sample velocity should be negarive. It'll become negative before stretching cycle
@@ -563,13 +578,13 @@ class LoadControlTest(MechanicalTest):
         vel_ax2 = 0.02 #mm/sec
 
         if (self._use_video):
-            print(f"Use video {self._point1}")
+            print(f"Use video")
             self.signal_start_stop_tracking.emit(True)
             
             #Get current date for filename
             current_datetime = datetime.now()
             formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-            img_addr = self._workfolder + '\Test_'+formatted_datetime+'_first_frame.jpg'
+            img_addr = self._workfolder + '\\Test_'+formatted_datetime+'_first_frame.jpg'
             self.signal_save_image.emit(img_addr)
 
 
@@ -644,12 +659,6 @@ class LoadControlTest(MechanicalTest):
                 self._mot_daq.move_velocity_ax1(vel_ax1*0.1) #in mm/s
                 self._mot_daq.move_velocity_ax2(vel_ax2*0.1) #in mm/s
 
-                #For the last frame we need to capture highest force
-                '''if cam is not None:
-                    current_datetime = datetime.now()
-                    formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-                    cv2.imwrite(self._workfolder + '\Test_'+formatted_datetime+'_last_frame.jpg', self._img_cv)
-                '''
                 start_half_cycle_time = time.perf_counter()
                 self._pid_1.reset()
                 self._pid_2.reset()
@@ -728,21 +737,7 @@ class LoadControlTest(MechanicalTest):
         #start performing test
         #this function is required to perform test with or without camera
 
-
-        self._sample_time = 150
-
-
-        """
-        #Get current date for filename
-        current_datetime = datetime.now()
-        formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-        cv2.imwrite(self._workfolder + '\Test_'+formatted_datetime+'_first_frame.jpg', img_cv)
-
-        self.__performTest(cam) #True means to perform test with camera
-        """
-
-
-        self._initVariables()
+        self._init_variables()
 
         if (self._use_video):
             print(f"Use video {self._point1}")
@@ -751,7 +746,7 @@ class LoadControlTest(MechanicalTest):
             #Get current date for filename
             current_datetime = datetime.now()
             formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-            img_addr = self._workfolder + '\Test_'+formatted_datetime+'_first_frame.jpg'
+            img_addr = self._workfolder + '\\Test_'+formatted_datetime+'_first_frame.jpg'
             self.signal_save_image.emit(img_addr)
 
 
@@ -793,6 +788,8 @@ class LoadControlTest(MechanicalTest):
             self._test_timer = QTimer()
             self._test_timer.timeout.connect(self.__one_cycle)
             self._test_timer.start(self._sample_time)
+            print("Timer started")
+            self.exec()
 
                 
 
@@ -906,7 +903,7 @@ class LoadControlTest(MechanicalTest):
             self.stop_measurement()
             self._writeDataToFile()
             print("LoadControlTest: Test finished")
-            self._test_timer.stop()
+            QMetaObject.invokeMethod(self._test_timer, "stop", Qt.ConnectionType.QueuedConnection)
 
                     
 

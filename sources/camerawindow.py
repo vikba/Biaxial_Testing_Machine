@@ -156,11 +156,14 @@ class VideoThread(QThread):
         
         else:
             self._execute = False
+            self._track_marks = False
+            self._init_marks = False
             self.stop()
 
     
     @pyqtSlot(str)
     def save_image(self, address):
+        print(f"Saving image with an address {address}")
         cv2.imwrite(address, self._img)
 
     
@@ -311,7 +314,6 @@ class VideoThread(QThread):
             
 
                 elif self._track_marks:
-                    print("Tracking marks1")
                     
                     #distribute marks in the groups
                     #go by all points and find a closest marker to it
@@ -339,12 +341,27 @@ class VideoThread(QThread):
                 for group in self._marks_groups:
                     lg = len(group)
                     if lg > 1:
-                        print(group[lg-2])
+                        #print(group[lg-2])
                         cv2.line(self.__img_track, tuple(int(x) for x in group[lg-2]), tuple(int(x) for x in group[lg-1]), 150, 1)
             
             
+    def restart(self):
+        '''
+        Called after end of the test
+        '''
+        self._init_marks = False  # Initialize first set of marks
+        self._track_marks = False  # Continiously track marks
+        
+        self._execute = True
+            
+        self._roi_x1 = 0
+        self._roi_y1 = 0
+        self._roi_x2 = VideoThread.RES_X_FULL
+        self._roi_y2 = VideoThread.RES_Y_FULL
 
+        self.__initVariables()
 
+        self.start()
 
     def __detectMarkers(self, image):
         """
@@ -466,6 +483,10 @@ class VideoWindow(QWidget):
         self.thread = thread
         self.thread.signal_change_pixmap.connect(self.update_image)
         self.signal_update_roi.connect(self.thread.update_roi)
+
+    @pyqtSlot()
+    def stop(self):
+        self.close()
         
             
     def mousePressEvent(self, event):
@@ -492,10 +513,6 @@ class VideoWindow(QWidget):
         self.signal_update_roi.emit(self._start_point.x(), self._start_point.y(), self._end_point.x(), self._end_point.y())
         self._draw_rectangle = False
         
-
-    def stop_webcam(self):
-        self.thread.stop()
-        self.close()
         
 
     @pyqtSlot(np.ndarray)

@@ -1,5 +1,5 @@
 from PyQt6.QtCore import QThread, QTimer, pyqtSignal, pyqtSlot
-import math
+import numpy as np
 
 
 from zaber_motion.ascii import Connection
@@ -24,8 +24,14 @@ class MotorDAQInterface (QThread):
         self._force1_0 = self._force2_0 = 0
         self._pos1_0 = self._pos2_0 = 0
           
-        self._autoload_timer = QTimer()
+        self._autoload_timer = QTimer(self)
         self._autoload_timer.timeout.connect(self.__autoload_step)
+
+        self._mot_init = False
+        self._daq_init = False
+
+    def is_initialized(self):
+        return self._mot_init and self._daq_init
    
     
     def __initMorors(self):
@@ -94,9 +100,6 @@ class MotorDAQInterface (QThread):
         print("Initial force at channel 2: {}".format(val2))
         
     
-    def run(self):
-        pass
-    
     @pyqtSlot()
     def stop(self):
         """
@@ -114,7 +117,7 @@ class MotorDAQInterface (QThread):
         """
         Stop the measurement by setting the _execute flag to False and stopping axis1 and axis2.
         """
-        print("Stop motors")
+        #print("Stop motors")
         self._axis1.stop()
         self._axis2.stop()
 
@@ -154,16 +157,29 @@ class MotorDAQInterface (QThread):
         len1 = self._axis1.get_position(Units.LENGTH_MILLIMETRES) - self._pos1_0
         len2 = self._axis2.get_position(Units.LENGTH_MILLIMETRES) - self._pos2_0
 
-        return len1, len2
+        return round(len1, 5), round(len2, 5)
               
     def zeroForce(self):
         """
         Performs a zero force calibration by sleeping for 0.1 seconds, reading force values, and printing the initial force 1 and force 2 values.
         """
-        QThread.msleep(100)
-        self._force1_0, self._force2_0 = self._readForce()
+        force_temp1 = []
+        force_temp2 = []
+
+        for i in range(0,20):
+          val1, val2  = self._readForce()
+          force_temp1.append(val1)
+          force_temp2.append(val2)
+          QThread.msleep(30)
+
+        
+        self._force1_0 = round(np.mean(force_temp1), 3)
+        self._force2_0 = round(np.mean(force_temp2), 3)
+
         print("Init force 1: {}".format(self._force1_0))
         print("Init force 2: {}".format(self._force2_0))
+
+        self._mot_init = True
         
         
     def zeroPosition(self):
@@ -176,6 +192,8 @@ class MotorDAQInterface (QThread):
         
         print("Init pos 1: {}".format(self._pos1_0))
         print("Init pos 2: {}".format(self._pos2_0))
+
+        self._daq_init = True
         
       
     def __convertToNewtons(self, val1, val2):
@@ -193,7 +211,7 @@ class MotorDAQInterface (QThread):
         k1 = 250/0.7978 #coefficients according to calibration certificate
         k2 = 250/0.8317
         
-        return k1*val1, k2*val2
+        return round(k1*val1, 5), round(k2*val2, 5)
             
     def moveSamplePosition(self):
         """
@@ -219,8 +237,21 @@ class MotorDAQInterface (QThread):
         speed = -5 # mm/sec
         
         #start moving the motors
-        self._axis1.move_velocity(speed, Units.VELOCITY_MILLIMETRES_PER_SECOND)
-        self._axis2.move_velocity(speed, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+        #self._axis1.move_velocity(speed, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+        #self._axis2.move_velocity(speed, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+
+        self._axis1.home(wait_until_idle=False)
+        self._axis2.home()
+
+        # Set the soft limits (in millimeters)
+        min_limit = 0    # Adjust this value as necessary
+        max_limit = 83  # Adjust this value as necessary
+        print(f"Setting movement limits: min {min_limit} mm, max {max_limit} mm")
+        self._axis1.settings.set("limit.min", min_limit, unit = Units.LENGTH_MILLIMETRES)
+        self._axis1.settings.set("limit.max", max_limit, unit = Units.LENGTH_MILLIMETRES)
+
+        self._axis2.settings.set("limit.min", min_limit, unit = Units.LENGTH_MILLIMETRES)
+        self._axis2.settings.set("limit.max", max_limit, unit = Units.LENGTH_MILLIMETRES)
 
     def move_position_ax1(self, pos, vel):
         self._axis1.move_absolute(self._pos1_0 + pos, Units.LENGTH_MILLIMETRES, velocity=vel, velocity_unit=Units.VELOCITY_MILLIMETRES_PER_SECOND, wait_until_idle=False)
@@ -248,8 +279,9 @@ class MotorDAQInterface (QThread):
         self._force1, self._force2 = self.get_forces()
         
         if abs(self._force1 - self._load) < 2 and abs(self._force2 - self._load) < 2:
-            self.move_velocity_ax1(-0.1)
-            self.move_velocity_ax2(-0.1)
+            #Move with slow negative velocity to gently stretch the sample
+            self.move_velocity_ax1(-0.2) #in mm/sec
+            self.move_velocity_ax2(-0.2)
             self.step = 1
             self._autoload_timer.start(200)
         else:
@@ -271,8 +303,11 @@ class MotorDAQInterface (QThread):
             else:
                 self.step = 2
                 print("Autoload: Half Load reached")
+                self.move_velocity_ax1(-0.2)
+                self.move_velocity_ax2(-0.2)
+                
         
-        if self.step == 2:
+        elif self.step == 2:
             if self._force1 < self._load or self._force2 < self._load:
                 if self._force1 > 1.2 * self._load:
                     self._axis1.stop()
@@ -280,5 +315,11 @@ class MotorDAQInterface (QThread):
                     self._axis2.stop()
             else:
                 print("Autoload: The Load reached")
+                self._axis1.stop()
+                self._axis2.stop()
                 self._autoload_timer.stop()  # Stop the timer when load is reached
                 #self.load_reached.emit()  # Emit the signal to indicate the load is reached
+
+        else:
+            self._axis1.stop()
+            self._axis2.stop()

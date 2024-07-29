@@ -1,7 +1,10 @@
-
-#Correct saving of images and data
-#Set motor limits in steps
+#Check if all conditions met to start the test
+#Check what happens at the end of test
 #Removed -2* in get_positions - check loadcontroltest
+#Read configuration from file
+#Reset video classes after the test
+#Check if the pid parameters are dynamically updated
+#Add second pid to control the slope
 
 from PyQt6.QtWidgets import QApplication
 
