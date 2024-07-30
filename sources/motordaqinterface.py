@@ -114,11 +114,13 @@ class MotorDAQInterface (QThread):
         self.wait()
     
     def stop_motors(self):
-        """
-        Stop the measurement by setting the _execute flag to False and stopping axis1 and axis2.
-        """
-        #print("Stop motors")
         self._axis1.stop()
+        self._axis2.stop()
+
+    def stop_motor1(self):
+        self._axis1.stop()
+
+    def stop_motor2(self):
         self._axis2.stop()
 
         
@@ -318,6 +320,7 @@ class MotorDAQInterface (QThread):
                 self._axis1.stop()
                 self._axis2.stop()
                 self._autoload_timer.stop()  # Stop the timer when load is reached
+                self.zeroPosition()
                 #self.load_reached.emit()  # Emit the signal to indicate the load is reached
 
         else:

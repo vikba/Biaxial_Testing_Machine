@@ -377,6 +377,9 @@ class BiaxMainWindow(QMainWindow):
 
         if hasattr(self, '_liveforce_timer'):
             self._liveforce_timer.start(500)
+
+        self._ringbuffer1.reset()
+        self._ringbuffer2.reset()
             
         
             
