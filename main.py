@@ -5,6 +5,7 @@
 #Reset video classes after the test
 #Check if the pid parameters are dynamically updated
 #Add second pid to control the slope
+#Freeze the application
 
 from PyQt6.QtWidgets import QApplication
 
