@@ -23,6 +23,9 @@ class PID:
         self.Ki = I
         self.Kd = D
 
+    def setKp(self, P):
+        self.Kp = P
+
     def updateOutput(self, measured_value):
         """
         Update the controller with a new measured value.

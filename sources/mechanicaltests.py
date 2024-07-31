@@ -597,8 +597,8 @@ class LoadControlTest(MechanicalTest):
 
             #initial LOW velocities for motors
             #to stretch a sample velocity should be negarive. It'll become negative before stretching cycle
-            vel_ax1 = - 0.02 #For slow initial stretch
-            vel_ax2 = - 0.02
+            vel_ax1 = - 0.05 #For slow initial stretch
+            vel_ax2 = - 0.05
 
             # Start slow motion
             self._mot_daq.move_velocity_ax1(vel_ax1) #in mm/s
@@ -606,6 +606,19 @@ class LoadControlTest(MechanicalTest):
 
             self._pid_1.reset()
             self._pid_2.reset()
+
+                # Initialize PID controllers
+            Kp1 = 0.5
+            Kd1 = 0
+            Ki1 = 0.002
+            self._pid_12 = PID(Kp1, Ki1, Kd1)
+            Kp2 = 0.5
+            Kd2 = 0
+            Ki2 = 0.002
+            self._pid_22 = PID(Kp2, Ki2, Kd2)
+
+            self._pid_12.setpoint = self._max_force1/self._test_duration
+            self._pid_22.setpoint = self._max_force2/self._test_duration
 
             self._start_half_cycle_time = time.perf_counter()
 
@@ -627,7 +640,7 @@ class LoadControlTest(MechanicalTest):
         if self._current_time < 400 and self._execute and self._half_cycle > 0:
 
             #First explanatory stretch cycle
-            if self._direction > 0 and self._force1 < self._end_force1 or self._force2 < self._end_force2:
+            if self._force1 < self._end_force1 or self._force2 < self._end_force2:
         
 
                 self._current_time = time.perf_counter() - self._start_time
@@ -651,9 +664,14 @@ class LoadControlTest(MechanicalTest):
                 #print("PID_2: {}".format(pid_2))
         
                 #Corr force is smoothed force for PID
-                if len(self._time) > 10:
-                    corr_force1 = self._moving_average(self._ch1[-10:-1], 4)[-1]
-                    corr_force2 = self._moving_average(self._ch2[-10:-1], 4)[-1]
+                if len(self._time) > 5:
+                    coefficients1 = np.polyfit(self._time[-5:], self._ch1[-5:], 1)
+                    coefficients2 = np.polyfit(self._time[-5:], self._ch2[-5:], 1)
+                    self._pid_1.setKp(self._pid_12.updateOutput(coefficients1[0]))
+                    self._pid_2.setKp(self._pid_22.updateOutput(coefficients2[0]))
+
+                    corr_force1 = self._moving_average(self._ch1[-5:], 4)[-1]
+                    corr_force2 = self._moving_average(self._ch2[-5:], 4)[-1]
                 else:
                     corr_force1 = self._force1
                     corr_force2 = self._force2
@@ -724,7 +742,7 @@ class LoadControlTest(MechanicalTest):
 
     def __one_cycle_vel(self):
 
-        self._corr_factor = 0.2
+        self._corr_factor = 0.5
 
         #Condition to finish the test: positive number of steps left
         if self._current_time < 400 and self._execute and self._half_cycle > 0:
@@ -780,12 +798,12 @@ class LoadControlTest(MechanicalTest):
                     self._vel_ax1 = len1/self._test_duration
                     self._vel_ax2 = len2/self._test_duration
 
-                    if self._vel_ax1 > self._vel_ax2:
+                    '''if self._vel_ax1 > self._vel_ax2:
                         self._vel_ax1 *= 1 - self._corr_factor
                         self._vel_ax2 *= 1 + self._corr_factor
                     elif self._vel_ax1 < self._vel_ax2:
                         self._vel_ax1 *= 1 + self._corr_factor
-                        self._vel_ax2 *= 1 - self._corr_factor
+                        self._vel_ax2 *= 1 - self._corr_factor'''
 
                     print(f"After relax: Velocity1: {self._vel_ax1}, Velocity2: {self._vel_ax2}")
 
@@ -814,12 +832,12 @@ class LoadControlTest(MechanicalTest):
                     self._vel_ax1 = len1/self._test_duration
                     self._vel_ax2 = len2/self._test_duration
 
-                    if self._vel_ax1 > self._vel_ax2:
+                    '''if self._vel_ax1 > self._vel_ax2:
                         self._vel_ax1 *= 1 - self._corr_factor
                         self._vel_ax2 *= 1 + self._corr_factor
                     elif self._vel_ax1 < self._vel_ax2:
                         self._vel_ax1 *= 1 + self._corr_factor
-                        self._vel_ax2 *= 1 - self._corr_factor
+                        self._vel_ax2 *= 1 - self._corr_factor'''
 
                     print(f"After stretch: Velocity1: {self._vel_ax1}, Velocity2: {self._vel_ax2}")
                     
