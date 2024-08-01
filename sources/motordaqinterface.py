@@ -273,14 +273,15 @@ class MotorDAQInterface (QThread):
     def move_velocity_ax2(self, speed):
         self._axis2.move_velocity(speed, Units.VELOCITY_MILLIMETRES_PER_SECOND) 
 
-    def autoload(self, load):
+    def autoload(self, load1, load2):
 
         
-        self._load = load
+        self._load1 = load1
+        self._load2 = load2
 
         self._force1, self._force2 = self.get_forces()
         
-        if abs(self._force1 - self._load) < 2 and abs(self._force2 - self._load) < 2:
+        if abs(self._force1 - self._load1) < 2 and abs(self._force2 - self._load2) < 2:
             #Move with slow negative velocity to gently stretch the sample
             self.move_velocity_ax1(-0.2) #in mm/sec
             self.move_velocity_ax2(-0.2)
@@ -297,10 +298,10 @@ class MotorDAQInterface (QThread):
         self._force1, self._force2 = self.get_forces()
         
         if self.step == 1:
-            if self._force1 < self._load / 2 or self._force2 < self._load / 2:
-                if self._force1 > 1.2 * self._load / 2:
+            if self._force1 < self._load1 / 2 or self._force2 < self._load2 / 2:
+                if self._force1 > 1.2 * self._load1 / 2:
                     self._axis1.stop()
-                if self._force2 > 1.2 * self._load / 2:
+                if self._force2 > 1.2 * self._load2 / 2:
                     self._axis2.stop()
             else:
                 self.step = 2
@@ -310,10 +311,10 @@ class MotorDAQInterface (QThread):
                 
         
         elif self.step == 2:
-            if self._force1 < self._load or self._force2 < self._load:
-                if self._force1 > 1.2 * self._load:
+            if self._force1 < self._load1 or self._force2 < self._load2:
+                if self._force1 > 1.2 * self._load1:
                     self._axis1.stop()
-                if self._force2 > 1.2 * self._load:
+                if self._force2 > 1.2 * self._load2:
                     self._axis2.stop()
             else:
                 print("Autoload: The Load reached")

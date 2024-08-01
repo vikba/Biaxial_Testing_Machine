@@ -499,7 +499,7 @@ class LoadControlTest(MechanicalTest):
     etc
     '''
 
-    def __init__(self, mot_daq, folder, max_force1, max_force2, test_duration, num_cycles):
+    def __init__(self, mot_daq, folder, max_force1, max_force2, disp1, disp2, test_duration, num_cycles):
         super().__init__(mot_daq)
         self._mot_daq = mot_daq
         
@@ -510,15 +510,8 @@ class LoadControlTest(MechanicalTest):
         self._workfolder = folder
         self._num_cycles = num_cycles
 
-            # Initialize PID controllers
-        Kp1 = 0.06
-        Kd1 = 0
-        Ki1 = 0.002
-        self._pid_1 = PID(Kp1, Ki1, Kd1)
-        Kp2 = 0.06
-        Kd2 = 0
-        Ki2 = 0.002
-        self._pid_2 = PID(Kp2, Ki2, Kd2)
+        self._disp_guess1 = disp1
+        self._disp_guess2 = disp2
         
     def update_parameters (self, end_force1, end_force2, test_duration, num_cycles):
         self._end_force1 = end_force1
@@ -540,14 +533,6 @@ class LoadControlTest(MechanicalTest):
         if current_time >= duration:
             return end_force
         return start_force + (end_force - start_force) * (current_time / duration)
-    
-
-    def updatePID(self, P1, I1, D1, P2, I2, D2):
-        """
-        Update the PID values for two PID controllers when these values are changed in the GUI.
-        """
-        self._pid_1.setPID(P1, I1, D1)
-        self._pid_2.setPID(P2, I2, D2)
     
 
 
@@ -589,9 +574,6 @@ class LoadControlTest(MechanicalTest):
             self._end_force1 = self._max_force1
             self._end_force2 = self._max_force2
 
-            self._disp_guess1 = 2
-            self._disp_guess2 = 2
-
             self._min_pos1, self._min_pos2 = self._mot_daq.get_positions()
             self._force1,self._force2 = self._mot_daq.get_forces()
             
@@ -601,22 +583,6 @@ class LoadControlTest(MechanicalTest):
             # Start slow motion
             self._mot_daq.move_velocity_ax1(-self._vel_ax1) #in mm/s
             self._mot_daq.move_velocity_ax2(-self._vel_ax2) #in mm/s
-
-            '''self._pid_1.reset()
-            self._pid_2.reset()
-
-                # Initialize PID controllers
-            Kp1 = 0.5
-            Kd1 = 0
-            Ki1 = 0.002
-            self._pid_12 = PID(Kp1, Ki1, Kd1)
-            Kp2 = 0.5
-            Kd2 = 0
-            Ki2 = 0.002
-            self._pid_22 = PID(Kp2, Ki2, Kd2)
-
-            self._pid_12.setpoint = self._max_force1/self._test_duration
-            self._pid_22.setpoint = self._max_force2/self._test_duration'''
 
             self._start_half_cycle_time = time.perf_counter()
 
@@ -629,232 +595,6 @@ class LoadControlTest(MechanicalTest):
             self.exec()
 
             
-
-                    
-
-    def __one_cycle_pid(self):
-
-        #Condition to finish the test: positive number of steps left
-        if self._current_time < 400 and self._execute and self._half_cycle > 0:
-
-            #First explanatory stretch cycle
-            if self._force1 < self._end_force1 or self._force2 < self._end_force2:
-        
-
-                self._current_time = time.perf_counter() - self._start_time
-                current_cycle_time = time.perf_counter() - self._start_half_cycle_time
-                
-                # Update desired force based on test time
-                desired_force1 = self.increase_desired_force(self._start_force1, self._end_force1, self._test_duration, current_cycle_time)
-                desired_force2 = self.increase_desired_force(self._start_force2, self._end_force2, self._test_duration, current_cycle_time)
-                
-                self._pid_1.setpoint = desired_force1
-                self._pid_2.setpoint = desired_force2
-
-                # Read current forces, positions, time 
-                self._force1,self._force2 = self._mot_daq.get_forces() #try/except is inside
-                self._pos1, self._pos2 = self._mot_daq.get_positions()
-
-                #print("self._force12: {}".format(self._force1))
-                #print("self._force2: {}".format(self._force2))
-                #print("Desired Force: {}".format(desired_force1))
-                #print("PID_1: {}".format(pid_1))
-                #print("PID_2: {}".format(pid_2))
-        
-                #Corr force is smoothed force for PID
-                if len(self._time) > 5:
-                    coefficients1 = np.polyfit(self._time[-5:], self._ch1[-5:], 1)
-                    coefficients2 = np.polyfit(self._time[-5:], self._ch2[-5:], 1)
-                    self._pid_1.setKp(self._pid_12.updateOutput(coefficients1[0]))
-                    self._pid_2.setKp(self._pid_22.updateOutput(coefficients2[0]))
-
-                    corr_force1 = self._moving_average(self._ch1[-5:], 4)[-1]
-                    corr_force2 = self._moving_average(self._ch2[-5:], 4)[-1]
-                else:
-                    corr_force1 = self._force1
-                    corr_force2 = self._force2
-
-                self._vel_ax1 = -self._pid_1.updateOutput(corr_force1)
-                self._vel_ax2 = -self._pid_2.updateOutput(corr_force2)
-    
-                # Apply motor output adjustments
-                self._mot_daq.move_velocity_ax1(self._vel_ax1) #mm/s
-                self._mot_daq.move_velocity_ax2(self._vel_ax2) #mm/s
-
-                self._update_arrays_emit_data()
-
-                if len(self._ch1) > 10 and sum(self._ch1[-10:])/10 >= self._end_force1:
-                    self._mot_daq.stop_motor1()
-
-                if len(self._ch2) > 10 and sum(self._ch2[-10:])/10 >= self._end_force2:
-                    self._mot_daq.stop_motor2()
-
-            #First stretch half cycle finished
-            else:
-                self._half_cycle -= 1
-                self._direction =  -self._direction #Change direction
-
-                self._start_half_cycle_time = time.perf_counter()
-                self._pid_1.reset()
-                self._pid_2.reset()
-                
-                #Decrease force loop
-                print("LoadControlTest: First half cycle finished. Start decreasing force")
-
-                self._start_force1 = self._max_force1
-                self._start_force2 = self._max_force2
-                self._end_force1 = 0.03
-                self._end_force2 = 0.03
-
-                #Max length is calculated at maximum stretch
-                self._max_pos1, self._max_pos2 = self._mot_daq.get_positions()
-
-                len1 = abs(self._max_pos1 - self._min_pos1)
-                len2 = abs(self._max_pos2 - self._min_pos2)
-
-                self._vel_ax1 = len1/self._test_duration
-                self._vel_ax2 = len2/self._test_duration
-
-                print(f"After stretch: Velocity1: {self._vel_ax1}, Velocity2: {self._vel_ax2}")
-
-                #Stop test timer
-                QMetaObject.invokeMethod(self._test_timer, "stop", Qt.ConnectionType.QueuedConnection)
-
-                #Disconnect initial test function and connect a new one
-                self._test_timer = QTimer(self)
-                self._test_timer.timeout.connect(self.__one_cycle_vel)
-                self._test_timer.start(self._sample_time)
-                
-                # Start motors
-                self._mot_daq.move_velocity_ax1(self._vel_ax1) #in mm/s
-                self._mot_daq.move_velocity_ax2(self._vel_ax1) #in mm/s
-
-                
-        #When test finished
-        else:
-            # Stop motors after measurement cycle is finished
-            self.stop_measurement()
-            print("LoadControlTest: First test cycle interrupted")
-            QMetaObject.invokeMethod(self._test_timer, "stop", Qt.ConnectionType.QueuedConnection)
-
-
-    def __one_cycle_vel(self):
-
-        self._corr_factor = 0.5
-        self._current_time = time.perf_counter() - self._start_time
-        current_cycle_time = time.perf_counter() - self._start_half_cycle_time
-
-        #Condition to finish the test: positive number of steps left
-        if self._current_time < 400 and self._execute and self._half_cycle > 0:
-
-            #If Stretch or Relax half cycle
-            if self._direction > 0 and self._force1 < self._end_force1 and self._force2 < self._end_force2 or self._direction < 0 and (self._force1 > self._end_force1 and self._force2 > self._end_force2):
-        
-
-                
-
-                # Read current forces, positions, time 
-                self._force1,self._force2 = self._mot_daq.get_forces() #try/except is inside
-                self._pos1, self._pos2 = self._mot_daq.get_positions()
-
-                '''#If only one of the motor reached target load - stop it
-                if self._direction > 0 and len(self._ch1) > 10 and sum(self._ch1[-10:])/10 > self._end_force1:
-                    self._mot_daq.stop_motor1()
-                elif self._direction > 0 and len(self._ch2) > 10 and sum(self._ch2[-10:])/10 > self._end_force2:
-                    self._mot_daq.stop_motor2()
-                elif self._direction < 0 and len(self._ch1) > 10 and sum(self._ch1[-10:])/10 < self._end_force1:
-                    self._mot_daq.stop_motor1()
-                elif self._direction < 0 and len(self._ch2) > 10 and sum(self._ch2[-10:])/10 < self._end_force2:
-                    self._mot_daq.stop_motor2()'''
-
-
-                self._update_arrays_emit_data()
-
-            #Half cycle finished
-            else:
-                self._half_cycle -= 1
-                self._direction =  -self._direction #Change direction
-                
-
-                
-                #Change behaviour from relax to stretch loop
-                if self._direction > 0:
-                    #Increase force loop
-                    print("LoadControlTest: Start increasing force")
-
-                    self._start_force1 = 0.03
-                    self._start_force2 = 0.03
-                    self._end_force1 = self._max_force1
-                    self._end_force2 = self._max_force2
-
-                    #Max length is calculated at maximum stretch
-                    self._min_pos1, self._min_pos2 = self._mot_daq.get_positions()
-
-                    len1 = abs(self._max_pos1 - self._min_pos1)
-                    len2 = abs(self._max_pos2 - self._min_pos2)
-
-                    self._vel_ax1 = len1/self._test_duration
-                    self._vel_ax2 = len2/self._test_duration
-
-                    '''if self._vel_ax1 > self._vel_ax2:
-                        self._vel_ax1 *= 1 - self._corr_factor
-                        self._vel_ax2 *= 1 + self._corr_factor
-                    elif self._vel_ax1 < self._vel_ax2:
-                        self._vel_ax1 *= 1 + self._corr_factor
-                        self._vel_ax2 *= 1 - self._corr_factor'''
-
-                    print(f"After relax: Velocity1: {self._vel_ax1}, Velocity2: {self._vel_ax2}")
-
-                    # Start motors
-                    self._mot_daq.move_velocity_ax1(-self._vel_ax1) #in mm/s
-                    self._mot_daq.move_velocity_ax2(-self._vel_ax1) #in mm/s
-
-                    
-
-                #Stretch loop finished. Change behaviour to relax loop
-                else:
-                    #Decrease force loop
-                    print("LoadControlTest: Start decreasing force")
-
-                    self._start_force1 = self._max_force1
-                    self._start_force2 = self._max_force2
-                    self._end_force1 = 0.03
-                    self._end_force2 = 0.03
-
-                    #Max length is calculated at maximum stretch
-                    self._max_pos1, self._max_pos2 = self._mot_daq.get_positions()
-
-                    len1 = abs(self._max_pos1 - self._min_pos1)
-                    len2 = abs(self._max_pos2 - self._min_pos2)
-
-                    self._vel_ax1 = len1/self._test_duration
-                    self._vel_ax2 = len2/self._test_duration
-
-                    '''if self._vel_ax1 > self._vel_ax2:
-                        self._vel_ax1 *= 1 - self._corr_factor
-                        self._vel_ax2 *= 1 + self._corr_factor
-                    elif self._vel_ax1 < self._vel_ax2:
-                        self._vel_ax1 *= 1 + self._corr_factor
-                        self._vel_ax2 *= 1 - self._corr_factor'''
-
-                    print(f"After stretch: Velocity1: {self._vel_ax1}, Velocity2: {self._vel_ax2}")
-                    
-                    self._mot_daq.stop_motors()
-                    QThread.msleep(500)
-
-                    # Start motors
-                    self._mot_daq.move_velocity_ax1(self._vel_ax1) #in mm/s
-                    self._mot_daq.move_velocity_ax2(self._vel_ax2) #in mm/s
-                
-                self._start_half_cycle_time = time.perf_counter()
-        
-        #When test finished
-        else:
-            # Stop motors after measurement cycle is finished
-            self.stop_measurement()
-            self._writeDataToFile()
-            print("LoadControlTest: Test finished")
-            QMetaObject.invokeMethod(self._test_timer, "stop", Qt.ConnectionType.QueuedConnection)
 
 
     def __one_cycle_labview_alg(self):

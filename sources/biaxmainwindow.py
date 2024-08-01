@@ -79,13 +79,6 @@ class BiaxMainWindow(QMainWindow):
         self.buttonMoveCentAx2.released.connect(self.__stop_movement)
         self.buttonMoveBackAx1.released.connect(self.__stop_movement)
         self.buttonMoveBackAx2.released.connect(self.__stop_movement)
-
-        self.factorKp1.valueChanged.connect(self.__updatePID)
-        self.factorKi1.valueChanged.connect(self.__updatePID)
-        self.factorKd1.valueChanged.connect(self.__updatePID)
-        self.factorKp2.valueChanged.connect(self.__updatePID)
-        self.factorKi2.valueChanged.connect(self.__updatePID)
-        self.factorKd2.valueChanged.connect(self.__updatePID)
         
         self.upperLabel_1.setStyleSheet("color: black; font-size: 14px;")
         self.upperLabel_2.setStyleSheet("color: black; font-size: 14px;")
@@ -270,12 +263,14 @@ class BiaxMainWindow(QMainWindow):
                 
                 
                 # Get test parameters
-                self.end_force1 = float(self.factorForceAx1.text())
-                self.end_force2 = float(self.factorForceAx2.text())
-                self.test_duration = float(self.factorTimeAx.text())
-                self.cycl_num = int(self.factorCyclNumL.text())
+                end_force1 = float(self.factorLoadTest1.text())
+                end_force2 = float(self.factorLoadTest2.text())
+                disp_guess1 = float(self.factorDispGuess1.text())
+                disp_guess2 = float(self.factorDispGuess2.text())
+                test_duration = float(self.factorTimeAx.text())
+                cycl_num = int(self.factorCyclNumL.text())
 
-                self._mec_test = LoadControlTest(self._mot_daq, self._work_folder, self.end_force1, self.end_force2, self.test_duration, self.cycl_num)
+                self._mec_test = LoadControlTest(self._mot_daq, self._work_folder, end_force1, end_force2, disp_guess1, disp_guess2, test_duration, cycl_num)
                 self.signal_stop.connect(self._mec_test.stop)
                 self._mec_test.signal_update_charts.connect(self.__update_charts)
                 
@@ -294,15 +289,15 @@ class BiaxMainWindow(QMainWindow):
                 
                 
                 # Calculate velocity
-                self._vel_ax1 = float(self.factorSpeedAx1.text())/120 #convert from mm/min to mm/sec and divide by 2 as one axis pulls sample from 2 sites
-                self._vel_ax2 = float(self.factorSpeedAx2.text())/120
+                vel_ax1 = float(self.factorSpeedAx1.text())/120 #convert from mm/min to mm/sec and divide by 2 as one axis pulls sample from 2 sites
+                vel_ax2 = float(self.factorSpeedAx2.text())/120
 
-                self._length1 = float(self.factorLength1.text())
-                self._length2 = float(self.factorLength2.text())
+                length1 = float(self.factorLength1.text())
+                length2 = float(self.factorLength2.text())
 
-                self.cycl_num = int(self.factorCyclNumD.text())
+                cycl_num = int(self.factorCyclNumD.text())
 
-                self._mec_test = DisplacementControlTest(self._mot_daq, self._work_folder, self._vel_ax1, self._vel_ax2, self._length1, self._length2, self.cycl_num)
+                self._mec_test = DisplacementControlTest(self._mot_daq, self._work_folder, vel_ax1, vel_ax2, length1, length2, cycl_num)
                 self.signal_stop.connect(self._mec_test.stop)
                 self._mec_test.signal_update_charts.connect(self.__update_charts)
                 
@@ -514,13 +509,17 @@ class BiaxMainWindow(QMainWindow):
         self.end_force1 = load1
         self.end_force2 = load2
 
-        self.factorForceAx1.setText(str(load1))
-        self.factorForceAx2.setText(str(load2))
+        self.factorLoadTest1.setText(str(load1))
+        self.factorLoadTest2.setText(str(load2))
 
     def __autoload(self):
         if hasattr(self, '_mot_daq'):
 
-            self._mot_daq.autoload(0.1)
+            tare_load1 = float(self.factorTareLoad1.text())
+            tare_load2 = float(self.factorTareLoad2.text())
+
+            self._mot_daq.autoload(tare_load1, tare_load2)
+
 
 
         else:
@@ -566,20 +565,6 @@ class BiaxMainWindow(QMainWindow):
             warning_box.setWindowTitle("Warning")
             warning_box.setText("Connect to motors and DAQ first!")
             warning_box.exec()
-        
-
-
-
-    
-    def __updatePID(self):
-        if hasattr(self, '_mec_test') and isinstance(self._mec_test, LoadControlTest):
-            P1 = self.factorKp1.value()
-            I1 = self.factorKi1.value()
-            D1 = self.factorKd1.value()
-            P2 = self.factorKp2.value()
-            I2 = self.factorKi2.value()
-            D2 = self.factorKd2.value()
-            self._mec_test.updatePID(P1, I1, D1, P2, I2, D2)
     
         
     @pyqtSlot(list)
