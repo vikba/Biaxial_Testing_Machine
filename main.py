@@ -6,6 +6,7 @@
 #Check if the pid parameters are dynamically updated
 #Add second pid to control the slope
 #Freeze the application
+#The camera didn't work during load control test (after capt mark)
 
 from PyQt6.QtWidgets import QApplication
 
