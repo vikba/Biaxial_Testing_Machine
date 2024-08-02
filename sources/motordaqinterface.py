@@ -6,6 +6,8 @@ from zaber_motion.ascii import Connection
 from zaber_motion import Units
 import ginsapy.giutility.connect.PyQStationConnectWin as Qstation #module with communication functions to Gantner Q.Station under windows environment
 
+from .ringbuffer import RingBuffer
+
 
 
 class MotorDAQInterface (QThread):
@@ -29,6 +31,9 @@ class MotorDAQInterface (QThread):
 
         self._mot_init = False
         self._daq_init = False
+
+        self._ringbuffer1 = RingBuffer(20)
+        self._ringbuffer2 = RingBuffer(20)
 
     def is_initialized(self):
         return self._mot_init and self._daq_init
@@ -151,6 +156,9 @@ class MotorDAQInterface (QThread):
     def get_forces (self):
         force1, force2 = self._readForce()
 
+        self._ringbuffer1.append(force1)
+        self._ringbuffer2.append(force2)
+
         return force1 - self._force1_0, force2 - self._force2_0
     
     def get_positions(self):
@@ -165,7 +173,7 @@ class MotorDAQInterface (QThread):
         """
         Performs a zero force calibration by sleeping for 0.1 seconds, reading force values, and printing the initial force 1 and force 2 values.
         """
-        force_temp1 = []
+        '''force_temp1 = []
         force_temp2 = []
 
         for i in range(0,20):
@@ -176,7 +184,10 @@ class MotorDAQInterface (QThread):
 
         
         self._force1_0 = round(np.mean(force_temp1), 3)
-        self._force2_0 = round(np.mean(force_temp2), 3)
+        self._force2_0 = round(np.mean(force_temp2), 3)'''
+
+        self._force1_0 = self._ringbuffer1.get_buffer().mean()
+        self._force2_0 = self._ringbuffer2.get_buffer().mean()
 
         print("Init force 1: {}".format(self._force1_0))
         print("Init force 2: {}".format(self._force2_0))

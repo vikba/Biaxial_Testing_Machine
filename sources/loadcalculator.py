@@ -6,7 +6,7 @@ import os
 
 class LoadCalculatorWindow(QWidget):
 
-    signal_loads_calculated = pyqtSignal(float, float)
+    signal_loads_calculated = pyqtSignal(float, float, float, float, float)
     
     
     
@@ -34,13 +34,21 @@ class LoadCalculatorWindow(QWidget):
 
     def calcLoads(self):
         if self.radioButton_Stress.isChecked():
-            self.load1 = float(self.factor_axis1.text()) * self.factor_L1.value() * self.factor_thickness.value() / 1000
-            self.load2 = float(self.factor_axis2.text()) * self.factor_L2.value() * self.factor_thickness.value() / 1000
+            self._thickness = self.factorThickness.value()
+            self._len1 = self.factorLen1.value() #mm
+            self._len2 = self.factorLen2.value() #mm
+            self._target_stress1 = float(self.factorStress1.text()) #kPa 
+            self._target_stress2 = float(self.factorStress2.text()) #kPa 
+
+            
+
+            self.load1 = self._target_stress1 * self._len1 * self._thickness / 1000
+            self.load2 = self._target_stress2 * self._len2 * self._thickness / 1000
 
             self.factor_calculatedLoad1.setText(str(self.load1))
             self.factor_calculatedLoad2.setText(str(self.load2))
 
-            self.signal_loads_calculated.emit(self.load1, self.load2)
+            self.signal_loads_calculated.emit(self.load1, self.load2, self._len1, self._len2, self._thickness)
 
 
 

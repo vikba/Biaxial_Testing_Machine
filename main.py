@@ -1,10 +1,12 @@
+
 #Check if all conditions met to start the test
 #Check what happens at the end of test
-#Removed -2* in get_positions - check loadcontroltest
 #Read configuration from file
 #Reset video classes after the test
 #Freeze the application
-#The camera didn't work during load control test (after capt mark)
+#add ring buffer to mot_daq and fft
+#Record only last points in videothread
+
 
 from PyQt6.QtWidgets import QApplication
 

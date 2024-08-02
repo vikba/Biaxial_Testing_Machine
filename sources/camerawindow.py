@@ -83,6 +83,12 @@ class VideoThread(QThread):
         self._execute = False
         self.quit()
         self.wait()
+
+    @pyqtSlot()
+    def reset(self):
+        self._execute = True
+        self._init_marks = False  # Initialize first set of marks
+        self._track_marks = False  # Continiously track marks
         
     @pyqtSlot(int, int, int, int)
     def update_roi(self, x1,y1, x2, y2):

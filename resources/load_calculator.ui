@@ -84,7 +84,7 @@
      </widget>
     </item>
     <item row="1" column="5">
-     <widget class="QDoubleSpinBox" name="factor_thickness">
+     <widget class="QDoubleSpinBox" name="factorThickness">
       <property name="singleStep">
        <double>0.010000000000000</double>
       </property>
@@ -94,7 +94,7 @@
      </widget>
     </item>
     <item row="1" column="1">
-     <widget class="QDoubleSpinBox" name="factor_L1">
+     <widget class="QDoubleSpinBox" name="factorLen1">
       <property name="decimals">
        <number>1</number>
       </property>
@@ -107,7 +107,7 @@
      </widget>
     </item>
     <item row="1" column="3">
-     <widget class="QDoubleSpinBox" name="factor_L2">
+     <widget class="QDoubleSpinBox" name="factorLen2">
       <property name="decimals">
        <number>1</number>
       </property>
@@ -155,6 +155,9 @@
    <layout class="QVBoxLayout" name="verticalLayout">
     <item>
      <widget class="QRadioButton" name="radioButton_Load">
+      <property name="enabled">
+       <bool>false</bool>
+      </property>
       <property name="text">
        <string>Load (N)</string>
       </property>
@@ -162,6 +165,9 @@
     </item>
     <item>
      <widget class="QRadioButton" name="radioButton_Tension">
+      <property name="enabled">
+       <bool>false</bool>
+      </property>
       <property name="text">
        <string>Membrane Tension</string>
       </property>
@@ -219,7 +225,7 @@
      </widget>
     </item>
     <item row="0" column="1">
-     <widget class="QLineEdit" name="factor_axis1">
+     <widget class="QLineEdit" name="factorStress1">
       <property name="text">
        <string>700</string>
       </property>
@@ -233,7 +239,7 @@
      </widget>
     </item>
     <item row="1" column="1">
-     <widget class="QLineEdit" name="factor_axis2">
+     <widget class="QLineEdit" name="factorStress2">
       <property name="text">
        <string>700</string>
       </property>

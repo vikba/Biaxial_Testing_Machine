@@ -126,7 +126,7 @@ class BiaxMainWindow(QMainWindow):
         self.ChartWidget_2.getPlotItem().getViewBox().setBorder(pg.mkPen(color='k', width=1))
         self.ChartWidget_2.getAxis('left').setTickFont(font)
         self.ChartWidget_2.getAxis('bottom').setTickFont(font)
-        self.ChartWidget_2.setLabel('left', 'Velocity', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
+        self.ChartWidget_2.setLabel('left', 'Displacement, mm', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
         self.ChartWidget_2.setLabel('bottom', 'Time, s', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
 
         self.ChartWidget_3.setBackground('w')  # Set background to white
@@ -147,16 +147,23 @@ class BiaxMainWindow(QMainWindow):
         self.__init_variables()
         
 
+    
     def __init_variables(self):
         self._t = [] 
-        self._ch1 = [] 
-        self._ch2 = [] 
-        self._l1 = [] 
-        self._l2 = [] 
+        self._load1 = [] 
+        self._load2 = []
+        self._stress1 = []
+        self._stress2 = [] 
+        self._disp1 = [] 
+        self._disp2 = [] 
         self._E11 = [] 
         self._E22 = [] 
         self._v1 = [] 
         self._v2 = []
+
+    @pyqtSlot() #To clear charts then preconditioning or test are finished
+    def reset(self):
+        self.__init_variables()
 
 
     def closeEvent(self, event):
@@ -253,9 +260,9 @@ class BiaxMainWindow(QMainWindow):
         2 - displacement control
         '''
 
-        #If there is an old object -stop it
+        '''#If there is an old object -stop it
         if hasattr(self, '_mec_test') and isinstance(self._mec_test, LoadControlTest):
-            self._mec_test.stop_measurement()
+            self._mec_test.stop_measurement()'''
 
         try:
             #Load control test
@@ -265,24 +272,22 @@ class BiaxMainWindow(QMainWindow):
                 # Get test parameters
                 end_force1 = float(self.factorLoadTest1.text())
                 end_force2 = float(self.factorLoadTest2.text())
-                disp_guess1 = float(self.factorDispGuess1.text())
-                disp_guess2 = float(self.factorDispGuess2.text())
+                disp_guess1 = float(self.factorDispGuess1.text())/2
+                disp_guess2 = float(self.factorDispGuess2.text())/2
                 test_duration = float(self.factorTimeAx.text())
-                cycl_num = int(self.factorCyclNumL.text())
-
-                self._mec_test = LoadControlTest(self._mot_daq, self._work_folder, end_force1, end_force2, disp_guess1, disp_guess2, test_duration, cycl_num)
-                self.signal_stop.connect(self._mec_test.stop)
-                self._mec_test.signal_update_charts.connect(self.__update_charts)
+                cycl_num_precond = int(self.factorCyclNumPrecond.text())
+                cycl_num_test = int(self.factorCyclNumTest.text())
                 
-                '''if hasattr(self, '_mec_test') and isinstance(self._mec_test, LoadControlTest):
+                if hasattr(self, '_mec_test') and isinstance(self._mec_test, LoadControlTest):
                     #If object of load control test exists just update test parameters
-                    self._mec_test.update_parameters(self.end_force1, self.end_force2, self.test_duration, self.cycl_num)
+                    self._mec_test.update_parameters(self._work_folder, end_force1, end_force2, disp_guess1, disp_guess2, test_duration, cycl_num_precond, cycl_num_test)
 
                 else:
-                    self._mec_test = LoadControlTest(self._mot_daq, self._work_folder, self.end_force1, self.end_force2, self.test_duration, self.cycl_num)
-                    
+                    self._mec_test = LoadControlTest(self._mot_daq, self._work_folder, end_force1, end_force2, disp_guess1, disp_guess2, test_duration, cycl_num_precond, cycl_num_test)
                     self.signal_stop.connect(self._mec_test.stop)
-                    self._mec_test.signal_update_charts.connect(self.__update_charts)'''
+                    self._mec_test.signal_update_charts.connect(self.__update_charts)
+                    self._mec_test.signal_precond_finished.connect(self.reset)
+                    self._mec_test.signal_test_finished.connect(self.reset)
         
             #Displacement control test
             elif 2 == self.tabWidget.currentIndex():
@@ -292,14 +297,16 @@ class BiaxMainWindow(QMainWindow):
                 vel_ax1 = float(self.factorSpeedAx1.text())/120 #convert from mm/min to mm/sec and divide by 2 as one axis pulls sample from 2 sites
                 vel_ax2 = float(self.factorSpeedAx2.text())/120
 
-                length1 = float(self.factorLength1.text())
-                length2 = float(self.factorLength2.text())
+                length1 = float(self.factorLength1.text())/2
+                length2 = float(self.factorLength2.text())/2
 
                 cycl_num = int(self.factorCyclNumD.text())
 
                 self._mec_test = DisplacementControlTest(self._mot_daq, self._work_folder, vel_ax1, vel_ax2, length1, length2, cycl_num)
                 self.signal_stop.connect(self._mec_test.stop)
                 self._mec_test.signal_update_charts.connect(self.__update_charts)
+                self._mec_test.signal_precond_finished.connect(self.reset)
+                self._mec_test.signal_test_finished.connect(self.reset)
                 
                 '''if hasattr(self, '_mec_test') and isinstance(self._mec_test, DisplacementControlTest):
                     #If object of displacement control test exists just update test parameters
@@ -371,7 +378,7 @@ class BiaxMainWindow(QMainWindow):
             self._label_timer.stop()
 
         if hasattr(self, '_liveforce_timer'):
-            self._liveforce_timer.start(500)
+            self._liveforce_timer.start(200)
 
         self._ringbuffer1.reset()
         self._ringbuffer2.reset()
@@ -499,18 +506,26 @@ class BiaxMainWindow(QMainWindow):
 
         
         self._calc_loads_window = LoadCalculatorWindow()
-        self._calc_loads_window.signal_loads_calculated.connect(self.__setLoads)
+        self._calc_loads_window.signal_loads_calculated.connect(self.__set_sample_paramss)
 
         self._calc_loads_window.show()
         
 
     
-    def __setLoads(self, load1, load2):
+    @pyqtSlot(float,float,float,float,float)
+    def __set_sample_paramss(self, load1, load2, len1, len2, thickness):
         self.end_force1 = load1
         self.end_force2 = load2
 
         self.factorLoadTest1.setText(str(load1))
         self.factorLoadTest2.setText(str(load2))
+
+        self._len1 = len1
+        self._len2 = len2
+        self._thickness = thickness
+
+        self._area1 = len1 * thickness #in mm2
+        self._area2 = len2 * thickness #in mm2
 
     def __autoload(self):
         if hasattr(self, '_mot_daq'):
@@ -573,14 +588,16 @@ class BiaxMainWindow(QMainWindow):
         Updates charts on matplotlib widgets
         This function is connected to MechanicalTest classes with signal/slot mechanism
         Order:
-        self._time, self._ch1[-1], self._ch2[-1], self._l1[-1], self._l2[-1], self._E11[-1], self._E22[-1], self._vel_1[-1],self._vel_2[-1]
+        self._time, self._load1[-1], self._load2[-1], self._disp1[-1], self._disp2[-1], self._E11[-1], self._E22[-1], self._vel_1[-1],self._vel_2[-1]
         """
 
         self._t.append(array[0])
-        self._ch1.append(array[1]) 
-        self._ch2.append(array[2]) 
-        self._l1.append(array[3]) 
-        self._l2.append(array[4]) 
+        self._load1.append(array[1]) 
+        self._load2.append(array[2])
+        self._stress1.append(array[1]/self._area1)  #MPa
+        self._stress2.append(array[2]/self._area1)
+        self._disp1.append(array[3]) 
+        self._disp2.append(array[4]) 
 
         if 9 == len(array):
             self._E11.append(array[5]) 
@@ -595,29 +612,29 @@ class BiaxMainWindow(QMainWindow):
 
 
         self.ChartWidget_1.clear()
-        self.ChartWidget_1.plot(self._t, self._ch1, pen=pg.mkPen(color='b', width=2))  
-        self.ChartWidget_1.plot(self._t, self._ch2, pen=pg.mkPen(color='r', width=2))  
+        self.ChartWidget_1.plot(self._t, self._load1, pen=pg.mkPen(color='b', width=2))  
+        self.ChartWidget_1.plot(self._t, self._load2, pen=pg.mkPen(color='r', width=2))  
         #if 0 == self.tabWidget.currentIndex():
         #    self.ChartWidget_1.plot(t_s, f_s)
 
         
         self.ChartWidget_2.clear()
-        self.ChartWidget_2.plot(self._v1, pen=pg.mkPen(color='b', width=2))  
-        self.ChartWidget_2.plot(self._v2, pen=pg.mkPen(color='r', width=2))  
+        self.ChartWidget_2.plot(self._t, self._disp1, pen=pg.mkPen(color='b', width=2))  
+        self.ChartWidget_2.plot(self._t, self._disp2, pen=pg.mkPen(color='r', width=2))  
 
         self.ChartWidget_3.clear()
-        if len(self._E11) == len (self._ch1):
+        if len(self._E11) == len (self._load1):
             #print(self._E11)
-            self.ChartWidget_3.plot(self._E11, self._ch1, pen=pg.mkPen(color='b', width=2)) 
-            self.ChartWidget_3.plot(self._E22, self._ch2, pen=pg.mkPen(color='r', width=2)) 
+            self.ChartWidget_3.plot(self._E11, self._stress1, pen=pg.mkPen(color='b', width=2)) 
+            self.ChartWidget_3.plot(self._E22, self._stress2, pen=pg.mkPen(color='r', width=2)) 
         else:
-            self.ChartWidget_3.plot(self._l1, self._ch1, pen=pg.mkPen(color='b', width=2)) 
-            self.ChartWidget_3.plot(self._l2, self._ch2, pen=pg.mkPen(color='r', width=2)) 
+            self.ChartWidget_3.plot(self._disp1, self._load1, pen=pg.mkPen(color='b', width=2)) 
+            self.ChartWidget_3.plot(self._disp2, self._load2, pen=pg.mkPen(color='r', width=2)) 
         
         """
         self.MplWidget_1.canvas.axes.clear()
-        self.MplWidget_1.canvas.axes.plot(self._t, self._ch1)
-        self.MplWidget_1.canvas.axes.plot(self._t, self._ch2)
+        self.MplWidget_1.canvas.axes.plot(self._t, self._load1)
+        self.MplWidget_1.canvas.axes.plot(self._t, self._load2)
         if 0 == self.tabWidget.currentIndex():
             self.MplWidget_1.canvas.axes.plot(t_s, f_s)
         self.MplWidget_1.canvas.axes.legend(('ch1','ch2', 'setpoint'),loc='upper right')
@@ -638,15 +655,15 @@ class BiaxMainWindow(QMainWindow):
         
         
         self.MplWidget_3.canvas.axes.clear()
-        if len(self._E11) == len (self._ch1):
+        if len(self._E11) == len (self._load1):
         #if self._mec_test.getMarksStatus():
             #If initial marks are recorded than strain will be calculated and can be plotted
-            self.MplWidget_3.canvas.axes.plot(self._E11, self._ch1)
-            self.MplWidget_3.canvas.axes.plot(self._E22, self._ch2)
+            self.MplWidget_3.canvas.axes.plot(self._E11, self._load1)
+            self.MplWidget_3.canvas.axes.plot(self._E22, self._load2)
             self.MplWidget_3.canvas.axes.set_xlabel('Strain, %')
         else:
-            self.MplWidget_3.canvas.axes.plot(self._l1, self._ch1)
-            self.MplWidget_3.canvas.axes.plot(self._l2, self._ch2)
+            self.MplWidget_3.canvas.axes.plot(self._disp1, self._load1)
+            self.MplWidget_3.canvas.axes.plot(self._disp2, self._load2)
             self.MplWidget_3.canvas.axes.set_xlabel('Displacement, mm')
             
         self.MplWidget_3.canvas.axes.legend(('ch1','ch2'),loc='upper right')
