@@ -42,6 +42,8 @@ class BiaxMainWindow(QMainWindow):
         
         QMainWindow.__init__(self)
 
+        self._sample_initialized = False
+
         # Get the directory of the current script
         script_dir = os.path.dirname(os.path.abspath(__file__))
         ui_file_path = os.path.join(script_dir, '..', 'resources', 'biax_ui.ui')
@@ -67,8 +69,9 @@ class BiaxMainWindow(QMainWindow):
         self.buttonZeroForce.clicked.connect(self.__zeroForce)
         self.buttonZeroPosition.clicked.connect(self.__zeroPosition)
         self.buttonConnect.clicked.connect(self.__connect)
-        self.buttonCalcLoad.clicked.connect(self.__calculateLoads)
+        self.buttonCalcLoad.clicked.connect(self.__calculate_loads)
         self.buttonAutoload.clicked.connect(self.__autoload)
+        self.buttonCreateSample.clicked.connect(self.__create_sample_folder)
         
         self.buttonMoveCentAx1.pressed.connect(self.__moveForwardAxis1)
         self.buttonMoveCentAx2.pressed.connect(self.__moveForwardAxis2)
@@ -86,13 +89,12 @@ class BiaxMainWindow(QMainWindow):
         # Get the path of the parent directory (project_directory)
         parent_directory = os.path.dirname(script_dir)
 
-        # Construct the path to the 'tests' folder
-        tests_path = os.path.join(parent_directory, 'tests')
+        home_dir = os.path.expanduser('~')
 
+        # Construct the path to the desktop folder
+        self._work_folder = os.path.join(home_dir, 'Desktop', 'Biax_Tests')
 
-        # init work folder
-        self._work_folder = tests_path
-        print(self._work_folder)
+        print("Work folder: " + self._work_folder)
         self.labelFolder.setText(self._work_folder)
         
         #init matplotlib widgets to display charts
@@ -164,6 +166,9 @@ class BiaxMainWindow(QMainWindow):
     @pyqtSlot() #To clear charts then preconditioning or test are finished
     def reset(self):
         self.__init_variables()
+        self.ChartWidget_1.clear()
+        self.ChartWidget_2.clear()
+        self.ChartWidget_3.clear()
 
 
     def closeEvent(self, event):
@@ -212,43 +217,55 @@ class BiaxMainWindow(QMainWindow):
         #Reset all the variables
         self.__init_variables()
 
-        if hasattr(self, '_mot_daq') and self._mot_daq.is_initialized():
-
-            self._mot_daq.zeroPosition()
-
-            #Setting lavel properties
-            self._liveforce_timer.stop()
-            
-            if hasattr(self, '_label_timer'):
-                self._label_timer.stop()
-                self._label_timer.start(1000)  # 1000 milliseconds = 1 second
-            else:
-                self._label_timer = QTimer(self)
-                self._label_timer.timeout.connect(self.__changeLabelColor)
-                self._label_timer.start(1000)  # 1000 milliseconds = 1 second
-            
-            
-            #Setting michanical test
-            self.__create_mec_test()
-
-            if isinstance(self._mec_test, LoadControlTest):
-                self.upperLabel_1.setText("Warning!")
-                self.upperLabel_2.setText("Load control test")
-
-            elif isinstance(self._mec_test, DisplacementControlTest):
-                self.upperLabel_1.setText("Warning!")
-                self.upperLabel_2.setText("Displacement control test")
-
-            self._mec_test.start()
-
-
-            
-        else:
+        #Motors and DAQ should be initialized
+        if not hasattr(self, '_mot_daq') or not self._mot_daq.is_initialized():
             warning_box = QMessageBox()
             warning_box.setIcon(QMessageBox.Icon.Warning)
             warning_box.setWindowTitle("Warning")
             warning_box.setText("Motors and DAQ not connected or not initialized!")
             warning_box.exec()
+            return
+        
+        if not self._sample_initialized:
+            warning_box = QMessageBox()
+            warning_box.setIcon(QMessageBox.Icon.Warning)
+            warning_box.setWindowTitle("Warning")
+            warning_box.setText("Sample dimensions should be initizlied")
+            warning_box.exec()
+            self.__calculate_loads()
+            return
+
+        self._mot_daq.zeroPosition()
+
+        #Setting lavel properties
+        self._liveforce_timer.stop()
+        
+        if hasattr(self, '_label_timer'):
+            self._label_timer.stop()
+            self._label_timer.start(1000)  # 1000 milliseconds = 1 second
+        else:
+            self._label_timer = QTimer(self)
+            self._label_timer.timeout.connect(self.__changeLabelColor)
+            self._label_timer.start(1000)  # 1000 milliseconds = 1 second
+        
+        
+        #Setting michanical test
+        self.__create_mec_test()
+
+        if isinstance(self._mec_test, LoadControlTest):
+            self.upperLabel_1.setText("Warning!")
+            self.upperLabel_2.setText("Load control test")
+
+        elif isinstance(self._mec_test, DisplacementControlTest):
+            self.upperLabel_1.setText("Warning!")
+            self.upperLabel_2.setText("Displacement control test")
+
+        self._mec_test.start()
+
+
+            
+        
+            
 
     def __create_mec_test(self):
         '''
@@ -502,9 +519,9 @@ class BiaxMainWindow(QMainWindow):
     
     #Other Functions
             
-    def __calculateLoads (self):
+    def __calculate_loads (self):
 
-        
+        self._sample_initialized = True
         self._calc_loads_window = LoadCalculatorWindow()
         self._calc_loads_window.signal_loads_calculated.connect(self.__set_sample_paramss)
 
@@ -693,6 +710,11 @@ class BiaxMainWindow(QMainWindow):
             self.ChartWidget_1.plot(self._ringbuffer2.get_buffer(), pen=pg.mkPen(color='r', width=2))  
 
 
+    def __create_sample_folder(self):
+        sample_name = self.factorSampleName.text()
+
+        self._work_folder = os.path.join(self._work_folder, sample_name)
+        print("New working folder: " + self._work_folder)
 
 
 

@@ -6,6 +6,8 @@
 #Freeze the application
 #add ring buffer to mot_daq and fft
 #Record only last points in videothread
+#Name of the sample creates a workfolder
+#Write cycles in different files
 
 
 from PyQt6.QtWidgets import QApplication

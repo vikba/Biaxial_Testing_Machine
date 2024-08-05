@@ -1,5 +1,7 @@
 from PyQt6.QtCore import QThread, QTimer, pyqtSignal, pyqtSlot
 import numpy as np
+from scipy.signal import butter, filtfilt
+import collections
 
 
 from zaber_motion.ascii import Connection
@@ -35,6 +37,11 @@ class MotorDAQInterface (QThread):
         self._ringbuffer1 = RingBuffer(20)
         self._ringbuffer2 = RingBuffer(20)
 
+        # Buffer settings
+        buffer_size = 30  # Define the size of the buffer
+        self._buffer1 = collections.deque(maxlen=buffer_size)  # Create a buffer with a fixed size
+        self._buffer2 = collections.deque(maxlen=buffer_size)
+
     def is_initialized(self):
         return self._mot_init and self._daq_init
    
@@ -63,10 +70,6 @@ class MotorDAQInterface (QThread):
             self._axis1 = device.get_axis(1)
             self._axis2 = device.get_axis(2)
         
-        mm_76 = 1595801
-        
-        #self._axis1.settings.set("limit.max", 5000000)  #76 mm
-        #self._axis2.settings.set("limit.max", 5000000) 
         
     
     def __initDAQ(self):
@@ -100,7 +103,7 @@ class MotorDAQInterface (QThread):
         QThread.msleep(200)
         
         #read load cell data before installing sample
-        val1, val2 = self._readForce()
+        val1, val2 = self._read_force()
         print("Initial force at channel 1: {}".format(val1))
         print("Initial force at channel 2: {}".format(val2))
         
@@ -130,7 +133,7 @@ class MotorDAQInterface (QThread):
 
         
     
-    def _readForce(self):
+    def _read_force(self):
         """
         Read force from buffer and process the value to return as newtons.
         """
@@ -154,10 +157,17 @@ class MotorDAQInterface (QThread):
         return self.__convertToNewtons(value1, value2)
             
     def get_forces (self):
-        force1, force2 = self._readForce()
+        force1, force2 = self._read_force()
 
-        self._ringbuffer1.append(force1)
-        self._ringbuffer2.append(force2)
+        self._buffer1.append(force1)
+        self._buffer2.append(force2)
+
+        '''if len(self._buffer1) > 18:
+            self._filtered_data1 = self.lowpass_filter(list(self._buffer1), 1, 5, 5)
+            self._filtered_data2 = self.lowpass_filter(list(self._buffer2), 1, 5, 5)
+
+            force1 = self._filtered_data1[-3]
+            force2 = self._filtered_data2[-3]'''
 
         return force1 - self._force1_0, force2 - self._force2_0
     
@@ -177,7 +187,7 @@ class MotorDAQInterface (QThread):
         force_temp2 = []
 
         for i in range(0,20):
-          val1, val2  = self._readForce()
+          val1, val2  = self._read_force()
           force_temp1.append(val1)
           force_temp2.append(val2)
           QThread.msleep(30)
@@ -186,8 +196,24 @@ class MotorDAQInterface (QThread):
         self._force1_0 = round(np.mean(force_temp1), 3)
         self._force2_0 = round(np.mean(force_temp2), 3)'''
 
-        self._force1_0 = self._ringbuffer1.get_buffer().mean()
-        self._force2_0 = self._ringbuffer2.get_buffer().mean()
+        '''self._force1_0 = self._ringbuffer1.get_buffer().mean()
+        self._force2_0 = self._ringbuffer2.get_buffer().mean()'''
+
+        l = len(self._buffer1)
+
+        self._force1_0 = 0
+        self._force2_0 = 0
+
+        for i in range (1,6):
+            self._force1_0 += self._buffer1[-i]
+            self._force2_0 += self._buffer2[-i]
+
+        self._force1_0 /= 5
+        self._force2_0 /= 5
+
+        
+
+        
 
         print("Init force 1: {}".format(self._force1_0))
         print("Init force 2: {}".format(self._force2_0))
@@ -338,3 +364,14 @@ class MotorDAQInterface (QThread):
         else:
             self._axis1.stop()
             self._axis2.stop()
+
+    def butter_lowpass(self, cutoff, fs, order=5):
+        nyquist = 0.5 * fs
+        normal_cutoff = cutoff / nyquist
+        b, a = butter(order, normal_cutoff, btype='low', analog=False)
+        return b, a
+
+    def lowpass_filter(self, data, cutoff, fs, order=5):
+        b, a = self.butter_lowpass(cutoff, fs, order=order)
+        y = filtfilt(b, a, data)
+        return y

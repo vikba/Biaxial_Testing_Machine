@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>802</width>
+    <width>801</width>
     <height>840</height>
    </rect>
   </property>
@@ -289,14 +289,14 @@
            <item row="1" column="3">
             <widget class="QLineEdit" name="factorTareLoad2">
              <property name="text">
-              <string>0.05</string>
+              <string>0.1</string>
              </property>
             </widget>
            </item>
            <item row="1" column="1">
             <widget class="QLineEdit" name="factorTareLoad1">
              <property name="text">
-              <string>0.05</string>
+              <string>0.1</string>
              </property>
             </widget>
            </item>
@@ -643,6 +643,38 @@
         </widget>
        </item>
        <item>
+        <widget class="QLabel" name="label_33">
+         <property name="text">
+          <string>Sample name (for folder)</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_3">
+         <item>
+          <widget class="QLineEdit" name="factorSampleName">
+           <property name="text">
+            <string>Sample</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="buttonCreateSample">
+           <property name="text">
+            <string>Create sample</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QLabel" name="label_34">
+         <property name="text">
+          <string>Working folder</string>
+         </property>
+        </widget>
+       </item>
+       <item>
         <layout class="QHBoxLayout" name="horizontalLayout_2">
          <item>
           <widget class="QLabel" name="labelFolder">
@@ -689,7 +721,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>802</width>
+     <width>801</width>
      <height>21</height>
     </rect>
    </property>

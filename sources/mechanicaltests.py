@@ -10,6 +10,7 @@ import numpy as np
 import csv
 import time
 from datetime import datetime
+import os
 
 from .state import State
 
@@ -77,9 +78,7 @@ class MechanicalTest (QThread):
         self._pos1 = self._pos2 = 0
         
         #record start time
-        self._start_time = time.perf_counter()
         self._start_half_cycle_time = time.perf_counter()
-        self._current_time = 0 
     
         
     
@@ -206,7 +205,7 @@ class MechanicalTest (QThread):
         
 
         if not self._use_video:
-            self.signal_update_charts.emit([self._time[-1], self._load1[-1], self._load2[-1], self._disp1[-1], self._disp2[-1]])
+            self.signal_update_charts.emit([self._current_time, self._load1[-1], self._load2[-1], self._disp1[-1], self._disp2[-1]])
         else:
             #calculate strain
             #along horizontal axis - upper and lower groups]
@@ -326,28 +325,34 @@ class MechanicalTest (QThread):
         self._workfolder = folder
         
 
-    def _writeDataToFile(self, str):
+    def _writeDataToFile(self, str, num):
         # Combine the lists
-        combined_lists = zip(self._time, self._load1, self._load2, self._disp1, self._disp2, self._E11, self._E22)
+
+        if self._use_video:
+            combined_lists = zip(self._time, self._load1, self._load2, self._disp1, self._disp2, self._E11, self._E22)
+        else: 
+            combined_lists = zip(self._time, self._load1, self._load2, self._disp1, self._disp2)
         
         #Get current date for filename
         current_datetime = datetime.now()
         formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
 
+        os.makedirs(self._workfolder, exist_ok=True)
         
         # Write to CSV file
-        with open(self._workfolder + str +formatted_datetime+'.csv', 'w', newline='') as file:
-            writer = csv.writer(file, delimiter=';')
+        with open(os.path.join(self._workfolder, f'{str}_{formatted_datetime}_({num}).csv'), 'w', newline='') as file:
+            writer = csv.writer(file, delimiter=',')
             writer.writerow(["Time", "Load_1", "Load_2", "Disp_1", "Disp_2", "E11", "E22"])  # Header row, if needed
             for row in combined_lists:
                 writer.writerow(row)
+                
 
         # If videoextensometer is on and more than 10 marker positions were recorded
         # Write to CSV positions of markers
-        if hasattr(self, '_point1'):
+        if self._use_video:
             combined_lists = zip(self._time, self._point1, self._point2, self._point3, self._point4)
-            with open(self._workfolder + str +formatted_datetime+'_markers.csv', 'w', newline='') as file:
-                writer = csv.writer(file, delimiter=';')
+            with open(os.path.join(self._workfolder, f'{str}_{formatted_datetime}_({num})_markers.csv'), 'w', newline='') as file:
+                writer = csv.writer(file, delimiter=',')
                 writer.writerow(["Time","Marker_1", "Marker_2", "Marker_3", "Marker_4"])  # Header row, if needed
                 for row in combined_lists:
                     writer.writerow(row)
@@ -381,8 +386,8 @@ class DisplacementControlTest(MechanicalTest):
         self._vel_ax1 = vel1
         self._vel_ax2 = vel2
 
-        self._disp1 = len1
-        self._disp2 = len2
+        self._max_disp1 = len1
+        self._max_disp2 = len2
         
         self._workfolder = folder
 
@@ -397,8 +402,8 @@ class DisplacementControlTest(MechanicalTest):
         self._vel_ax1 = vel1
         self._vel_ax2 = vel2
 
-        self._disp1 = len1
-        self._disp2 = len2
+        self._max_disp1 = len1
+        self._max_disp2 = len2
 
         self._num_cycles = num_cycles
         
@@ -431,14 +436,15 @@ class DisplacementControlTest(MechanicalTest):
             self._half_cycle = 2*self._num_cycles #double for each half cycle
             self._direction = 1 #Stretch sample; -1 relax
             self._start_time = time.perf_counter()
+            self._current_time = 0
 
             #Set final positions
             self._pos1, self._pos2 = self._mot_daq.get_positions()
 
             self._start_pos1 = self._pos1
             self._start_pos2 = self._pos2
-            self._fin_pos1 = self._start_pos1 - self._disp1/2 #when sample is stretched, the position is decreased
-            self._fin_pos2 = self._start_pos2 - self._disp2/2
+            self._fin_pos1 = self._start_pos1 - self._max_disp1/2 #when sample is stretched, the position is decreased
+            self._fin_pos2 = self._start_pos2 - self._max_disp2/2
 
             #Start movement to final position
             self._mot_daq.move_position_ax1(self._fin_pos1, self._vel_ax1)
@@ -446,10 +452,10 @@ class DisplacementControlTest(MechanicalTest):
 
             #Start timer to periodically check length and control the test
             
-            self._test_timer = QTimer(self)
+            self._test_timer = QTimer()
             self._test_timer.timeout.connect(self._one_cycle)
             #self._test_timer.moveToThread(self)
-            self._test_timer.start(200)
+            self._test_timer.start(self._sample_time)
             print("Timer started")
             self.exec()
             
@@ -483,8 +489,10 @@ class DisplacementControlTest(MechanicalTest):
                 #Set final posistion based on stretch or relax cycle
                 #Stretch cycle
                 if 0 < self._direction:
-                    self._fin_pos1 = self._start_pos1 - self._disp1/2 
-                    self._fin_pos2 = self._start_pos2 - self._disp2/2
+                    self._fin_pos1 = self._start_pos1 - self._max_disp1/2 
+                    self._fin_pos2 = self._start_pos2 - self._max_disp2/2
+
+                    self._writeDataToFile("Test", self._half_cycle/2 +1)
 
                 #Relax cycle
                 elif 0 > self._direction:
@@ -513,7 +521,6 @@ class DisplacementControlTest(MechanicalTest):
             QMetaObject.invokeMethod(self._test_timer, "stop", Qt.ConnectionType.QueuedConnection)
             print("DisplacementControlTest: Test finished")
             self.stop_measurement()
-            self._writeDataToFile('\\Test_')
             self._finish_test()
             
         
@@ -601,6 +608,7 @@ class LoadControlTest(MechanicalTest):
         if True:
 
             self._start_time = time.perf_counter()
+            self._current_time = 0
 
             #Set number of cycles and direction
             self._half_cycle = 2*self._num_cycles_precond #double for each half cycle
@@ -681,6 +689,13 @@ class LoadControlTest(MechanicalTest):
                     self._mot_daq.move_velocity_ax1(-self._vel_ax1) #in mm/s
                     self._mot_daq.move_velocity_ax2(-self._vel_ax2) #in mm/s
 
+                    if self._state == State.PRECONDITIONING:
+                        self._writeDataToFile('Precond', self._half_cycle/2 +1)
+                    elif self._state == State.TEST:
+                        self._writeDataToFile('Test', self._half_cycle/2 +1)
+
+                    self._init_variables()
+
                     
 
                 #Stretch loop finished. Change behaviour to relax loop
@@ -748,8 +763,6 @@ class LoadControlTest(MechanicalTest):
             self._state = State.TEST
             self._half_cycle = 2*self._num_cycles_test
             self._direction = 1
-
-            self._writeDataToFile('\\Preconditioning_')
             self._init_variables()
             if (self._use_video):
                 self._init_markers2()
@@ -769,7 +782,6 @@ class LoadControlTest(MechanicalTest):
             # Stop motors after measurement cycle is finished
             QMetaObject.invokeMethod(self._test_timer, "stop", Qt.ConnectionType.QueuedConnection)
             self.stop_measurement()
-            self._writeDataToFile('\\Test_')
             print("LoadControlTest: Test finished")
             self.signal_test_finished.emit()
             
