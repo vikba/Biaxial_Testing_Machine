@@ -12,6 +12,7 @@ from PyQt6.QtGui import QFont
 import pyqtgraph as pg
 
 import os
+import json
 
 from .mechanicaltests import DisplacementControlTest, LoadControlTest, MechanicalTest
 from .camerawindow import VideoThread, VideoWindow
@@ -147,6 +148,56 @@ class BiaxMainWindow(QMainWindow):
         self._ringbuffer2 = RingBuffer(100) #Ring buffer for live force display of channel2
 
         self.__init_variables()
+
+        self._load_test_config()
+
+
+    def _load_test_config(self):
+
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.join(script_dir, '..', 'resources', 'config_test.json')
+
+        if os.path.exists(config_path):
+            with open(config_path, 'r') as file:
+                self._config_test = json.load(file)
+        else:
+            raise FileNotFoundError(f"The configuration file {config_path} does not exist.")
+
+
+        self.factorTareLoad1.setText(self._config_test.get("tareload1"))
+        self.factorTareLoad2.setText(self._config_test.get("tareload2"))
+        self.factorLoadPrecond1.setText(self._config_test.get("load_precond1"))
+        self.factorLoadPrecond2.setText(self._config_test.get("load_precond2"))
+        self.factorLoadTest1.setText(self._config_test.get("load_test1"))
+        self.factorLoadTest2.setText(self._config_test.get("load_test2"))
+        self.factorDispGuess1.setText(self._config_test.get("disp_guess1"))
+        self.factorDispGuess2.setText(self._config_test.get("disp_guess2"))
+        self.factorTimeAx.setText(self._config_test.get("halfcycltime"))
+        self.factorCyclNumPrecond.setText(self._config_test.get("cycleprecond"))
+        self.factorCyclNumTest.setText(self._config_test.get("cycletest"))
+
+    def _save_test_config(self):
+
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.join(script_dir, '..', 'resources', 'config_test.json')
+
+        self._config_test = self._load_config(config_path)
+
+        self._config_test["tareload1"] = self.factorTareLoad1.text()
+        self._config_test["tareload2"] = self.factorTareLoad2.text()
+        self._config_test["load_precond1"] = self.factorLoadPrecond1.text()
+        self._config_test["load_precond2"] = self.factorLoadPrecond2.text()
+        self._config_test["load_test1"] = self.factorLoadTest1.text()
+        self._config_test["load_test2"] = self.factorLoadTest2.text()
+        self._config_test["disp_guess1"] = self.factorDispGuess1.text()
+        self._config_test["disp_guess2"] = self.factorDispGuess2.text()
+        self._config_test["halfcycltime"] = self.factorTimeAx.text()
+        self._config_test["cycleprecond"] = self.factorCyclNumPrecond.text()
+        self._config_test["cycletest"] = self.factorCyclNumTest.text()
+
+        with open(config_path, 'w') as file:
+            json.dump(self._config_test, file, indent=4)
+        
         
 
     
@@ -216,6 +267,7 @@ class BiaxMainWindow(QMainWindow):
 
         #Reset all the variables
         self.__init_variables()
+        self._save_test_config()
 
         #Motors and DAQ should be initialized
         if not hasattr(self, '_mot_daq') or not self._mot_daq.is_initialized():
@@ -399,7 +451,6 @@ class BiaxMainWindow(QMainWindow):
             self._liveforce_timer.timeout.connect(self.__updateLabelForce)
             self._liveforce_timer.start(200)
 
-            
     def __stop_movement(self):
         
         

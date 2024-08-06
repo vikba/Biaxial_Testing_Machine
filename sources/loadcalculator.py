@@ -10,7 +10,7 @@ class LoadCalculatorWindow(QWidget):
     
     
     
-    def __init__(self):
+    def __init__(self, thickness, len1, len2, stress1, stress2):
         """
         Initializes the video stream window and sets up the interface for displaying the video feed 
         and controlling the webcam. 
@@ -26,7 +26,12 @@ class LoadCalculatorWindow(QWidget):
         loadUi(ui_file_path, self)
 
         self.buttonCalc.clicked.connect(self.calcLoads)
-        
+
+        self.factorLen1.setValue(len1)
+        self.factorLen2.setValue(len2)
+        self.factorThickness.setValue(thickness)
+        self.factorStress1.setText(str(stress1))
+        self.factorStress2.setText(str(stress2))
         
         
     def closeEvent(self, event):

@@ -1,0 +1,23 @@
+{
+    "thickness": "0.4",
+    "length1": "10",
+    "length2": "10",
+    "stress1": "500",
+    "stress2": "500",
+    "tareload1": "0.05",
+    "tareload2": "0.05",
+    "load_precond1": "1",
+    "load_precond2": "1",
+    "load_test1": "1",
+    "load_test2": "1",
+    "disp_guess1": "2",
+    "disp_guess2": "2",
+    "halfcycltime": "15",
+    "cycleprecond": "5",
+    "cycletest": "5",
+    "disptestspeed1": "30",
+    "disptestspeed2": "30",
+    "disptestlen1": "30",
+    "disptestlen2": "30",
+    "disptestcycle": "3"
+}
