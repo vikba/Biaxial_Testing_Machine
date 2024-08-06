@@ -338,10 +338,13 @@ class MechanicalTest (QThread):
 
         file_path = os.path.join(self._workfolder, file_name)
 
+        print(f"file_path {file_path}")
+        print(f"self._workfolder {self._workfolder}")
+
         # Check if the file exists
-        if os.path.exists(file_path):
+        if os.path.exists(file_path + ".xlsx"):
             # Load the existing workbook
-            wb = load_workbook(file_path)
+            wb = load_workbook(file_path + ".xlsx")
         else:
             # Create a new workbook if it doesn't exist
             wb = Workbook()
@@ -363,17 +366,17 @@ class MechanicalTest (QThread):
 
         # Write to file positions of markers
         if self._use_video:
-            file_path = os.path.join(self._workfolder, file_name,"_markers")
-            if os.path.exists(file_path):
-                wb_mark = load_workbook(file_path)
+            file_path = os.path.join(self._workfolder, file_name + "_markers")
+            if os.path.exists(file_path + ".xlsx"):
+                wb_mark = load_workbook(file_path + ".xlsx")
             else:
                 wb_mark = Workbook()
                 default_sheet = wb_mark.active
                 wb_mark.remove(default_sheet)
 
-            combined_lists = zip(self._time, self._point1, self._point2, self._point3, self._point4)
+            combined_lists = zip(self._time, self._point1[0], self._point1[1], self._point2[0], self._point2[1], self._point3[0], self._point3[1], self._point4[0], self._point4[1])
             ws_mark = wb_mark.create_sheet(title=f'Cycl_{cycl_num}')
-            ws_mark.append(["Time","Marker_1", "Marker_2", "Marker_3", "Marker_4"])
+            ws_mark.append(["Time","Marker_1_X", "Marker_1_Y", "Marker_2_X", "Marker_2_Y", "Marker_3_X", "Marker_3_Y", "Marker_4_X", "Marker_4_Y"])
 
             for row in combined_lists:
                 ws_mark.append(row)
@@ -637,7 +640,7 @@ class LoadControlTest(MechanicalTest):
         #Get current date for filename
         current_datetime = datetime.now()
         formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-        self._file_name = '\\Precond_'+formatted_datetime+'.jpg'
+        self._file_name = 'Precond_'+formatted_datetime
 
         if (self._use_video):
             print(f"Use video. Point1: {self._point1}")
@@ -662,7 +665,8 @@ class LoadControlTest(MechanicalTest):
         self._end_force1 = self._max_force1
         self._end_force2 = self._max_force2
 
-        self._min_pos1, self._min_pos2 = self._mot_daq.get_positions()
+        self._start_pos1, self._start_pos2 = self._mot_daq.get_positions()
+        print(f"self._start_pos1: {self._start_pos1}, self._start_pos2: {self._start_pos2}")
         self._force1,self._force2 = self._mot_daq.get_forces()
         
         self._vel_ax1 = self._disp_guess1/self._test_duration
@@ -700,11 +704,11 @@ class LoadControlTest(MechanicalTest):
             #If Stretch or Relax half cycle
             if self._direction > 0 and self._force1 < self._end_force1 and self._force2 < self._end_force2 or self._direction < 0 and (self._force1 > self._end_force1 or self._force2 > self._end_force2):
                 
-                #If only one of the motor reached zero load - stop it
+                '''#If only one of the motor reached zero load - stop it
                 if self._direction < 0 and len(self._load1) > 5 and sum(self._load1[-10:])/5 < self._end_force1:
                     self._mot_daq.stop_motor1()
                 elif self._direction < 0 and len(self._load2) > 5 and sum(self._load2[-10:])/5 < self._end_force2:
-                    self._mot_daq.stop_motor2()
+                    self._mot_daq.stop_motor2()'''
 
             #Half cycle finished
             else:
@@ -732,9 +736,9 @@ class LoadControlTest(MechanicalTest):
                     self._mot_daq.move_velocity_ax2(-self._vel_ax2) #in mm/s
 
                     if self._state == State.PRECONDITIONING:
-                        self._writeDataToFile(self._file_name, self._num_cycles_precond - self._half_cycle/2 +1)
+                        self._writeDataToFile(self._file_name, self._num_cycles_precond - self._half_cycle/2)
                     elif self._state == State.TEST:
-                        self._writeDataToFile(self._file_name, self._num_cycles_test - self._half_cycle/2 +1)
+                        self._writeDataToFile(self._file_name, self._num_cycles_test - self._half_cycle/2 )
 
                     self._init_variables()
 
@@ -780,8 +784,8 @@ class LoadControlTest(MechanicalTest):
                     corr_fact1 = round(((time_to_load1 - self._test_duration)*0.8 + self._test_duration) / self._test_duration, 3)
                     corr_fact2 = round(((time_to_load2 - self._test_duration)*0.8 + self._test_duration) / self._test_duration, 3)
 
-                    print(f"time_to_load1: {time_to_load1}, time_to_load2: {time_to_load2}, current_cycle_time: {current_cycle_time}")
-                    print(f"Corr1: {corr_fact1}, Corr2: {corr_fact2}, Velocity1: {self._vel_ax1}, Velocity2: {self._vel_ax2}")
+                    #print(f"time_to_load1: {time_to_load1}, time_to_load2: {time_to_load2}, current_cycle_time: {current_cycle_time}")
+                    #print(f"Corr1: {corr_fact1}, Corr2: {corr_fact2}, Velocity1: {self._vel_ax1}, Velocity2: {self._vel_ax2}")
                     #print(f"Point1: {self._point1}")
 
                 
@@ -793,8 +797,10 @@ class LoadControlTest(MechanicalTest):
                     
 
                     # Start motors
-                    self._mot_daq.move_velocity_ax1(self._vel_ax1) #in mm/s
-                    self._mot_daq.move_velocity_ax2(self._vel_ax2) #in mm/s
+                    #self._mot_daq.move_velocity_ax1(self._vel_ax1) #in mm/s
+                    #self._mot_daq.move_velocity_ax2(self._vel_ax2) #in mm/s
+                    self._mot_daq.move_position_ax1(self._start_pos1, self._vel_ax1)
+                    self._mot_daq.move_position_ax2(self._start_pos2, self._vel_ax2)
                 
                 
                 self._start_half_cycle_time = time.perf_counter()
@@ -806,6 +812,7 @@ class LoadControlTest(MechanicalTest):
             self._half_cycle = 2*self._num_cycles_test
             self._direction = 1
             self._init_variables()
+            self._mot_daq.zeroPosition()
             if (self._use_video):
                 self._init_markers2()
             print("LoadControlTest: Preconditioning finished. Main test started.")
@@ -814,7 +821,7 @@ class LoadControlTest(MechanicalTest):
             #Get current date for filename
             current_datetime = datetime.now()
             formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-            self._file_name = '\\Test_'+formatted_datetime+'.jpg'
+            self._file_name = 'Test_'+formatted_datetime
 
             #Write old data to file
             #Initialize variables from the beginning

@@ -8,6 +8,7 @@
 #Record only last points in videothread
 #Name of the sample creates a workfolder
 #Write cycles in different files
+#Save pyqtgraph as img
 
 
 from PyQt6.QtWidgets import QApplication

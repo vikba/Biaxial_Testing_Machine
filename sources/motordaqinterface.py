@@ -204,12 +204,12 @@ class MotorDAQInterface (QThread):
         self._force1_0 = 0
         self._force2_0 = 0
 
-        for i in range (1,6):
+        for i in range (1,11):
             self._force1_0 += self._buffer1[-i]
             self._force2_0 += self._buffer2[-i]
 
-        self._force1_0 /= 5
-        self._force2_0 /= 5
+        self._force1_0 /= 10
+        self._force2_0 /= 10
 
         
 

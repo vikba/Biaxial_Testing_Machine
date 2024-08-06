@@ -304,7 +304,7 @@ class BiaxMainWindow(QMainWindow):
                     self.signal_stop.connect(self._mec_test.stop)
                     self._mec_test.signal_update_charts.connect(self.__update_charts)
                     self._mec_test.signal_precond_finished.connect(self.reset)
-                    self._mec_test.signal_test_finished.connect(self.reset)
+                    #self._mec_test.signal_test_finished.connect(self.reset)
         
             #Displacement control test
             elif 2 == self.tabWidget.currentIndex():
@@ -323,7 +323,7 @@ class BiaxMainWindow(QMainWindow):
                 self.signal_stop.connect(self._mec_test.stop)
                 self._mec_test.signal_update_charts.connect(self.__update_charts)
                 self._mec_test.signal_precond_finished.connect(self.reset)
-                self._mec_test.signal_test_finished.connect(self.reset)
+                #self._mec_test.signal_test_finished.connect(self.reset)
                 
                 '''if hasattr(self, '_mec_test') and isinstance(self._mec_test, DisplacementControlTest):
                     #If object of displacement control test exists just update test parameters
@@ -343,7 +343,43 @@ class BiaxMainWindow(QMainWindow):
             warning_box.setIcon(QMessageBox.Icon.Warning)
             warning_box.setWindowTitle("Warning")
             warning_box.setText(e.__str__())
-            warning_box.exec()           
+            warning_box.exec()  
+
+    def __startCamera(self):
+        """
+        Method to start the camera. If the '_mec_test' attribute is present, initializes a 
+        VideoThread and VideoWindow, connects the start_stop_tracking_signal to 
+        _video_window.startStopTracking, and shows the video window. If the '_mec_test' 
+        attribute is not present, displays a warning message. 
+        """
+        
+        if hasattr(self, '_mot_daq'):
+
+            #Creating an instance of mechanical test
+            self.__create_mec_test()
+        
+            self._video_thread = VideoThread()
+            self.signal_stop.connect(self._video_thread.stop)
+            self._video_window = VideoWindow(self._video_thread)
+            self.signal_stop.connect(self._video_window.stop)
+
+            self._video_thread.signal_markers_recorded.connect(self._mec_test.init_markers)
+            self._video_thread.signal_markers_coordinates.connect(self._mec_test.update_markers)
+            self._video_thread.signal_change_pixmap.connect(self._video_window.update_image)
+            
+            self._mec_test.signal_start_stop_tracking.connect(self._video_thread.start_stop_tracking)
+            self._mec_test.signal_save_image.connect(self._video_thread.save_image)
+
+
+            
+            self._video_window.show()
+            self._video_thread.start()  
+        else:
+            warning_box = QMessageBox()
+            warning_box.setIcon(QMessageBox.Icon.Warning)
+            warning_box.setWindowTitle("Warning")
+            warning_box.setText("Connect to motors and DAQ first!")
+            warning_box.exec()         
 
     def __connect(self):
         
@@ -562,41 +598,7 @@ class BiaxMainWindow(QMainWindow):
             warning_box.exec()
     
     
-    def __startCamera(self):
-        """
-        Method to start the camera. If the '_mec_test' attribute is present, initializes a 
-        VideoThread and VideoWindow, connects the start_stop_tracking_signal to 
-        _video_window.startStopTracking, and shows the video window. If the '_mec_test' 
-        attribute is not present, displays a warning message. 
-        """
-        
-        if hasattr(self, '_mot_daq'):
 
-            #Creating an instance of mechanical test
-            self.__create_mec_test()
-        
-            self._video_thread = VideoThread()
-            self.signal_stop.connect(self._video_thread.stop)
-            self._video_window = VideoWindow(self._video_thread)
-            self.signal_stop.connect(self._video_window.stop)
-
-            self._video_thread.signal_markers_recorded.connect(self._mec_test.init_markers)
-            self._video_thread.signal_markers_coordinates.connect(self._mec_test.update_markers)
-            self._video_thread.signal_change_pixmap.connect(self._video_window.update_image)
-            
-            self._mec_test.signal_start_stop_tracking.connect(self._video_thread.start_stop_tracking)
-            self._mec_test.signal_save_image.connect(self._video_thread.save_image)
-
-
-            
-            self._video_window.show()
-            self._video_thread.start()  
-        else:
-            warning_box = QMessageBox()
-            warning_box.setIcon(QMessageBox.Icon.Warning)
-            warning_box.setWindowTitle("Warning")
-            warning_box.setText("Connect to motors and DAQ first!")
-            warning_box.exec()
     
         
     @pyqtSlot(list)
@@ -715,6 +717,9 @@ class BiaxMainWindow(QMainWindow):
 
         self._work_folder = os.path.join(self._work_folder, sample_name)
         print("New working folder: " + self._work_folder)
+
+        if hasattr(self, '_mec_test'):
+            self._mec_test.changeFolder(self._work_folder)
 
 
 
