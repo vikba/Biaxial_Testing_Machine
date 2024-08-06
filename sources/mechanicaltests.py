@@ -11,6 +11,7 @@ import csv
 import time
 from datetime import datetime
 import os
+from openpyxl import Workbook, load_workbook
 
 from .state import State
 
@@ -325,28 +326,68 @@ class MechanicalTest (QThread):
         self._workfolder = folder
         
 
-    def _writeDataToFile(self, str, num):
+    def _writeDataToFile(self, file_name, cycl_num):
         # Combine the lists
 
         if self._use_video:
             combined_lists = zip(self._time, self._load1, self._load2, self._disp1, self._disp2, self._E11, self._E22)
         else: 
             combined_lists = zip(self._time, self._load1, self._load2, self._disp1, self._disp2)
-        
-        #Get current date for filename
-        current_datetime = datetime.now()
-        formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
 
         os.makedirs(self._workfolder, exist_ok=True)
+
+        file_path = os.path.join(self._workfolder, file_name)
+
+        # Check if the file exists
+        if os.path.exists(file_path):
+            # Load the existing workbook
+            wb = load_workbook(file_path)
+        else:
+            # Create a new workbook if it doesn't exist
+            wb = Workbook()
+            # Remove the default sheet created by openpyxl
+            default_sheet = wb.active
+            wb.remove(default_sheet)
+
+        # Add a new sheet with a specific name
+        ws = wb.create_sheet(title=f'Cycl_{cycl_num}')
+        # Set the header row
+        ws.append(["Time", "Load_1", "Load_2", "Disp_1", "Disp_2", "E11", "E22"])
+        # Write the data rows
+        for row in combined_lists:
+            ws.append(row)
+
+        # Save the workbook to the specified file
+        file_path = os.path.join(self._workfolder, f'{file_name}.xlsx')
+        wb.save(file_path)
+
+        # Write to file positions of markers
+        if self._use_video:
+            file_path = os.path.join(self._workfolder, file_name,"_markers")
+            if os.path.exists(file_path):
+                wb_mark = load_workbook(file_path)
+            else:
+                wb_mark = Workbook()
+                default_sheet = wb_mark.active
+                wb_mark.remove(default_sheet)
+
+            combined_lists = zip(self._time, self._point1, self._point2, self._point3, self._point4)
+            ws_mark = wb_mark.create_sheet(title=f'Cycl_{cycl_num}')
+            ws_mark.append(["Time","Marker_1", "Marker_2", "Marker_3", "Marker_4"])
+
+            for row in combined_lists:
+                ws_mark.append(row)
+
+            wb_mark.save(file_path)
+
         
-        # Write to CSV file
+        '''# Write to CSV file
         with open(os.path.join(self._workfolder, f'{str}_{formatted_datetime}_({num}).csv'), 'w', newline='') as file:
             writer = csv.writer(file, delimiter=',')
             writer.writerow(["Time", "Load_1", "Load_2", "Disp_1", "Disp_2", "E11", "E22"])  # Header row, if needed
             for row in combined_lists:
                 writer.writerow(row)
                 
-
         # If videoextensometer is on and more than 10 marker positions were recorded
         # Write to CSV positions of markers
         if self._use_video:
@@ -355,7 +396,7 @@ class MechanicalTest (QThread):
                 writer = csv.writer(file, delimiter=',')
                 writer.writerow(["Time","Marker_1", "Marker_2", "Marker_3", "Marker_4"])  # Header row, if needed
                 for row in combined_lists:
-                    writer.writerow(row)
+                    writer.writerow(row)'''
 
             
 
@@ -593,52 +634,53 @@ class LoadControlTest(MechanicalTest):
 
         print(f"use video: {self._use_video}")
 
+        #Get current date for filename
+        current_datetime = datetime.now()
+        formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
+        self._file_name = '\\Precond_'+formatted_datetime+'.jpg'
+
         if (self._use_video):
             print(f"Use video. Point1: {self._point1}")
             self.signal_start_stop_tracking.emit(True)
             
-            #Get current date for filename
-            current_datetime = datetime.now()
-            formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
             img_addr = self._workfolder + '\\Test_'+formatted_datetime+'_first_frame.jpg'
             self.signal_save_image.emit(img_addr)
 
 
        
-        if True:
 
-            self._start_time = time.perf_counter()
-            self._current_time = 0
+        self._start_time = time.perf_counter()
+        self._current_time = 0
 
-            #Set number of cycles and direction
-            self._half_cycle = 2*self._num_cycles_precond #double for each half cycle
-            self._direction = 1 #Stretch sample; -1 relax
+        #Set number of cycles and direction
+        self._half_cycle = 2*self._num_cycles_precond #double for each half cycle
+        self._direction = 1 #Stretch sample; -1 relax
 
-            #Set final positions
-            self._start_force1 = 0.0
-            self._start_force2 = 0.0
-            self._end_force1 = self._max_force1
-            self._end_force2 = self._max_force2
+        #Set final positions
+        self._start_force1 = 0.0
+        self._start_force2 = 0.0
+        self._end_force1 = self._max_force1
+        self._end_force2 = self._max_force2
 
-            self._min_pos1, self._min_pos2 = self._mot_daq.get_positions()
-            self._force1,self._force2 = self._mot_daq.get_forces()
-            
-            self._vel_ax1 = self._disp_guess1/self._test_duration
-            self._vel_ax2 = self._disp_guess2/self._test_duration
+        self._min_pos1, self._min_pos2 = self._mot_daq.get_positions()
+        self._force1,self._force2 = self._mot_daq.get_forces()
+        
+        self._vel_ax1 = self._disp_guess1/self._test_duration
+        self._vel_ax2 = self._disp_guess2/self._test_duration
 
-            # Start slow motion
-            self._mot_daq.move_velocity_ax1(-self._vel_ax1) #in mm/s
-            self._mot_daq.move_velocity_ax2(-self._vel_ax2) #in mm/s
+        # Start slow motion
+        self._mot_daq.move_velocity_ax1(-self._vel_ax1) #in mm/s
+        self._mot_daq.move_velocity_ax2(-self._vel_ax2) #in mm/s
 
-            self._start_half_cycle_time = time.perf_counter()
+        self._start_half_cycle_time = time.perf_counter()
 
 
-            #Start timer to periodically check length and control the test
-            self._test_timer = QTimer()
-            self._test_timer.timeout.connect(self.__one_cycle_labview_alg)
-            self._test_timer.start(self._sample_time)
-            print("Timer started")
-            self.exec()
+        #Start timer to periodically check length and control the test
+        self._test_timer = QTimer()
+        self._test_timer.timeout.connect(self.__one_cycle_labview_alg)
+        self._test_timer.start(self._sample_time)
+        print("Timer started")
+        self.exec()
 
             
 
@@ -690,9 +732,9 @@ class LoadControlTest(MechanicalTest):
                     self._mot_daq.move_velocity_ax2(-self._vel_ax2) #in mm/s
 
                     if self._state == State.PRECONDITIONING:
-                        self._writeDataToFile('Precond', self._half_cycle/2 +1)
+                        self._writeDataToFile(self._file_name, self._num_cycles_precond - self._half_cycle/2 +1)
                     elif self._state == State.TEST:
-                        self._writeDataToFile('Test', self._half_cycle/2 +1)
+                        self._writeDataToFile(self._file_name, self._num_cycles_test - self._half_cycle/2 +1)
 
                     self._init_variables()
 
@@ -768,6 +810,11 @@ class LoadControlTest(MechanicalTest):
                 self._init_markers2()
             print("LoadControlTest: Preconditioning finished. Main test started.")
             self.signal_precond_finished.emit()
+
+            #Get current date for filename
+            current_datetime = datetime.now()
+            formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
+            self._file_name = '\\Test_'+formatted_datetime+'.jpg'
 
             #Write old data to file
             #Initialize variables from the beginning
