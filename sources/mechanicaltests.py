@@ -430,7 +430,7 @@ class MechanicalTest (QThread):
 class DisplacementControlTest(MechanicalTest):
     
      
-    def __init__(self, mot_daq, folder, vel1, vel2, len1, len2, num_cycles):
+    def __init__(self, mot_daq, folder, sam_name, vel1, vel2, len1, len2, num_cycles):
         super().__init__(mot_daq)
 
         self._mot_daq = mot_daq
@@ -443,13 +443,16 @@ class DisplacementControlTest(MechanicalTest):
         self._max_disp2 = len2
         
         self._workfolder = folder
+        self._sam_name = sam_name
 
         self._num_cycles = num_cycles
 
 
         #this timers should be created in class, but not in its parent class
         
-    def update_parameters(self, vel1, vel2, len1, len2, num_cycles):
+    def update_parameters(self, sam_name, vel1, vel2, len1, len2, num_cycles):
+
+        self._sam_name = sam_name
         
         # Set speed
         self._vel_ax1 = vel1
@@ -485,10 +488,16 @@ class DisplacementControlTest(MechanicalTest):
         #Here should be a condition to start the test
         if True:
 
+            current_datetime = datetime.now()
+            formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
+            self._file_name = 'DTest_'+ self._sam_name + '_' + formatted_datetime
+            
             #Set number of cycles and direction
             self._half_cycle = 2*self._num_cycles #double for each half cycle
             self._direction = 1 #Stretch sample; -1 relax
+
             self._start_time = time.perf_counter()
+            self._start_cycle_time = time.perf_counter()
             self._current_time = 0
 
             #Set final positions
@@ -524,6 +533,7 @@ class DisplacementControlTest(MechanicalTest):
             self._pos1, self._pos2 = self._mot_daq.get_positions()
             self._force1,self._force2 = self._mot_daq.get_forces()
             self._current_time = time.perf_counter() - self._start_time
+            self._current_cycle_time = time.perf_counter() - self._start_cycle_time
 
             #If Stretch or Relax continue - send data 
             if 0 < self._direction and (self._pos1 >= self._fin_pos1+0.08 or self._pos2 >= self._fin_pos2+0.08) or 0 > self._direction and (self._pos1 < self._fin_pos1-0.08 or self._pos2 < self._fin_pos2-0.08):
@@ -545,7 +555,8 @@ class DisplacementControlTest(MechanicalTest):
                     self._fin_pos1 = self._start_pos1 - self._max_disp1/2 
                     self._fin_pos2 = self._start_pos2 - self._max_disp2/2
 
-                    self._writeDataToFile("Test", self._half_cycle/2 +1)
+                    self._writeDataToFile(self._file_name, self._half_cycle/2 +1)
+                    self._start_cycle_time = time.perf_counter()
 
                 #Relax cycle
                 elif 0 > self._direction:
@@ -590,7 +601,7 @@ class LoadControlTest(MechanicalTest):
     etc
     '''
 
-    def __init__(self, mot_daq, folder, max_force1, max_force2, disp1, disp2, test_duration, num_cycles_precond, num_cycles_test):
+    def __init__(self, mot_daq, folder, sam_name, max_force1, max_force2, disp1, disp2, test_duration, num_cycles_precond, num_cycles_test):
         super().__init__(mot_daq)
         self._mot_daq = mot_daq
         
@@ -599,14 +610,17 @@ class LoadControlTest(MechanicalTest):
         self._test_duration = test_duration
         
         self._workfolder = folder
+        self._sam_name = sam_name
+
         self._num_cycles_precond = num_cycles_precond
         self._num_cycles_test = num_cycles_test
 
         self._disp_guess1 = disp1
         self._disp_guess2 = disp2
     
-    def update_parameters (self, work_folder, end_force1, end_force2, disp_guess1, disp_guess2, test_duration, num_cycles_precond, num_cycles_test):
+    def update_parameters (self, work_folder, sam_name, end_force1, end_force2, disp_guess1, disp_guess2, test_duration, num_cycles_precond, num_cycles_test):
         self._workfolder = work_folder
+        self._sam_name = sam_name
         self._end_force1 = end_force1
         self._end_force2 = end_force2
         self._disp_guess1 = disp_guess1
@@ -649,7 +663,7 @@ class LoadControlTest(MechanicalTest):
         #Get current date for filename
         current_datetime = datetime.now()
         formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-        self._file_name = 'Precond_'+formatted_datetime
+        self._file_name = 'Precond_'+ self._sam_name + '_' +formatted_datetime
 
         if (self._use_video):
             print(f"Use video. Point1: {self._point1}")
@@ -848,7 +862,7 @@ class LoadControlTest(MechanicalTest):
             #Get current date for filename
             current_datetime = datetime.now()
             formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-            self._file_name = 'Test_'+formatted_datetime
+            self._file_name = 'Test_'+ self._sam_name + '_' + formatted_datetime
 
             #Write old data to file
             #Initialize variables from the beginning

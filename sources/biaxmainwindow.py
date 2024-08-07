@@ -164,6 +164,7 @@ class BiaxMainWindow(QMainWindow):
             raise FileNotFoundError(f"The configuration file {config_path} does not exist.")
 
 
+        self._sam_name = self._config_test.get("name")
         self.factorSampleName.setText(self._config_test.get("name"))
         self.factorTareLoad1.setText(self._config_test.get("tareload1"))
         self.factorTareLoad2.setText(self._config_test.get("tareload2"))
@@ -176,6 +177,13 @@ class BiaxMainWindow(QMainWindow):
         self.factorTimeAx.setText(self._config_test.get("halfcycltime"))
         self.factorCyclNumPrecond.setText(self._config_test.get("cycleprecond"))
         self.factorCyclNumTest.setText(self._config_test.get("cycletest"))
+
+        #Displacement test
+        self.factorSpeedAx1.setText(self._config_test.get("disptestspeed1"))
+        self.factorSpeedAx2.setText(self._config_test.get("disptestspeed2"))
+        self.factorLength1.setText(self._config_test.get("disptestlen1"))
+        self.factorLength2.setText(self._config_test.get("disptestlen2"))
+        self.factorCyclNumD.setText(self._config_test.get("disptestcycle"))
 
         self._thickness = self._config_test.get("thickness")
         self._len1 = self._config_test.get("length1")
@@ -203,6 +211,13 @@ class BiaxMainWindow(QMainWindow):
         self._config_test["halfcycltime"] = self.factorTimeAx.text()
         self._config_test["cycleprecond"] = self.factorCyclNumPrecond.text()
         self._config_test["cycletest"] = self.factorCyclNumTest.text()
+
+        #Disp test
+        self._config_test["disptestspeed1"] = self.factorSpeedAx1.text()
+        self._config_test["disptestspeed2"] = self.factorSpeedAx2.text()
+        self._config_test["disptestlen1"] = self.factorLength1.text()
+        self._config_test["disptestlen2"] = self.factorLength2.text()
+        self._config_test["disptestcycle"] = self.factorCyclNumD.text()
 
         self._config_test["thickness"] = self._thickness
         self._config_test["length1"] = self._len1
@@ -374,10 +389,10 @@ class BiaxMainWindow(QMainWindow):
                 
                 if hasattr(self, '_mec_test') and isinstance(self._mec_test, LoadControlTest):
                     #If object of load control test exists just update test parameters
-                    self._mec_test.update_parameters(self._work_folder, end_force1, end_force2, disp_guess1, disp_guess2, test_duration, cycl_num_precond, cycl_num_test)
+                    self._mec_test.update_parameters(self._work_folder, self._sam_name, end_force1, end_force2, disp_guess1, disp_guess2, test_duration, cycl_num_precond, cycl_num_test)
 
                 else:
-                    self._mec_test = LoadControlTest(self._mot_daq, self._work_folder, end_force1, end_force2, disp_guess1, disp_guess2, test_duration, cycl_num_precond, cycl_num_test)
+                    self._mec_test = LoadControlTest(self._mot_daq, self._work_folder, self._sam_name, end_force1, end_force2, disp_guess1, disp_guess2, test_duration, cycl_num_precond, cycl_num_test)
                     self.signal_stop.connect(self._mec_test.stop)
                     self._mec_test.signal_update_charts.connect(self.__update_charts)
                     self._mec_test.signal_precond_finished.connect(self.reset)
@@ -396,7 +411,7 @@ class BiaxMainWindow(QMainWindow):
 
                 cycl_num = int(self.factorCyclNumD.text())
 
-                self._mec_test = DisplacementControlTest(self._mot_daq, self._work_folder, vel_ax1, vel_ax2, length1, length2, cycl_num)
+                self._mec_test = DisplacementControlTest(self._mot_daq, self._work_folder, self._sam_name, vel_ax1, vel_ax2, length1, length2, cycl_num)
                 self.signal_stop.connect(self._mec_test.stop)
                 self._mec_test.signal_update_charts.connect(self.__update_charts)
                 self._mec_test.signal_precond_finished.connect(self.reset)

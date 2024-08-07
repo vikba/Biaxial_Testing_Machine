@@ -172,6 +172,24 @@ class MotorDAQInterface (QThread):
 
         return force1 - self._force1_0, force2 - self._force2_0
     
+    def get_av_forces (self):
+        force1, force2 = self._read_force()
+
+        self._buffer1.append(force1)
+        self._buffer2.append(force2)
+
+        force1 = mean(list(self._buffer1)[-10:])
+        force2 = mean(list(self._buffer2)[-10:])
+
+        '''if len(self._buffer1) > 18:
+            self._filtered_data1 = self.lowpass_filter(list(self._buffer1), 1, 5, 5)
+            self._filtered_data2 = self.lowpass_filter(list(self._buffer2), 1, 5, 5)
+
+            force1 = self._filtered_data1[-3]
+            force2 = self._filtered_data2[-3]'''
+
+        return round(force1 - self._force1_0, 5), round(force2 - self._force2_0, 5)
+    
     def get_positions(self):
 
         #update length for each axis
@@ -179,6 +197,8 @@ class MotorDAQInterface (QThread):
         len2 = self._axis2.get_position(Units.LENGTH_MILLIMETRES) - self._pos2_0
 
         return round(len1, 5), round(len2, 5)
+    
+    
               
     def zeroForce(self):
         """
@@ -236,8 +256,10 @@ class MotorDAQInterface (QThread):
         Returns:
             Tuple containing the converted values for val1 and val2.
         """
+
+        k1_1 = 1.30
         
-        k1 = 250/0.7978 #coefficients according to calibration certificate
+        k1 = k1_1*250/0.7978 #coefficients according to calibration certificate
         k2 = 250/0.8317
         
         return round(k1*val1, 5), round(k2*val2, 5)

@@ -1,5 +1,5 @@
 {
-    "name": "3ms_fab1",
+    "name": "calib_250g",
     "thickness": 0.18,
     "length1": 8.0,
     "length2": 8.0,
@@ -20,5 +20,5 @@
     "disptestspeed2": "30",
     "disptestlen1": "30",
     "disptestlen2": "30",
-    "disptestcycle": "3"
+    "disptestcycle": "1"
 }
