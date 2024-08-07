@@ -2,6 +2,7 @@ from PyQt6.QtCore import QThread, QTimer, pyqtSignal, pyqtSlot
 import numpy as np
 from scipy.signal import butter, filtfilt
 import collections
+from statistics import mean
 
 
 from zaber_motion.ascii import Connection
@@ -199,21 +200,10 @@ class MotorDAQInterface (QThread):
         '''self._force1_0 = self._ringbuffer1.get_buffer().mean()
         self._force2_0 = self._ringbuffer2.get_buffer().mean()'''
 
-        l = len(self._buffer1)
 
-        self._force1_0 = 0
-        self._force2_0 = 0
+        self._force1_0 = mean(list(self._buffer1)[-10:])
+        self._force2_0 = mean(list(self._buffer2)[-10:])
 
-        for i in range (1,11):
-            self._force1_0 += self._buffer1[-i]
-            self._force2_0 += self._buffer2[-i]
-
-        self._force1_0 /= 10
-        self._force2_0 /= 10
-
-        
-
-        
 
         print("Init force 1: {}".format(self._force1_0))
         print("Init force 2: {}".format(self._force2_0))
@@ -296,7 +286,7 @@ class MotorDAQInterface (QThread):
         self._axis1.move_absolute(self._pos1_0 + pos, Units.LENGTH_MILLIMETRES, velocity=vel, velocity_unit=Units.VELOCITY_MILLIMETRES_PER_SECOND, wait_until_idle=False)
 
     def move_position_ax2(self, pos, vel):
-        self._axis2.move_absolute(self._pos1_0 + pos, Units.LENGTH_MILLIMETRES, velocity=vel, velocity_unit=Units.VELOCITY_MILLIMETRES_PER_SECOND, wait_until_idle=False)
+        self._axis2.move_absolute(self._pos2_0 + pos, Units.LENGTH_MILLIMETRES, velocity=vel, velocity_unit=Units.VELOCITY_MILLIMETRES_PER_SECOND, wait_until_idle=False)
         
     def move_velocity_ax1(self, speed):
         """
@@ -320,10 +310,10 @@ class MotorDAQInterface (QThread):
         
         if abs(self._force1 - self._load1) < 2 and abs(self._force2 - self._load2) < 2:
             #Move with slow negative velocity to gently stretch the sample
-            self.move_velocity_ax1(-0.2) #in mm/sec
-            self.move_velocity_ax2(-0.2)
+            self.move_velocity_ax1(-0.1) #in mm/sec
+            self.move_velocity_ax2(-0.1)
             self.step = 1
-            self._autoload_timer.start(200)
+            self._autoload_timer.start(100)
         else:
             print("Autoload: The difference between current force and desired force is too high!")
 
@@ -333,12 +323,15 @@ class MotorDAQInterface (QThread):
         
     def __autoload_step(self):
         self._force1, self._force2 = self.get_forces()
+
+        force_mean1 = mean(list(self._buffer1)[-10:]) - self._force1_0
+        force_mean2 = mean(list(self._buffer2)[-10:]) - self._force2_0
         
         if self.step == 1:
-            if self._force1 < self._load1 / 2 or self._force2 < self._load2 / 2:
-                if self._force1 > 1.2 * self._load1 / 2:
+            if force_mean1 < self._load1 / 2 or force_mean2 < self._load2 / 2:
+                if force_mean1 > 1.2 * self._load1 / 2:
                     self._axis1.stop()
-                if self._force2 > 1.2 * self._load2 / 2:
+                if force_mean2 > 1.2 * self._load2 / 2:
                     self._axis2.stop()
             else:
                 self.step = 2
@@ -348,10 +341,10 @@ class MotorDAQInterface (QThread):
                 
         
         elif self.step == 2:
-            if self._force1 < self._load1 or self._force2 < self._load2:
-                if self._force1 > 1.2 * self._load1:
+            if force_mean1 < self._load1 or force_mean2 < self._load2:
+                if force_mean1 > 1.2 * self._load1:
                     self._axis1.stop()
-                if self._force2 > 1.2 * self._load2:
+                if force_mean2 > 1.2 * self._load2:
                     self._axis2.stop()
             else:
                 print("Autoload: The Load reached")

@@ -6,7 +6,7 @@ import os
 
 class LoadCalculatorWindow(QWidget):
 
-    signal_loads_calculated = pyqtSignal(float, float, float, float, float)
+    signal_loads_calculated = pyqtSignal(float, float, float, float, float, float, float)
     
     
     
@@ -30,8 +30,8 @@ class LoadCalculatorWindow(QWidget):
         self.factorLen1.setValue(len1)
         self.factorLen2.setValue(len2)
         self.factorThickness.setValue(thickness)
-        self.factorStress1.setText(str(stress1))
-        self.factorStress2.setText(str(stress2))
+        self.factorStress1.setValue(stress1)
+        self.factorStress2.setValue(stress2)
         
         
     def closeEvent(self, event):
@@ -42,8 +42,8 @@ class LoadCalculatorWindow(QWidget):
             self._thickness = self.factorThickness.value()
             self._len1 = self.factorLen1.value() #mm
             self._len2 = self.factorLen2.value() #mm
-            self._target_stress1 = float(self.factorStress1.text()) #kPa 
-            self._target_stress2 = float(self.factorStress2.text()) #kPa 
+            self._target_stress1 = self.factorStress1.value() #kPa 
+            self._target_stress2 = self.factorStress2.value() #kPa 
 
             
 
@@ -53,7 +53,7 @@ class LoadCalculatorWindow(QWidget):
             self.factor_calculatedLoad1.setText(str(self.load1))
             self.factor_calculatedLoad2.setText(str(self.load2))
 
-            self.signal_loads_calculated.emit(self.load1, self.load2, self._len1, self._len2, self._thickness)
+            self.signal_loads_calculated.emit(self.load1, self.load2, self._target_stress1, self._target_stress2, self._len1, self._len2, self._thickness)
 
 
 

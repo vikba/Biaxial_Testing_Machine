@@ -9,6 +9,11 @@
 #Name of the sample creates a workfolder
 #Write cycles in different files
 #Save pyqtgraph as img
+#Compare formulas with matlab
+#Save config in the same folder as sample
+#Nan afer load control
+#problem with double sample name in folder
+#add reset after preconditioning to videothread
 
 
 from PyQt6.QtWidgets import QApplication

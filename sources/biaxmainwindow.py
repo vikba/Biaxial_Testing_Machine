@@ -164,6 +164,7 @@ class BiaxMainWindow(QMainWindow):
             raise FileNotFoundError(f"The configuration file {config_path} does not exist.")
 
 
+        self.factorSampleName.setText(self._config_test.get("name"))
         self.factorTareLoad1.setText(self._config_test.get("tareload1"))
         self.factorTareLoad2.setText(self._config_test.get("tareload2"))
         self.factorLoadPrecond1.setText(self._config_test.get("load_precond1"))
@@ -176,13 +177,21 @@ class BiaxMainWindow(QMainWindow):
         self.factorCyclNumPrecond.setText(self._config_test.get("cycleprecond"))
         self.factorCyclNumTest.setText(self._config_test.get("cycletest"))
 
+        self._thickness = self._config_test.get("thickness")
+        self._len1 = self._config_test.get("length1")
+        self._len2 = self._config_test.get("length2")
+        self._max_stress1 = self._config_test.get("maxstress1")
+        self._max_stress2 = self._config_test.get("maxstress2")
+
+        self._area1 = self._thickness * self._len1
+        self._area2 = self._thickness * self._len2
+
     def _save_test_config(self):
 
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        config_path = os.path.join(script_dir, '..', 'resources', 'config_test.json')
+        
 
-        self._config_test = self._load_config(config_path)
 
+        self._config_test["name"] = self.factorSampleName.text()
         self._config_test["tareload1"] = self.factorTareLoad1.text()
         self._config_test["tareload2"] = self.factorTareLoad2.text()
         self._config_test["load_precond1"] = self.factorLoadPrecond1.text()
@@ -195,9 +204,25 @@ class BiaxMainWindow(QMainWindow):
         self._config_test["cycleprecond"] = self.factorCyclNumPrecond.text()
         self._config_test["cycletest"] = self.factorCyclNumTest.text()
 
+        self._config_test["thickness"] = self._thickness
+        self._config_test["length1"] = self._len1
+        self._config_test["length2"] = self._len2
+        self._config_test["maxstress1"] = self._max_stress1
+        self._config_test["maxstress2"] = self._max_stress2
+
+        
+        #Save into program folder
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.join(script_dir, '..', 'resources', 'config_test.json')
         with open(config_path, 'w') as file:
             json.dump(self._config_test, file, indent=4)
+
         
+        #Save second time into sample folder
+        os.makedirs(self._work_folder, exist_ok=True)
+        config_path2 = os.path.join(self._work_folder, 'config_test.json')
+        with open(config_path2, 'w') as file:
+            json.dump(self._config_test, file, indent=4)
         
 
     
@@ -278,14 +303,14 @@ class BiaxMainWindow(QMainWindow):
             warning_box.exec()
             return
         
-        if not self._sample_initialized:
+        '''if not self._sample_initialized:
             warning_box = QMessageBox()
             warning_box.setIcon(QMessageBox.Icon.Warning)
             warning_box.setWindowTitle("Warning")
             warning_box.setText("Sample dimensions should be initizlied")
             warning_box.exec()
             self.__calculate_loads()
-            return
+            return'''
 
         self._mot_daq.zeroPosition()
 
@@ -609,17 +634,19 @@ class BiaxMainWindow(QMainWindow):
     def __calculate_loads (self):
 
         self._sample_initialized = True
-        self._calc_loads_window = LoadCalculatorWindow()
-        self._calc_loads_window.signal_loads_calculated.connect(self.__set_sample_paramss)
+        self._calc_loads_window = LoadCalculatorWindow(self._thickness, self._len1, self._len2, self._max_stress1, self._max_stress2)
+        self._calc_loads_window.signal_loads_calculated.connect(self.__set_sample_params)
 
         self._calc_loads_window.show()
         
 
     
-    @pyqtSlot(float,float,float,float,float)
-    def __set_sample_paramss(self, load1, load2, len1, len2, thickness):
+    @pyqtSlot(float,float,float,float,float,float,float)
+    def __set_sample_params(self, load1, load2, stress1, stress2, len1, len2, thickness):
         self.end_force1 = load1
         self.end_force2 = load2
+        self._max_stress1 = stress1
+        self._max_stress2 = stress2
 
         self.factorLoadTest1.setText(str(load1))
         self.factorLoadTest2.setText(str(load2))
