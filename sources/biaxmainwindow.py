@@ -806,13 +806,13 @@ class BiaxMainWindow(QMainWindow):
 
 
     def __create_sample_folder(self):
-        sample_name = self.factorSampleName.text()
+        self._sam_name = self.factorSampleName.text()
 
-        self._work_folder = os.path.join(self._work_folder, sample_name)
+        self._work_folder = os.path.join(self._work_folder, self._sam_name )
         print("New working folder: " + self._work_folder)
 
         if hasattr(self, '_mec_test'):
-            self._mec_test.changeFolder(self._work_folder)
+            self._mec_test.changeFolder(self._work_folder, self._sam_name)
 
 
 

@@ -324,8 +324,9 @@ class MechanicalTest (QThread):
     def _moving_average(self, x, w):
         return np.convolve(x, np.ones(w), 'valid') / w
     
-    def changeFolder(self, folder):
+    def changeFolder(self, folder, sam_name):
         self._workfolder = folder
+        self._sam_name = sam_name
         
 
     def _writeDataToFile(self, file_name, cycl_num):
