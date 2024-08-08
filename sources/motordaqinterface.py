@@ -10,6 +10,7 @@ from zaber_motion import Units
 import ginsapy.giutility.connect.PyQStationConnectWin as Qstation #module with communication functions to Gantner Q.Station under windows environment
 
 from .ringbuffer import RingBuffer
+from .unit import Unit
 
 
 
@@ -19,7 +20,7 @@ class MotorDAQInterface (QThread):
     '''
    
     
-    def __init__(self):
+    def __init__(self, unit):
         super().__init__()
 
         self.__initMorors()
@@ -42,6 +43,8 @@ class MotorDAQInterface (QThread):
         buffer_size = 30  # Define the size of the buffer
         self._buffer1 = collections.deque(maxlen=buffer_size)  # Create a buffer with a fixed size
         self._buffer2 = collections.deque(maxlen=buffer_size)
+
+        self._units = unit
 
     def is_initialized(self):
         return self._mot_init and self._daq_init
@@ -155,7 +158,10 @@ class MotorDAQInterface (QThread):
             return None, None
             #raise Exception('Empty buffer')
             
-        return self.__convertToNewtons(value1, value2)
+        if self._units == Unit.Newton:
+            return self.__to_newtons(value1, value2)
+        else:
+            return self.__to_grams(value1, value2)
             
     def get_forces (self):
         force1, force2 = self._read_force()
@@ -245,7 +251,7 @@ class MotorDAQInterface (QThread):
         self._daq_init = True
         
       
-    def __convertToNewtons(self, val1, val2):
+    def __to_newtons(self, val1, val2):
         """
         Convert the given values to Newtons using the provided coefficients.
 
@@ -256,13 +262,25 @@ class MotorDAQInterface (QThread):
         Returns:
             Tuple containing the converted values for val1 and val2.
         """
+        k1_1 = 1.43
 
-        k1_1 = 1.30
+        z1 = 0 #0.0002
+        z2 = 0 #0.0024
         
-        k1 = k1_1*250/0.7978 #coefficients according to calibration certificate
-        k2 = 250/0.8317
+        k1 = k1_1*250/(0.7978 - z1) #coefficients according to calibration certificate
+        k2 = 250/(0.8317 - z2)
         
         return round(k1*val1, 5), round(k2*val2, 5)
+    
+    def __to_grams(self, val1, val2):
+
+        force1, force2 = self.__to_newtons(val1, val2)
+
+        g = 9.81 #m/s2
+        
+        return round(force1*1000/g, 5), round(force2*1000/g, 5)
+
+
             
     def moveSamplePosition(self):
         """
@@ -330,7 +348,8 @@ class MotorDAQInterface (QThread):
 
         self._force1, self._force2 = self.get_forces()
         
-        if abs(self._force1 - self._load1) < 2 and abs(self._force2 - self._load2) < 2:
+        if self._units == Unit.Newton and abs(self._force1 - self._load1) < 2 and abs(self._force2 - self._load2) < 2 \
+            or self._units == Unit.Gram and abs(self._force1 - self._load1) < 200 and abs(self._force2 - self._load2) < 200:
             #Move with slow negative velocity to gently stretch the sample
             self.move_velocity_ax1(-0.1) #in mm/sec
             self.move_velocity_ax2(-0.1)

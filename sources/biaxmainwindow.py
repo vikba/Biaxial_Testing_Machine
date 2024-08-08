@@ -19,6 +19,7 @@ from .camerawindow import VideoThread, VideoWindow
 from .loadcalculator import LoadCalculatorWindow
 from .motordaqinterface import MotorDAQInterface
 from .ringbuffer import RingBuffer
+from .unit import Unit
 
 
 
@@ -72,7 +73,6 @@ class BiaxMainWindow(QMainWindow):
         self.buttonConnect.clicked.connect(self.__connect)
         self.buttonCalcLoad.clicked.connect(self.__calculate_loads)
         self.buttonAutoload.clicked.connect(self.__autoload)
-        self.buttonCreateSample.clicked.connect(self.__create_sample_folder)
         
         self.buttonMoveCentAx1.pressed.connect(self.__moveForwardAxis1)
         self.buttonMoveCentAx2.pressed.connect(self.__moveForwardAxis2)
@@ -151,6 +151,11 @@ class BiaxMainWindow(QMainWindow):
 
         self._load_test_config()
 
+        if self.buttonGrams.isChecked():
+            self._units = Unit.Gram
+        else:
+            self._units = Unit.Newton
+
 
     def _load_test_config(self):
 
@@ -165,6 +170,15 @@ class BiaxMainWindow(QMainWindow):
 
 
         self._sam_name = self._config_test.get("name")
+        unit = self._config_test.get("unit")
+        if unit == "gram":
+            self._units = Unit.Gram
+            self.buttonGrams.setChecked()
+
+        else:
+            self._units = Unit.Newton
+            self.buttonNewtons.setChecked()
+
         self.factorSampleName.setText(self._config_test.get("name"))
         self.factorTareLoad1.setText(self._config_test.get("tareload1"))
         self.factorTareLoad2.setText(self._config_test.get("tareload2"))
@@ -196,7 +210,10 @@ class BiaxMainWindow(QMainWindow):
 
     def _save_test_config(self):
 
-        
+        if self._units == Unit.Gram:
+            self._config_test["unit"] = "gram"
+        else:
+            self._config_test["unit"] = "newton"
 
 
         self._config_test["name"] = self.factorSampleName.text()
@@ -386,6 +403,7 @@ class BiaxMainWindow(QMainWindow):
                 test_duration = float(self.factorTimeAx.text())
                 cycl_num_precond = int(self.factorCyclNumPrecond.text())
                 cycl_num_test = int(self.factorCyclNumTest.text())
+                self._sam_name = self.factorSampleName.text()
                 
                 if hasattr(self, '_mec_test') and isinstance(self._mec_test, LoadControlTest):
                     #If object of load control test exists just update test parameters
@@ -410,6 +428,7 @@ class BiaxMainWindow(QMainWindow):
                 length2 = float(self.factorLength2.text())/2
 
                 cycl_num = int(self.factorCyclNumD.text())
+                self._sam_name = self.factorSampleName.text()
 
                 self._mec_test = DisplacementControlTest(self._mot_daq, self._work_folder, self._sam_name, vel_ax1, vel_ax2, length1, length2, cycl_num)
                 self.signal_stop.connect(self._mec_test.stop)
@@ -476,7 +495,7 @@ class BiaxMainWindow(QMainWindow):
     def __connect(self):
         
         try:
-            self._mot_daq = MotorDAQInterface()
+            self._mot_daq = MotorDAQInterface(self._units)
             self.signal_stop.connect(self._mot_daq.stop)
     
         except Exception as e:
@@ -803,16 +822,6 @@ class BiaxMainWindow(QMainWindow):
             self.ChartWidget_1.clear()
             self.ChartWidget_1.plot(self._ringbuffer1.get_buffer(), pen=pg.mkPen(color='b', width=2))  
             self.ChartWidget_1.plot(self._ringbuffer2.get_buffer(), pen=pg.mkPen(color='r', width=2))  
-
-
-    def __create_sample_folder(self):
-        self._sam_name = self.factorSampleName.text()
-
-        self._work_folder = os.path.join(self._work_folder, self._sam_name )
-        print("New working folder: " + self._work_folder)
-
-        if hasattr(self, '_mec_test'):
-            self._mec_test.changeFolder(self._work_folder, self._sam_name)
 
 
 

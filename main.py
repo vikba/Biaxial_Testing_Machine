@@ -14,6 +14,7 @@
 #Nan afer load control
 #problem with double sample name in folder
 #add reset after preconditioning to videothread
+#Change label units depending on choosed unit
 
 
 from PyQt6.QtWidgets import QApplication

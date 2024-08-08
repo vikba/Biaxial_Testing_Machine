@@ -71,7 +71,13 @@ class MechanicalTest (QThread):
         self._counter = 0 #counter
 
         self._E11 = []
+        self._E12 = []
         self._E22 = []
+
+        self._F11 = []
+        self._F12 = []
+        self._F21 = []
+        self._F22 = []
         
         self._vel_1 = []
         self._vel_2 = []
@@ -310,7 +316,13 @@ class MechanicalTest (QThread):
             
 
             self._E11.append(E11)
+            self._E12.append(E12)
             self._E22.append(E22)
+
+            self._F11.append(F11)
+            self._F12.append(F12)
+            self._F21.append(F21)
+            self._F22.append(F22)
 
             self.signal_update_charts.emit([self._time_abs[-1], self._load1[-1], self._load2[-1], self._disp1[-1], self._disp2[-1], self._E11[-1], self._E22[-1], self._vel_1[-1],self._vel_2[-1]])
 
@@ -333,28 +345,34 @@ class MechanicalTest (QThread):
         # Combine the lists
 
         if self._use_video:
-            X11	= [x for x,y in self._point1]
-            X12	= [x for x,y in self._point2]
-            X13	= [x for x,y in self._point3]
-            X14	= [x for x,y in self._point4]
-            X21	= [y for x,y in self._point1]
-            X22	= [y for x,y in self._point2]
-            X23	= [y for x,y in self._point3]
-            X24 = [y for x,y in self._point4]
+            X11	= [x for x,_ in self._point1]
+            X12	= [x for x,_ in self._point2]
+            X13	= [x for x,_ in self._point3]
+            X14	= [x for x,_ in self._point4]
+            X21	= [y for _,y in self._point1]
+            X22	= [y for _,y in self._point2]
+            X23	= [y for _,y in self._point3]
+            X24 = [y for _,y in self._point4]
 
-            combined_lists = zip(self._time_abs, self._time_rel, self._load1, self._load2, self._disp1, self._disp2, self._E11, self._E22, X11,X12,X13,X14,X21,X22,X23,X24)
+            header = ["Time_rel", "Load_1","Load_2", "F11","F12","F21","F22", "E11","E12","E22", "X11","X12","X13","X14","X21","X22","X23","X24", "Disp_1", "Disp_2", "Time_abs"]
+            combined_lists = zip(self._time_rel, self._load1, self._load2, 
+                                 self._F11, self._F12, self._F21, self._F22,
+                                 self._E11, self._E12, self._E22, X11,X12,X13,X14,X21,X22,X23,X24, 
+                                 self._disp1, self._disp2, self._time_abs)
         
         else: 
-            combined_lists = zip(self._time_abs, self._time_rel, self._load1, self._load2, self._disp1, self._disp2)
+            header = ["Time_rel", "Load_1", "Load_2", "Disp_1", "Disp_2", "Time_abs"]
+            combined_lists = zip( self._time_rel, self._load1, self._load2, self._disp1, self._disp2, self._time_abs)
 
-        os.makedirs(self._workfolder, exist_ok=True)
+        folder = os.path.join(self._workfolder, self._sam_name)
+        os.makedirs(folder, exist_ok=True)
 
-        file_path = os.path.join(self._workfolder, file_name)
+        file_path = os.path.join(folder, f'{file_name}.xlsx')
 
         # Check if the file exists
-        if os.path.exists(file_path + ".xlsx"):
+        if os.path.exists(file_path):
             # Load the existing workbook
-            wb = load_workbook(file_path + ".xlsx")
+            wb = load_workbook(file_path)
         else:
             # Create a new workbook if it doesn't exist
             wb = Workbook()
@@ -365,13 +383,12 @@ class MechanicalTest (QThread):
         # Add a new sheet with a specific name
         ws = wb.create_sheet(title=f'Cycl_{cycl_num}')
         # Set the header row
-        ws.append(["Time_abs", "Time_rel", "Load_1", "Load_2", "Disp_1", "Disp_2", "E11", "E22", "X11","X12","X13","X14","X21","X22","X23","X24"])
+        ws.append(header)
         # Write the data rows
         for row in combined_lists:
             ws.append(row)
 
         # Save the workbook to the specified file
-        file_path = os.path.join(self._workfolder, f'{file_name}.xlsx')
         wb.save(file_path)
 
         '''# Write to file positions of markers
@@ -483,7 +500,7 @@ class DisplacementControlTest(MechanicalTest):
             #Get current date for filename
             current_datetime = datetime.now()
             formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-            img_addr = self._workfolder + '\\Test_'+formatted_datetime+'_first_frame.jpg'
+            img_addr = self._workfolder + '\\Test_'+self._sam_name+'_'+formatted_datetime+'_first_frame.jpg'
             self.signal_save_image.emit(img_addr)
         
         #Here should be a condition to start the test
@@ -537,7 +554,8 @@ class DisplacementControlTest(MechanicalTest):
             self._current_cycle_time = time.perf_counter() - self._start_cycle_time
 
             #If Stretch or Relax continue - send data 
-            if 0 < self._direction and (self._pos1 >= self._fin_pos1+0.08 or self._pos2 >= self._fin_pos2+0.08) or 0 > self._direction and (self._pos1 < self._fin_pos1-0.08 or self._pos2 < self._fin_pos2-0.08):
+            if 0 < self._direction and (self._pos1 >= self._fin_pos1+0.08 or self._pos2 >= self._fin_pos2+0.08) or \
+                0 > self._direction and (self._pos1 < self._fin_pos1-0.08 or self._pos2 < self._fin_pos2-0.08):
 
                 self._update_arrays_emit_data()
 
@@ -568,7 +586,7 @@ class DisplacementControlTest(MechanicalTest):
                     #Get current date for filename
                     current_datetime = datetime.now()
                     formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-                    img_addr = self._workfolder + '\\Test_'+formatted_datetime+'_last_frame.jpg'
+                    img_addr = self._workfolder + '\\Test_'+self._sam_name+'_'+formatted_datetime+'_last_frame.jpg'
                     self.signal_save_image.emit(img_addr)
                 
                 if self._half_cycle > 0:
@@ -672,7 +690,7 @@ class LoadControlTest(MechanicalTest):
             
             current_datetime = datetime.now()
             formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-            img_addr = self._workfolder + '\\Test_'+formatted_datetime+'_first_frame.jpg'
+            img_addr = self._workfolder + '\\Test_'+self._sam_name+'_'+formatted_datetime+'_first_frame.jpg'
             self.signal_save_image.emit(img_addr)
 
 
@@ -727,7 +745,8 @@ class LoadControlTest(MechanicalTest):
             self._update_arrays_emit_data()
 
             #If Stretch or Relax half cycle
-            if self._direction > 0 and self._force1 < self._end_force1 and self._force2 < self._end_force2 or self._direction < 0 and (self._pos1 < self._start_pos1-0.08 or self._start_pos2 < self._start_pos2-0.08):
+            if self._direction > 0 and self._force1 < self._end_force1 and self._force2 < self._end_force2 or \
+                self._direction < 0 and (self._pos1 < self._start_pos1-0.08 or self._start_pos2 < self._start_pos2-0.08):
                 #(self._force1 > self._end_force1 or self._force2 > self._end_force2):
                 
                 
@@ -800,7 +819,7 @@ class LoadControlTest(MechanicalTest):
                         #Get current date for filename
                         current_datetime = datetime.now()
                         formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-                        img_addr = self._workfolder + '\\Test_'+formatted_datetime+'_last_frame.jpg'
+                        img_addr = self._workfolder + '\\Test_'+self._sam_name+'_'+formatted_datetime+'_last_frame.jpg'
                         self.signal_save_image.emit(img_addr)
 
 

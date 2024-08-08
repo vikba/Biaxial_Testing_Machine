@@ -99,10 +99,10 @@
             </property>
            </widget>
           </item>
-          <item row="0" column="1">
-           <widget class="QPushButton" name="buttonStop">
+          <item row="1" column="1">
+           <widget class="QPushButton" name="buttonCamera">
             <property name="text">
-             <string>Stop</string>
+             <string>Camera</string>
             </property>
            </widget>
           </item>
@@ -113,10 +113,17 @@
             </property>
            </widget>
           </item>
-          <item row="1" column="1">
-           <widget class="QPushButton" name="buttonCamera">
+          <item row="0" column="1">
+           <widget class="QPushButton" name="buttonStop">
             <property name="text">
-             <string>Camera</string>
+             <string>Stop</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QPushButton" name="buttonCalcLoad">
+            <property name="text">
+             <string>Calc Load</string>
             </property>
            </widget>
           </item>
@@ -127,10 +134,23 @@
             </property>
            </widget>
           </item>
-          <item row="2" column="1">
-           <widget class="QPushButton" name="buttonCalcLoad">
+          <item row="3" column="0">
+           <widget class="QRadioButton" name="buttonNewtons">
             <property name="text">
-             <string>Calc Load</string>
+             <string>Newtons</string>
+            </property>
+            <property name="checked">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QRadioButton" name="buttonGrams">
+            <property name="text">
+             <string>Grams</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
             </property>
            </widget>
           </item>
@@ -655,13 +675,6 @@
           <widget class="QLineEdit" name="factorSampleName">
            <property name="text">
             <string>Sample</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QPushButton" name="buttonCreateSample">
-           <property name="text">
-            <string>Create sample</string>
            </property>
           </widget>
          </item>

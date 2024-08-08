@@ -1,5 +1,6 @@
 {
     "name": "3ms_fab3",
+    "unit": "newton",
     "thickness": 0.18,
     "length1": 8.0,
     "length2": 8.0,
