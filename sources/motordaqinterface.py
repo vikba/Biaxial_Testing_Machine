@@ -17,8 +17,10 @@ from .unit import Unit
 class MotorDAQInterface (QThread):
     '''
     General class to communicate with DAQ and motors equipment
+    
     '''
    
+    _units = None
     
     def __init__(self, unit):
         super().__init__()
@@ -45,9 +47,13 @@ class MotorDAQInterface (QThread):
         self._buffer2 = collections.deque(maxlen=buffer_size)
 
         self._units = unit
+        print(f"_units: {self._units}")
 
     def is_initialized(self):
         return self._mot_init and self._daq_init
+    
+    def change_units(self, unit):
+        self._units = unit
    
     
     def __initMorors(self):
@@ -184,8 +190,10 @@ class MotorDAQInterface (QThread):
         self._buffer1.append(force1)
         self._buffer2.append(force2)
 
-        force1 = mean(list(self._buffer1)[-10:])
-        force2 = mean(list(self._buffer2)[-10:])
+        n = 3
+
+        force1 = mean(list(self._buffer1)[-n:])
+        force2 = mean(list(self._buffer2)[-n:])
 
         '''if len(self._buffer1) > 18:
             self._filtered_data1 = self.lowpass_filter(list(self._buffer1), 1, 5, 5)
@@ -262,10 +270,10 @@ class MotorDAQInterface (QThread):
         Returns:
             Tuple containing the converted values for val1 and val2.
         """
-        k1_1 = 1.43
+        k1_1 = 1.38
 
-        z1 = 0 #0.0002
-        z2 = 0 #0.0024
+        z1 = 0.0002
+        z2 = 0.0024
         
         k1 = k1_1*250/(0.7978 - z1) #coefficients according to calibration certificate
         k2 = 250/(0.8317 - z2)

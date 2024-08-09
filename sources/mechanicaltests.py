@@ -30,7 +30,7 @@ class MechanicalTest (QThread):
     signal_test_finished = pyqtSignal()
     
     
-    _sample_time = 200  #milli seconds
+    _sample_time = 150  #milli seconds
    
     
     def __init__(self, mot_daq):
@@ -545,7 +545,7 @@ class DisplacementControlTest(MechanicalTest):
     def _one_cycle(self):
 
         #Condition to finish the test: positive number of steps left
-        if self._current_time < 400 and self._execute and self._half_cycle > 0:
+        if self._current_time < 1000 and self._execute and self._half_cycle > 0:
 
             #Update variables
             self._pos1, self._pos2 = self._mot_daq.get_positions()
@@ -735,7 +735,7 @@ class LoadControlTest(MechanicalTest):
     def __one_cycle_labview_alg(self):
 
         #Condition to finish the test: positive number of steps left
-        if self._current_time < 400 and self._execute and self._half_cycle > 0:
+        if self._current_time < 1000 and self._execute and self._half_cycle > 0:
 
             # Read current forces, positions, time and record them
             self._current_time = round(time.perf_counter() - self._start_time, 5)

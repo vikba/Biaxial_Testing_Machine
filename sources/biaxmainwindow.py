@@ -56,6 +56,12 @@ class BiaxMainWindow(QMainWindow):
         loadUi(ui_file_path, self)
 
         #loadUi("biax_ui.ui",self)
+
+        self.__init_variables()
+
+        self._load_test_config()
+
+        self.__change_units()
         
         
         # Initialization of GUI elements
@@ -83,6 +89,8 @@ class BiaxMainWindow(QMainWindow):
         self.buttonMoveCentAx2.released.connect(self.__stop_movement)
         self.buttonMoveBackAx1.released.connect(self.__stop_movement)
         self.buttonMoveBackAx2.released.connect(self.__stop_movement)
+
+        self.buttonGrams.toggled.connect(self.__change_units)
         
         self.upperLabel_1.setStyleSheet("color: black; font-size: 14px;")
         self.upperLabel_2.setStyleSheet("color: black; font-size: 14px;")
@@ -117,7 +125,10 @@ class BiaxMainWindow(QMainWindow):
         font.setPointSize(15)
         self.ChartWidget_1.getAxis('left').setTickFont(font)
         self.ChartWidget_1.getAxis('bottom').setTickFont(font)
-        self.ChartWidget_1.setLabel('left', 'Load, N', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
+        if self._units == Unit.Newton:
+            self.ChartWidget_1.setLabel('left', 'Load, N', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
+        else:
+            self.ChartWidget_1.setLabel('left', 'Load, g', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
         self.ChartWidget_1.setLabel('bottom', 'Time, s', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
 
         self.ChartWidget_2.setBackground('w')  # Set background to white
@@ -147,14 +158,7 @@ class BiaxMainWindow(QMainWindow):
         self._ringbuffer1 = RingBuffer(100) #Ring buffer for live force display of channel1
         self._ringbuffer2 = RingBuffer(100) #Ring buffer for live force display of channel2
 
-        self.__init_variables()
-
-        self._load_test_config()
-
-        if self.buttonGrams.isChecked():
-            self._units = Unit.Gram
-        else:
-            self._units = Unit.Newton
+        
 
 
     def _load_test_config(self):
@@ -173,11 +177,11 @@ class BiaxMainWindow(QMainWindow):
         unit = self._config_test.get("unit")
         if unit == "gram":
             self._units = Unit.Gram
-            self.buttonGrams.setChecked()
+            self.buttonGrams.setChecked(True)
 
         else:
             self._units = Unit.Newton
-            self.buttonNewtons.setChecked()
+            self.buttonNewtons.setChecked(True)
 
         self.factorSampleName.setText(self._config_test.get("name"))
         self.factorTareLoad1.setText(self._config_test.get("tareload1"))
@@ -504,7 +508,7 @@ class BiaxMainWindow(QMainWindow):
             warning_box.setWindowTitle("Warning")
             warning_box.setText(e.__str__())
             warning_box.exec()
-            #delattr(self, '_mec_test')
+            print("Error")
         else:
             self._liveforce_timer = QTimer(self)
             self._liveforce_timer.timeout.connect(self.__updateLabelForce)
@@ -806,13 +810,13 @@ class BiaxMainWindow(QMainWindow):
 
     def __updateLabelForce(self):
         if self._mot_daq is not None:
-            force1, force2 = self._mot_daq.get_forces()
+            force1, force2 = self._mot_daq.get_av_forces()
 
             #update label with current forces
             self.upperLabel_1.setStyleSheet("color: black; font-size: 14px;")
-            self.upperLabel_1.setText("Force 1: {}".format(force1))
+            self.upperLabel_1.setText("Force 1: {}".format(round(force1,4)))
             self.upperLabel_2.setStyleSheet("color: black; font-size: 14px;")
-            self.upperLabel_2.setText("Force 2: {}".format(force2))
+            self.upperLabel_2.setText("Force 2: {}".format(round(force2,4)))
 
             #add forces to the ring buffer
             self._ringbuffer1.append(force1)
@@ -833,6 +837,28 @@ class BiaxMainWindow(QMainWindow):
             
         if hasattr(self, '_mec_test'):
             self._mec_test.changeFolder(self._work_folder)
+
+    def __change_units(self):
+        if self.buttonGrams.isChecked():
+            self._units = Unit.Gram
+            self.label_14.setText("g")
+            self.label_17.setText("g")
+            self.label_18.setText("g")
+            self.label_26.setText("g")
+            self.label_29.setText("g")
+            self.label_32.setText("g")
+        else:
+            self._units = Unit.Newton
+            self.label_14.setText("N")
+            self.label_17.setText("N")
+            self.label_18.setText("N")
+            self.label_26.setText("N")
+            self.label_29.setText("N")
+            self.label_32.setText("N")
+
+        #Update the units in a class responsible for communicaiton with DAQ
+        if hasattr(self, '_mot_daq'):
+            self._mot_daq.change_units(self._units)
 
 if __name__ == '__main__':
     #start of the application
