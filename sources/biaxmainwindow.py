@@ -59,6 +59,9 @@ class BiaxMainWindow(QMainWindow):
 
         self.__init_variables()
 
+        self._ringbuffer1 = RingBuffer(100) #Ring buffer for live force display of channel1
+        self._ringbuffer2 = RingBuffer(100) #Ring buffer for live force display of channel2
+
         self._load_test_config()
 
         self.__change_units()
@@ -155,8 +158,7 @@ class BiaxMainWindow(QMainWindow):
         self.ChartWidget_3.setLabel('left', 'Stress, MPa', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
         self.ChartWidget_3.setLabel('bottom', 'Strain, %', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
         
-        self._ringbuffer1 = RingBuffer(100) #Ring buffer for live force display of channel1
-        self._ringbuffer2 = RingBuffer(100) #Ring buffer for live force display of channel2
+        
 
         
 
@@ -812,11 +814,18 @@ class BiaxMainWindow(QMainWindow):
         if self._mot_daq is not None:
             force1, force2 = self._mot_daq.get_av_forces()
 
-            #update label with current forces
-            self.upperLabel_1.setStyleSheet("color: black; font-size: 14px;")
-            self.upperLabel_1.setText("Force 1: {}".format(round(force1,4)))
-            self.upperLabel_2.setStyleSheet("color: black; font-size: 14px;")
-            self.upperLabel_2.setText("Force 2: {}".format(round(force2,4)))
+            if Unit.Gram == self._units:
+                #update label with current forces
+                self.upperLabel_1.setStyleSheet("color: black; font-size: 14px;")
+                self.upperLabel_1.setText("Force 1: {} g".format(round(force1,2)))
+                self.upperLabel_2.setStyleSheet("color: black; font-size: 14px;")
+                self.upperLabel_2.setText("Force 2: {} g".format(round(force2,2)))
+            else:
+                #update label with current forces
+                self.upperLabel_1.setStyleSheet("color: black; font-size: 14px;")
+                self.upperLabel_1.setText("Force 1: {} N".format(round(force1,4)))
+                self.upperLabel_2.setStyleSheet("color: black; font-size: 14px;")
+                self.upperLabel_2.setText("Force 2: {} N".format(round(force2,4)))
 
             #add forces to the ring buffer
             self._ringbuffer1.append(force1)
@@ -847,6 +856,8 @@ class BiaxMainWindow(QMainWindow):
             self.label_26.setText("g")
             self.label_29.setText("g")
             self.label_32.setText("g")
+            self._ringbuffer1.reset()
+            self._ringbuffer2.reset()
         else:
             self._units = Unit.Newton
             self.label_14.setText("N")
@@ -855,6 +866,8 @@ class BiaxMainWindow(QMainWindow):
             self.label_26.setText("N")
             self.label_29.setText("N")
             self.label_32.setText("N")
+            self._ringbuffer1.reset()
+            self._ringbuffer2.reset()
 
         #Update the units in a class responsible for communicaiton with DAQ
         if hasattr(self, '_mot_daq'):

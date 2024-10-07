@@ -1,5 +1,5 @@
 {
-    "name": "3ms_fab1_2",
+    "name": "5g",
     "unit": "gram",
     "thickness": 0.195,
     "length1": 10,
@@ -17,9 +17,9 @@
     "halfcycltime": "15",
     "cycleprecond": "7",
     "cycletest": "7",
-    "disptestspeed1": "15",
-    "disptestspeed2": "15",
-    "disptestlen1": "4",
-    "disptestlen2": "4",
-    "disptestcycle": "3"
+    "disptestspeed1": "1",
+    "disptestspeed2": "1",
+    "disptestlen1": "2",
+    "disptestlen2": "2",
+    "disptestcycle": "1"
 }

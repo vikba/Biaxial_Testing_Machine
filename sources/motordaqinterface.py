@@ -25,9 +25,6 @@ class MotorDAQInterface (QThread):
     def __init__(self, unit):
         super().__init__()
 
-        self.__initMorors()
-        self.__initDAQ()
-        
         self._force1 = self._force2 = 0
         self._force1_0 = self._force2_0 = 0
         self._pos1_0 = self._pos2_0 = 0
@@ -48,6 +45,9 @@ class MotorDAQInterface (QThread):
 
         self._units = unit
         print(f"_units: {self._units}")
+
+        self.__initMorors()
+        self.__initDAQ()
 
     def is_initialized(self):
         return self._mot_init and self._daq_init
@@ -152,28 +152,22 @@ class MotorDAQInterface (QThread):
       
             # Process the value
         
-            value1 = round(value[-100:-1,1].mean(),5) #mean last 100 values of the buffer
-            value2 = round(value[-100:-1,2].mean(), 5)
-            #print('')
-            #print("val1 {}".format(value1))
-            #print("val2 {}".format(value1))
+            value1 = round(value[-100:-1,1].mean(),5) # mean last 100 values of the buffer
+            value2 = round(value[-100:-1,2].mean(), 5) # in mV/V
             
         except: # StopIteration:
             # Handle the case when there are no more items in the generator
             print("Empty buffer")
             return None, None
             #raise Exception('Empty buffer')
-            
-        if self._units == Unit.Newton:
-            return self.__to_newtons(value1, value2)
         else:
-            return self.__to_grams(value1, value2)
+            self._buffer1.append(value1)
+            self._buffer2.append(value2)
+            
+        return value1, value2
             
     def get_forces (self):
         force1, force2 = self._read_force()
-
-        self._buffer1.append(force1)
-        self._buffer2.append(force2)
 
         '''if len(self._buffer1) > 18:
             self._filtered_data1 = self.lowpass_filter(list(self._buffer1), 1, 5, 5)
@@ -182,13 +176,10 @@ class MotorDAQInterface (QThread):
             force1 = self._filtered_data1[-3]
             force2 = self._filtered_data2[-3]'''
 
-        return force1 - self._force1_0, force2 - self._force2_0
+        return self.__convert_mVV(force1 - self._force1_0, force2 - self._force2_0)
     
     def get_av_forces (self):
         force1, force2 = self._read_force()
-
-        self._buffer1.append(force1)
-        self._buffer2.append(force2)
 
         n = 3
 
@@ -202,7 +193,7 @@ class MotorDAQInterface (QThread):
             force1 = self._filtered_data1[-3]
             force2 = self._filtered_data2[-3]'''
 
-        return round(force1 - self._force1_0, 5), round(force2 - self._force2_0, 5)
+        return self.__convert_mVV(force1 - self._force1_0, force2 - self._force2_0)
     
     def get_positions(self):
 
@@ -235,12 +226,12 @@ class MotorDAQInterface (QThread):
         self._force2_0 = self._ringbuffer2.get_buffer().mean()'''
 
 
-        self._force1_0 = mean(list(self._buffer1)[-10:])
+        self._force1_0 = mean(list(self._buffer1)[-10:]) #in mV/V
         self._force2_0 = mean(list(self._buffer2)[-10:])
 
 
-        print("Init force 1: {}".format(self._force1_0))
-        print("Init force 2: {}".format(self._force2_0))
+        force1_0, force2_0 = self.__convert_mVV(self._force1_0, self._force2_0)
+        print("Init force 1: {}, force 2: {}".format(force1_0, force2_0))
 
         self._mot_init = True
         
@@ -259,6 +250,16 @@ class MotorDAQInterface (QThread):
         self._daq_init = True
         
       
+    def __convert_mVV(self, val1, val2):
+        """
+        convert mV/V into N or g according to the selected unit
+        """
+
+        if self._units == Unit.Newton:
+            return self.__to_newtons(val1, val2)
+        else:
+            return self.__to_grams(val1, val2)
+    
     def __to_newtons(self, val1, val2):
         """
         Convert the given values to Newtons using the provided coefficients.
@@ -270,12 +271,11 @@ class MotorDAQInterface (QThread):
         Returns:
             Tuple containing the converted values for val1 and val2.
         """
-        k1_1 = 1.38
 
-        z1 = 0.0002
+        z1 = -0.0006
         z2 = 0.0024
         
-        k1 = k1_1*250/(0.7978 - z1) #coefficients according to calibration certificate
+        k1 = 250/(0.7999 - z1) #coefficients according to calibration certificate
         k2 = 250/(0.8317 - z2)
         
         return round(k1*val1, 5), round(k2*val2, 5)
@@ -286,7 +286,7 @@ class MotorDAQInterface (QThread):
 
         g = 9.81 #m/s2
         
-        return round(force1*1000/g, 5), round(force2*1000/g, 5)
+        return round(force1*1000/g, 3), round(force2*1000/g, 3)
 
 
             
