@@ -4,7 +4,6 @@
 #Load/save configuration to a file
 #Reset video classes after the test
 #Freeze the application
-#add ring buffer to mot_daq and fft?
 #Record only last points in videothread
 #Name of the sample creates a workfolder
 #Write cycles in different files
@@ -12,11 +11,9 @@
 #Compare formulas with matlab
 #Save config in the same folder as sample
 #Nan afer load control
-#problem with double sample name in folder
 #add reset after preconditioning to videothread
 #be sure that data are not lost
-#add last folder to conf file
-#BLock control panel during test _fl_executing
+
 
 
 from PyQt6.QtWidgets import QApplication

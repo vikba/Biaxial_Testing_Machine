@@ -163,12 +163,10 @@ class BiaxMainWindow(QMainWindow):
             raise FileNotFoundError(f"The configuration file {config_path} does not exist.")
 
 
-        self._sam_name = self._config_test.get("name")
         unit = self._config_test.get("unit")
         if unit == "gram":
             self._units = Unit.Gram
             self.buttonGrams.setChecked(True)
-
         else:
             self._units = Unit.Newton
             self.buttonNewtons.setChecked(True)
@@ -178,7 +176,8 @@ class BiaxMainWindow(QMainWindow):
         print("Work folder: " + self._work_folder)
         self.labelFolder.setText(self._work_folder)
     
-        self.factorSampleName.setText("")
+        self._sam_name = "" #self._config_test.get("name")
+        self.factorSampleName.setText(self._sam_name)
         self.factorTareLoad1.setText(self._config_test.get("tareload1"))
         self.factorTareLoad2.setText(self._config_test.get("tareload2"))
         self.factorLoadTest1.setText(self._config_test.get("load_test1"))
@@ -389,6 +388,22 @@ class BiaxMainWindow(QMainWindow):
             self._mec_test.stop_measurement()'''
 
         try:
+
+            #workfolder is checked when button pressed
+            self._sam_name = self.factorSampleName.text()
+            #Check if folder with sample name already exist
+            #If yes ask user if he wants to add data there
+            sam_folder = os.path.join(self._workfolder, self._sam_name)
+            if os.path.exists(sam_folder):
+                reply = QMessageBox.question(self, 'Message',
+                                        f"Do you want to add data to {self._sam_name}?",
+                                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                        QMessageBox.StandardButton.No)
+
+                if reply == QMessageBox.StandardButton.No:
+                    return
+            
+
             #Load control test
             if 0 == self.tabWidget.currentIndex():
                 
@@ -401,7 +416,6 @@ class BiaxMainWindow(QMainWindow):
                 test_duration = float(self.factorTimeAx.text())
                 cycl_num_precond = int(self.factorCyclNumPrecond.text())
                 cycl_num_test = int(self.factorCyclNumTest.text())
-                self._sam_name = self.factorSampleName.text()
                 
                 if hasattr(self, '_mec_test') and isinstance(self._mec_test, LoadControlTest):
                     #If object of load control test exists just update test parameters
@@ -421,12 +435,9 @@ class BiaxMainWindow(QMainWindow):
                 # Calculate velocity
                 vel_ax1 = float(self.factorSpeedAx1.text())/120 #convert from mm/min to mm/sec and divide by 2 as one axis pulls sample from 2 sites
                 vel_ax2 = float(self.factorSpeedAx2.text())/120
-
                 length1 = float(self.factorLength1.text())/2
                 length2 = float(self.factorLength2.text())/2
-
                 cycl_num = int(self.factorCyclNumD.text())
-                self._sam_name = self.factorSampleName.text()
 
                 self._mec_test = DisplacementControlTest(self._mot_daq, self._work_folder, self._sam_name, vel_ax1, vel_ax2, length1, length2, cycl_num)
                 self.signal_stop.connect(self._mec_test.stop)
@@ -434,14 +445,6 @@ class BiaxMainWindow(QMainWindow):
                 self._mec_test.signal_precond_finished.connect(self.reset)
                 #self._mec_test.signal_test_finished.connect(self.reset)
                 
-                '''if hasattr(self, '_mec_test') and isinstance(self._mec_test, DisplacementControlTest):
-                    #If object of displacement control test exists just update test parameters
-                    self._mec_test.update_parameters(self._vel_ax1, self._vel_ax2, self._length1, self._length2, self.cycl_num)
-                    
-                else:
-                    #Close old object to prevent issues in connection with devices
-                    self._mec_test = DisplacementControlTest(self._mot_daq, self._work_folder, self._vel_ax1, self._vel_ax2, self._length1, self._length2, self.cycl_num)
-                    self._mec_test.signal_update_charts.connect(self.__update_charts)'''
                 
                 # Update UI labels
                 self.upperLabel_1.setText("Warning!")
