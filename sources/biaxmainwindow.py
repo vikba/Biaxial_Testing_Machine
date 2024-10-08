@@ -103,16 +103,6 @@ class BiaxMainWindow(QMainWindow):
         
         self.upperLabel_1.setStyleSheet("color: black; font-size: 14px;")
         self.upperLabel_2.setStyleSheet("color: black; font-size: 14px;")
-        
-
-        
-        
-        #init matplotlib widgets to display charts
-        #self.MplWidget_1.canvas.axes.set_ylabel('Load, N')
-        #self.MplWidget_1.canvas.axes.set_xlabel('Time, s')
-        #self.MplWidget_2.canvas.axes.set_ylabel('Load, N')
-        #self.MplWidget_2.canvas.axes.set_xlabel('Displacement, mm')
-
 
         #Configure charts
         self.ChartWidget_1.setBackground('w')  # Set background to white
@@ -188,7 +178,7 @@ class BiaxMainWindow(QMainWindow):
         print("Work folder: " + self._work_folder)
         self.labelFolder.setText(self._work_folder)
     
-        self.factorSampleName.setText(self._config_test.get("name"))
+        self.factorSampleName.setText("")
         self.factorTareLoad1.setText(self._config_test.get("tareload1"))
         self.factorTareLoad2.setText(self._config_test.get("tareload2"))
         self.factorLoadTest1.setText(self._config_test.get("load_test1"))
@@ -531,8 +521,6 @@ class BiaxMainWindow(QMainWindow):
             warning_box.exec()
 
     def __stop_test(self):
-        
-        
         if hasattr(self, '_mot_daq'):
             self._mot_daq.stop_motors()
         else:
@@ -735,10 +723,16 @@ class BiaxMainWindow(QMainWindow):
         self._t.append(array[0])
         self._load1.append(array[1]) 
         self._load2.append(array[2])
-        self._stress1.append(array[1]/self._area1)  #MPa
-        self._stress2.append(array[2]/self._area1)
         self._disp1.append(array[3]) 
         self._disp2.append(array[4]) 
+
+        #Stress calculation depends on force units used
+        if Unit.Newton == self._units:
+            self._stress1.append(array[1]/self._area1)  #MPa
+            self._stress2.append(array[2]/self._area2)   
+        else:
+            self._stress1.append(array[1]*0.0098/self._area1)  #MPa
+            self._stress2.append(array[2]*0.0098/self._area2)  #MPa
 
         if 9 == len(array):
             self._E11.append(array[5]) 
