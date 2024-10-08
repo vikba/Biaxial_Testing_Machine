@@ -235,28 +235,28 @@
      </widget>
     </item>
     <item row="0" column="1">
-     <widget class="QSpinBox" name="factorStress1">
-      <property name="maximum">
-       <number>1500</number>
+     <widget class="QDoubleSpinBox" name="factorStress1">
+      <property name="decimals">
+       <number>0</number>
       </property>
-      <property name="singleStep">
-       <number>50</number>
+      <property name="maximum">
+       <double>10000.000000000000000</double>
       </property>
       <property name="value">
-       <number>700</number>
+       <double>700.000000000000000</double>
       </property>
      </widget>
     </item>
     <item row="1" column="1">
-     <widget class="QSpinBox" name="factorStress2">
-      <property name="maximum">
-       <number>1500</number>
+     <widget class="QDoubleSpinBox" name="factorStress2">
+      <property name="decimals">
+       <number>0</number>
       </property>
-      <property name="singleStep">
-       <number>50</number>
+      <property name="maximum">
+       <double>10000.000000000000000</double>
       </property>
       <property name="value">
-       <number>700</number>
+       <double>700.000000000000000</double>
       </property>
      </widget>
     </item>

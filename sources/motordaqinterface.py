@@ -178,10 +178,8 @@ class MotorDAQInterface (QThread):
 
         return self.__convert_mVV(force1 - self._force1_0, force2 - self._force2_0)
     
-    def get_av_forces (self):
+    def get_av_forces (self, n = 3):
         force1, force2 = self._read_force()
-
-        n = 3
 
         force1 = mean(list(self._buffer1)[-n:])
         force2 = mean(list(self._buffer2)[-n:])
@@ -371,10 +369,8 @@ class MotorDAQInterface (QThread):
     
         
     def __autoload_step(self):
-        self._force1, self._force2 = self.get_forces()
 
-        force_mean1 = mean(list(self._buffer1)[-10:]) - self._force1_0
-        force_mean2 = mean(list(self._buffer2)[-10:]) - self._force2_0
+        force_mean1, force_mean2 = self.get_av_forces(10)
         
         if self.step == 1:
             if force_mean1 < self._load1 / 2 or force_mean2 < self._load2 / 2:

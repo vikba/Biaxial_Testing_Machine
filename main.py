@@ -16,6 +16,7 @@
 #add reset after preconditioning to videothread
 #be sure that data are not lost
 #add last folder to conf file
+#BLock control panel during test _fl_executing
 
 
 from PyQt6.QtWidgets import QApplication

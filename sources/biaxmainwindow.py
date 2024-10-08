@@ -44,7 +44,9 @@ class BiaxMainWindow(QMainWindow):
         
         QMainWindow.__init__(self)
 
-        self._sample_initialized = False
+        #Flags
+        self._fl_sample_initialized = False
+        self._fl_executing = False
 
         # Get the directory of the current script
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -61,6 +63,10 @@ class BiaxMainWindow(QMainWindow):
 
         self._ringbuffer1 = RingBuffer(100) #Ring buffer for live force display of channel1
         self._ringbuffer2 = RingBuffer(100) #Ring buffer for live force display of channel2
+
+        # Construct the path to the desktop folder
+        home_dir = os.path.expanduser('~')
+        self._work_folder = os.path.join(home_dir, 'Desktop', 'Biax_Tests')
 
         self._load_test_config()
 
@@ -98,16 +104,8 @@ class BiaxMainWindow(QMainWindow):
         self.upperLabel_1.setStyleSheet("color: black; font-size: 14px;")
         self.upperLabel_2.setStyleSheet("color: black; font-size: 14px;")
         
-        # Get the path of the parent directory (project_directory)
-        parent_directory = os.path.dirname(script_dir)
 
-        home_dir = os.path.expanduser('~')
-
-        # Construct the path to the desktop folder
-        self._work_folder = os.path.join(home_dir, 'Desktop', 'Biax_Tests')
-
-        print("Work folder: " + self._work_folder)
-        self.labelFolder.setText(self._work_folder)
+        
         
         #init matplotlib widgets to display charts
         #self.MplWidget_1.canvas.axes.set_ylabel('Load, N')
@@ -185,11 +183,14 @@ class BiaxMainWindow(QMainWindow):
             self._units = Unit.Newton
             self.buttonNewtons.setChecked(True)
 
+        
+        self._work_folder = self._config_test.get("folder")
+        print("Work folder: " + self._work_folder)
+        self.labelFolder.setText(self._work_folder)
+    
         self.factorSampleName.setText(self._config_test.get("name"))
         self.factorTareLoad1.setText(self._config_test.get("tareload1"))
         self.factorTareLoad2.setText(self._config_test.get("tareload2"))
-        self.factorLoadPrecond1.setText(self._config_test.get("load_precond1"))
-        self.factorLoadPrecond2.setText(self._config_test.get("load_precond2"))
         self.factorLoadTest1.setText(self._config_test.get("load_test1"))
         self.factorLoadTest2.setText(self._config_test.get("load_test2"))
         self.factorDispGuess1.setText(self._config_test.get("disp_guess1"))
@@ -225,8 +226,6 @@ class BiaxMainWindow(QMainWindow):
         self._config_test["name"] = self.factorSampleName.text()
         self._config_test["tareload1"] = self.factorTareLoad1.text()
         self._config_test["tareload2"] = self.factorTareLoad2.text()
-        self._config_test["load_precond1"] = self.factorLoadPrecond1.text()
-        self._config_test["load_precond2"] = self.factorLoadPrecond2.text()
         self._config_test["load_test1"] = self.factorLoadTest1.text()
         self._config_test["load_test2"] = self.factorLoadTest2.text()
         self._config_test["disp_guess1"] = self.factorDispGuess1.text()
@@ -247,6 +246,7 @@ class BiaxMainWindow(QMainWindow):
         self._config_test["length2"] = self._len2
         self._config_test["maxstress1"] = self._max_stress1
         self._config_test["maxstress2"] = self._max_stress2
+        self._config_test["folder"] = self._work_folder
 
         
         #Save into program folder
@@ -331,6 +331,7 @@ class BiaxMainWindow(QMainWindow):
         #Reset all the variables
         self.__init_variables()
         self._save_test_config()
+        self.block_gui()
 
         #Motors and DAQ should be initialized
         if not hasattr(self, '_mot_daq') or not self._mot_daq.is_initialized():
@@ -341,7 +342,7 @@ class BiaxMainWindow(QMainWindow):
             warning_box.exec()
             return
         
-        '''if not self._sample_initialized:
+        '''if not self._fl_sample_initialized:
             warning_box = QMessageBox()
             warning_box.setIcon(QMessageBox.Icon.Warning)
             warning_box.setWindowTitle("Warning")
@@ -375,6 +376,7 @@ class BiaxMainWindow(QMainWindow):
             self.upperLabel_1.setText("Warning!")
             self.upperLabel_2.setText("Displacement control test")
 
+        self._fl_executing = True
         self._mec_test.start()
 
 
@@ -549,8 +551,10 @@ class BiaxMainWindow(QMainWindow):
         if hasattr(self, '_liveforce_timer'):
             self._liveforce_timer.start(200)
 
+        self._fl_executing = False
         self._ringbuffer1.reset()
         self._ringbuffer2.reset()
+        self.unblock_gui()
             
         
             
@@ -673,7 +677,7 @@ class BiaxMainWindow(QMainWindow):
             
     def __calculate_loads (self):
 
-        self._sample_initialized = True
+        self._fl_sample_initialized = True
         self._calc_loads_window = LoadCalculatorWindow(self._thickness, self._len1, self._len2, self._max_stress1, self._max_stress2)
         self._calc_loads_window.signal_loads_calculated.connect(self.__set_sample_params)
 
@@ -845,33 +849,90 @@ class BiaxMainWindow(QMainWindow):
             self.labelFolder.setText(self._work_folder)
             
         if hasattr(self, '_mec_test'):
-            self._mec_test.changeFolder(self._work_folder)
+            self._mec_test.changeFolder(self._work_folder, self.factorSampleName.text())
 
     def __change_units(self):
+            
+
         if self.buttonGrams.isChecked():
             self._units = Unit.Gram
-            self.label_14.setText("g")
+            self.ChartWidget_1.setLabel('left', 'Load, g', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
             self.label_17.setText("g")
             self.label_18.setText("g")
             self.label_26.setText("g")
             self.label_29.setText("g")
-            self.label_32.setText("g")
             self._ringbuffer1.reset()
             self._ringbuffer2.reset()
         else:
             self._units = Unit.Newton
-            self.label_14.setText("N")
+            self.ChartWidget_1.setLabel('left', 'Load, N', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
             self.label_17.setText("N")
             self.label_18.setText("N")
             self.label_26.setText("N")
             self.label_29.setText("N")
-            self.label_32.setText("N")
             self._ringbuffer1.reset()
             self._ringbuffer2.reset()
 
         #Update the units in a class responsible for communicaiton with DAQ
         if hasattr(self, '_mot_daq'):
             self._mot_daq.change_units(self._units)
+
+
+    def block_gui(self):
+        self.buttonNewtons.setDisabled(True)
+        self.buttonGrams.setDisabled(True)
+        self.factorTareLoad1.setDisabled(True)
+        self.factorTareLoad2.setDisabled(True)
+        self.factorLoadTest1.setDisabled(True)
+        self.factorLoadTest2.setDisabled(True)
+        self.factorDispGuess1.setDisabled(True)
+        self.factorDispGuess2.setDisabled(True)
+        self.factorTimeAx.setDisabled(True)
+        self.factorCyclNumPrecond.setDisabled(True)
+        self.factorCyclNumTest.setDisabled(True)
+        self.factorSampleName.setDisabled(True)
+        self.buttonFolder.setDisabled(True)
+        self.buttonZeroPosition.setDisabled(True)
+        self.buttonZeroForce.setDisabled(True)
+        self.buttonSampleP.setDisabled(True)
+        self.buttonInitMot.setDisabled(True)
+        self.buttonMoveCentAx1.setDisabled(True)
+        self.buttonMoveCentAx2.setDisabled(True)
+        self.buttonMoveBackAx1.setDisabled(True)
+        self.buttonMoveBackAx2.setDisabled(True)
+        self.buttonAutoload.setDisabled(True)
+        self.buttonCalcLoad.setDisabled(True)
+        self.buttonConnect.setDisabled(True)
+        self.buttonCamera.setDisabled(True)
+
+    def unblock_gui(self):
+        self.buttonNewtons.setDisabled(False)
+        self.buttonGrams.setDisabled(False)
+        self.factorTareLoad1.setDisabled(False)
+        self.factorTareLoad2.setDisabled(False)
+        self.factorLoadTest1.setDisabled(False)
+        self.factorLoadTest2.setDisabled(False)
+        self.factorDispGuess1.setDisabled(False)
+        self.factorDispGuess2.setDisabled(False)
+        self.factorTimeAx.setDisabled(False)
+        self.factorCyclNumPrecond.setDisabled(False)
+        self.factorCyclNumTest.setDisabled(False)
+        self.factorSampleName.setDisabled(False)
+        self.buttonFolder.setDisabled(False)
+        self.buttonZeroPosition.setDisabled(False)
+        self.buttonZeroForce.setDisabled(False)
+        self.buttonSampleP.setDisabled(False)
+        self.buttonInitMot.setDisabled(False)
+        self.buttonMoveCentAx1.setDisabled(False)
+        self.buttonMoveCentAx2.setDisabled(False)
+        self.buttonMoveBackAx1.setDisabled(False)
+        self.buttonMoveBackAx2.setDisabled(False)
+        self.buttonAutoload.setDisabled(False)
+        self.buttonCalcLoad.setDisabled(False)
+        self.buttonConnect.setDisabled(False)
+        self.buttonCamera.setDisabled(False)
+
+
 
 if __name__ == '__main__':
     #start of the application
