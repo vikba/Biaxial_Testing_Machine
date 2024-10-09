@@ -1,9 +1,9 @@
 {
-    "name": "testtt",
+    "name": "3ms_fab3",
     "unit": "gram",
     "thickness": 0.2,
-    "length1": 9.0,
-    "length2": 9.0,
+    "length1": 8.0,
+    "length2": 8.0,
     "maxstress1": 700.0,
     "maxstress2": 700.0,
     "tareload1": "2",
@@ -22,5 +22,5 @@
     "disptestlen1": "2",
     "disptestlen2": "2",
     "disptestcycle": "1",
-    "folder": "C:/Users/vbalashov/Desktop/valves_biomitral"
+    "folder": "C:/Users/vbalashov/Desktop/Biax_Validation"
 }

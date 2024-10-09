@@ -61,8 +61,8 @@ class BiaxMainWindow(QMainWindow):
 
         self.__init_variables()
 
-        self._ringbuffer1 = RingBuffer(100) #Ring buffer for live force display of channel1
-        self._ringbuffer2 = RingBuffer(100) #Ring buffer for live force display of channel2
+        self._ringbuffer1 = RingBuffer(200) #Ring buffer for live force display of channel1
+        self._ringbuffer2 = RingBuffer(200) #Ring buffer for live force display of channel2
 
         # Construct the path to the desktop folder
         home_dir = os.path.expanduser('~')
@@ -393,7 +393,7 @@ class BiaxMainWindow(QMainWindow):
             self._sam_name = self.factorSampleName.text()
             #Check if folder with sample name already exist
             #If yes ask user if he wants to add data there
-            sam_folder = os.path.join(self._workfolder, self._sam_name)
+            sam_folder = os.path.join(self._work_folder, self._sam_name)
             if os.path.exists(sam_folder):
                 reply = QMessageBox.question(self, 'Message',
                                         f"Do you want to add data to {self._sam_name}?",
@@ -509,7 +509,7 @@ class BiaxMainWindow(QMainWindow):
         else:
             self._liveforce_timer = QTimer(self)
             self._liveforce_timer.timeout.connect(self.__updateLabelForce)
-            self._liveforce_timer.start(200)
+            self._liveforce_timer.start(20)
 
     def __stop_movement(self):
         
@@ -731,11 +731,11 @@ class BiaxMainWindow(QMainWindow):
 
         #Stress calculation depends on force units used
         if Unit.Newton == self._units:
-            self._stress1.append(array[1]/self._area1)  #MPa
-            self._stress2.append(array[2]/self._area2)   
+            self._stress1.append(array[1]*1000/self._area1)  #kPa
+            self._stress2.append(array[2]*1000/self._area2)   
         else:
-            self._stress1.append(array[1]*0.0098/self._area1)  #MPa
-            self._stress2.append(array[2]*0.0098/self._area2)  #MPa
+            self._stress1.append(array[1]*9.8/self._area1)  #kPa
+            self._stress2.append(array[2]*9.8/self._area2)  #kPa
 
         if 9 == len(array):
             self._E11.append(array[5]) 

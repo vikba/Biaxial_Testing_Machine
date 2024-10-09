@@ -179,7 +179,7 @@ class MotorDAQInterface (QThread):
         return self.__convert_mVV(force1 - self._force1_0, force2 - self._force2_0)
     
     def get_av_forces (self, n = 3):
-        force1, force2 = self._read_force()
+        force1, force2 = self._read_force() #to take into account last value of a force
 
         force1 = mean(list(self._buffer1)[-n:])
         force2 = mean(list(self._buffer2)[-n:])
@@ -242,10 +242,28 @@ class MotorDAQInterface (QThread):
         self._pos1_0 = self._axis1.get_position(Units.LENGTH_MILLIMETRES)
         self._pos2_0 = self._axis2.get_position(Units.LENGTH_MILLIMETRES)
         
-        print("Init pos 1: {}".format(self._pos1_0))
-        print("Init pos 2: {}".format(self._pos2_0))
+        print("Init pos 1: {}, pos2: {}".format(self._pos1_0, self._pos2_0))
 
         self._daq_init = True
+
+    def zero_pos1(self):
+        """
+        record initial position of the motor 1
+        """
+        #record initial position of the motors
+        self._pos1_0 = self._axis1.get_position(Units.LENGTH_MILLIMETRES)
+        
+        print("Init pos 1: {}".format(self._pos1_0))
+
+    def zero_pos2(self):
+        """
+        record initial position of the motor 1
+        """
+        #record initial position of the motors
+        self._pos2_0 = self._axis2.get_position(Units.LENGTH_MILLIMETRES)
+        
+        print("Init pos 2: {}".format(self._pos2_0))
+
         
       
     def __convert_mVV(self, val1, val2):

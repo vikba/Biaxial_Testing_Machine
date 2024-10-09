@@ -201,12 +201,12 @@ class MechanicalTest (QThread):
 
         #Append common variables for all tests
         
-        roundDecimals = 5
+        roundDecimals = 3
         #Add them to current variables
         self._time_abs.append(round(self._current_time, roundDecimals))
         self._time_rel.append(round(self._current_cycle_time, roundDecimals))
-        self._load1.append(round(self._force1, roundDecimals)) #force channel 1
-        self._load2.append(round(self._force2, roundDecimals))
+        self._load1.append(self._force1) #force channel 1
+        self._load2.append(self._force2)
         self._disp1.append(round(-2*self._pos1, roundDecimals)) #Movement of sample is twice as holder
         self._disp2.append(round(-2*self._pos2, roundDecimals))
         self._vel_1.append(self._vel_ax1)
@@ -314,15 +314,16 @@ class MechanicalTest (QThread):
             E22 = (lambda2*lambda2 - 1)/2'''
 
             
+            roundDecimals = 4
+            
+            self._E11.append(round(E11,roundDecimals))
+            self._E12.append(round(E12,roundDecimals))
+            self._E22.append(round(E22,roundDecimals))
 
-            self._E11.append(E11)
-            self._E12.append(E12)
-            self._E22.append(E22)
-
-            self._F11.append(F11)
-            self._F12.append(F12)
-            self._F21.append(F21)
-            self._F22.append(F22)
+            self._F11.append(round(F11,roundDecimals))
+            self._F12.append(round(F12,roundDecimals))
+            self._F21.append(round(F21,roundDecimals))
+            self._F22.append(round(F22,roundDecimals))
 
             self.signal_update_charts.emit([self._time_abs[-1], self._load1[-1], self._load2[-1], self._disp1[-1], self._disp2[-1], self._E11[-1], self._E22[-1], self._vel_1[-1],self._vel_2[-1]])
 
@@ -710,7 +711,9 @@ class LoadControlTest(MechanicalTest):
         self._end_force1 = self._max_force1
         self._end_force2 = self._max_force2
 
+        self._mot_daq.zeroPosition()
         self._start_pos1, self._start_pos2 = self._mot_daq.get_positions()
+        
         print(f"self._start_pos1: {self._start_pos1}, self._start_pos2: {self._start_pos2}")
         self._force1,self._force2 = self._mot_daq.get_forces()
         
@@ -746,7 +749,7 @@ class LoadControlTest(MechanicalTest):
 
             #If Stretch or Relax half cycle
             if self._direction > 0 and self._force1 < self._end_force1 and self._force2 < self._end_force2 or \
-                self._direction < 0 and (self._pos1 < self._start_pos1-0.08 or self._start_pos2 < self._start_pos2-0.08):
+                self._direction < 0 and (self._pos1 < self._start_pos1-0.08 or self._pos2 < self._start_pos2-0.08):
                 #(self._force1 > self._end_force1 or self._force2 > self._end_force2):
                 
                 
@@ -755,20 +758,24 @@ class LoadControlTest(MechanicalTest):
                     #If only one of the motor reached zero load - stop it
                     if self._direction < 0 and len(self._load1) > 5 and sum(self._load1[-5:])/5 <= 0:
                         self._mot_daq.stop_motor1()
-                        self._start_pos1 = self._pos1
+                        self._mot_daq.zero_pos1()
+                        #self._start_pos1 = self._pos1
                     elif self._direction < 0 and len(self._load2) > 5 and sum(self._load2[-5:])/5 <= 0:
                         self._mot_daq.stop_motor2()
-                        self._start_pos2 = self._pos2
+                        self._mot_daq.zero_pos2()
+                        #self._start_pos2 = self._pos2
                 
                 #Stop motors at 0 force to update position before start of the main test
                 if self._half_cycle == 1:
                     #If only one of the motor reached zero load - stop it
                     if self._direction < 0 and len(self._load1) > 5 and sum(self._load1[-10:])/5 < self._end_force1:
                         self._mot_daq.stop_motor1()
-                        self._start_pos1 = self._pos1
+                        self._mot_daq.zero_pos1()
+                        #self._start_pos1 = self._pos1
                     elif self._direction < 0 and len(self._load2) > 5 and sum(self._load2[-10:])/5 < self._end_force2:
                         self._mot_daq.stop_motor2()
-                        self._start_pos2 = self._pos2
+                        self._mot_daq.zero_pos2()
+                        #self._start_pos2 = self._pos2
 
             #Half cycle finished
             else:
