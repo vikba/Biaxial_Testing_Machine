@@ -1,13 +1,13 @@
 {
-    "name": "3ms_fab3",
+    "name": "3ms_fab2",
     "unit": "gram",
     "thickness": 0.2,
     "length1": 8.0,
     "length2": 8.0,
     "maxstress1": 700.0,
     "maxstress2": 700.0,
-    "tareload1": "2",
-    "tareload2": "2",
+    "tareload1": "4",
+    "tareload2": "4",
     "load_precond1": "92",
     "load_precond2": "92",
     "load_test1": "100",
@@ -22,5 +22,5 @@
     "disptestlen1": "2",
     "disptestlen2": "2",
     "disptestcycle": "1",
-    "folder": "C:/Users/vbalashov/Desktop/Biax_Validation"
+    "folder": "C:/Users/vbalashov/Desktop/Biax_Validation/new"
 }

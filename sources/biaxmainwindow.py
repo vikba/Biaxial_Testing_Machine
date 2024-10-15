@@ -143,7 +143,7 @@ class BiaxMainWindow(QMainWindow):
         self.ChartWidget_3.getPlotItem().getViewBox().setBorder(pg.mkPen(color='k', width=1))
         self.ChartWidget_3.getAxis('left').setTickFont(font)
         self.ChartWidget_3.getAxis('bottom').setTickFont(font)
-        self.ChartWidget_3.setLabel('left', 'Stress, MPa', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
+        self.ChartWidget_3.setLabel('left', 'Stress, kPa', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
         self.ChartWidget_3.setLabel('bottom', 'Strain, %', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
         
         

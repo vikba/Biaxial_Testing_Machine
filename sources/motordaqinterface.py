@@ -271,6 +271,9 @@ class MotorDAQInterface (QThread):
         convert mV/V into N or g according to the selected unit
         """
 
+        val1 /=2
+        val2 /=2
+
         if self._units == Unit.Newton:
             return self.__to_newtons(val1, val2)
         else:
@@ -391,23 +394,23 @@ class MotorDAQInterface (QThread):
         force_mean1, force_mean2 = self.get_av_forces(10)
         
         if self.step == 1:
-            if force_mean1 < self._load1 / 2 or force_mean2 < self._load2 / 2:
-                if force_mean1 > 1.2 * self._load1 / 2:
+            if force_mean1 < self._load1 * 2 or force_mean2 < self._load2 * 2:
+                if force_mean1 > 1.2 * self._load1 * 2:
                     self._axis1.stop()
-                if force_mean2 > 1.2 * self._load2 / 2:
+                if force_mean2 > 1.2 * self._load2 * 2:
                     self._axis2.stop()
             else:
                 self.step = 2
                 print("Autoload: Half Load reached")
-                self.move_velocity_ax1(-0.2)
-                self.move_velocity_ax2(-0.2)
+                self.move_velocity_ax1(0.1)
+                self.move_velocity_ax2(0.1)
                 
         
         elif self.step == 2:
-            if force_mean1 < self._load1 or force_mean2 < self._load2:
-                if force_mean1 > 1.2 * self._load1:
+            if force_mean1 > self._load1 or force_mean2 > self._load2:
+                if force_mean1 < self._load1:
                     self._axis1.stop()
-                if force_mean2 > 1.2 * self._load2:
+                if force_mean2 < self._load2:
                     self._axis2.stop()
             else:
                 print("Autoload: The Load reached")
