@@ -152,8 +152,8 @@ class MotorDAQInterface (QThread):
       
             # Process the value
         
-            value1 = round(value[-100:-1,1].mean(),5) # mean last 100 values of the buffer
-            value2 = round(value[-100:-1,2].mean(), 5) # in mV/V
+            value1 = round(value[:,1].mean(),5) # mean last 100 values of the buffer
+            value2 = round(value[:,2].mean(), 5) # in mV/V
             
         except: # StopIteration:
             # Handle the case when there are no more items in the generator
@@ -179,6 +179,7 @@ class MotorDAQInterface (QThread):
         return self.__convert_mVV(force1 - self._force1_0, force2 - self._force2_0)
     
     def get_av_forces (self, n = 3):
+        QThread.usleep(500)
         force1, force2 = self._read_force() #to take into account last value of a force
 
         force1 = mean(list(self._buffer1)[-n:])

@@ -14,6 +14,7 @@ import os
 from openpyxl import Workbook, load_workbook
 
 from .state import State
+from .direction import Direction
 
 
 class MechanicalTest (QThread):
@@ -69,21 +70,24 @@ class MechanicalTest (QThread):
         self._time_abs = [] #time
         self._time_rel = [] #time
         self._counter = 0 #counter
-
-        self._E11 = []
-        self._E12 = []
-        self._E22 = []
-
-        self._F11 = []
-        self._F12 = []
-        self._F21 = []
-        self._F22 = []
         
         self._vel_1 = []
         self._vel_2 = []
         
         self._force1 = self._force2 = 0
         self._pos1 = self._pos2 = 0
+
+        if self._use_video:
+            self._E11 = []
+            self._E12 = []
+            self._E22 = []
+
+            self._F11 = []
+            self._F12 = []
+            self._F21 = []
+            self._F22 = []
+
+            self.init_markers()
         
         #record start time
         self._start_cycle_time = time.perf_counter()
@@ -121,7 +125,7 @@ class MechanicalTest (QThread):
     
     
     @pyqtSlot(list)
-    def init_markers(self, array):
+    def init_markers(self, array = None):
 
         print("Markers initialized")
         self._use_video = True
@@ -138,36 +142,17 @@ class MechanicalTest (QThread):
         self._marks_groups.append(self._point3)
         self._marks_groups.append(self._point4)
 
-        #Temporary coordinates 
-        self._temp_p1 = array[0]
-        self._temp_p2 = array[1]
-        self._temp_p3 = array[2]
-        self._temp_p4 = array[3]
+        if array is not None:
+            #Temporary coordinates 
+            self._temp_p1 = array[0]
+            self._temp_p2 = array[1]
+            self._temp_p3 = array[2]
+            self._temp_p4 = array[3]
 
-        self._point1.append(self._temp_p1)
-        self._point2.append(self._temp_p2)
-        self._point3.append(self._temp_p3)
-        self._point4.append(self._temp_p4)
-
-    def _init_markers2(self):
-        '''
-        Function to re-inizialize markers between PRECONDITIONING and TEST
-        '''
-
-        print("Markers initialized again")
-        self._use_video = True
-
-        #datastructures to store tracks of marks
-        self._marks_groups = []
-        self._point1 = []
-        self._point2 = []
-        self._point3 = []
-        self._point4 = []
-        
-        self._marks_groups.append(self._point1)
-        self._marks_groups.append(self._point2)
-        self._marks_groups.append(self._point3)
-        self._marks_groups.append(self._point4)
+        self._p1_0 = self._temp_p1
+        self._p2_0 = self._temp_p2
+        self._p3_0 = self._temp_p3
+        self._p4_0 = self._temp_p4
 
         self._point1.append(self._temp_p1)
         self._point2.append(self._temp_p2)
@@ -185,6 +170,9 @@ class MechanicalTest (QThread):
         self._temp_p3 = array[2]
         self._temp_p4 = array[3]
 
+    
+ 
+    
     def _update_arrays_emit_data(self):
 
         """
@@ -228,22 +216,18 @@ class MechanicalTest (QThread):
 
             
             #Coordinates of initial and final points
-            p1_0 = self._point1[0]
             p1 = self._point1[-1]
-            p2_0 = self._point2[0]
             p2 = self._point2[-1]
-            p3_0 = self._point3[0]
             p3 = self._point3[-1]
-            p4_0 = self._point4[0]
             p4 = self._point4[-1]
 
             
 
             #decomposed initial coordinates for each node by axis
-            X11 = p1_0[0]; X21 = p1_0[1]
-            X12 = p2_0[0]; X22 = p2_0[1]
-            X13 = p3_0[0]; X23 = p3_0[1]
-            X14 = p4_0[0]; X24 = p4_0[1]
+            X11 = self._p1_0[0]; X21 = self._p1_0[1]
+            X12 = self._p2_0[0]; X22 = self._p2_0[1]
+            X13 = self._p3_0[0]; X23 = self._p3_0[1]
+            X14 = self._p4_0[0]; X24 = self._p4_0[1]
 
             # component X of displacement on isoparametric coordinates
             dX1_dS1 = 0.25*(X11-X12-X13+X14)
@@ -255,10 +239,10 @@ class MechanicalTest (QThread):
             J = dX1_dS1*dX2_dS2 - dX1_dS2*dX2_dS1
 
             #displacement for each node
-            u1 = tuple(a - b for a, b in zip(p1, p1_0))
-            u2 = tuple(a - b for a, b in zip(p2, p2_0))
-            u3 = tuple(a - b for a, b in zip(p3, p3_0))
-            u4 = tuple(a - b for a, b in zip(p4, p4_0))
+            u1 = tuple(a - b for a, b in zip(p1, self._p1_0))
+            u2 = tuple(a - b for a, b in zip(p2, self._p2_0))
+            u3 = tuple(a - b for a, b in zip(p3, self._p3_0))
+            u4 = tuple(a - b for a, b in zip(p4, self._p4_0))
 
             #decomposed displacement for each node by axis
             u11 = u1[0]; u21 = u1[1]
@@ -513,7 +497,7 @@ class DisplacementControlTest(MechanicalTest):
             
             #Set number of cycles and direction
             self._half_cycle = 2*self._num_cycles #double for each half cycle
-            self._direction = 1 #Stretch sample; -1 relax
+            self._direction = Direction.STRETCH
 
             self._start_time = time.perf_counter()
             self._start_cycle_time = time.perf_counter()
@@ -555,8 +539,8 @@ class DisplacementControlTest(MechanicalTest):
             self._current_cycle_time = time.perf_counter() - self._start_cycle_time
 
             #If Stretch or Relax continue - send data 
-            if 0 < self._direction and (self._pos1 >= self._fin_pos1+0.08 or self._pos2 >= self._fin_pos2+0.08) or \
-                0 > self._direction and (self._pos1 < self._fin_pos1-0.08 or self._pos2 < self._fin_pos2-0.08):
+            if Direction.STRETCH == self._direction and (self._pos1 >= self._fin_pos1+0.08 or self._pos2 >= self._fin_pos2+0.08) or \
+                Direction.COMPRESS == self._direction and (self._pos1 < self._fin_pos1-0.08 or self._pos2 < self._fin_pos2-0.08):
 
                 self._update_arrays_emit_data()
 
@@ -567,11 +551,14 @@ class DisplacementControlTest(MechanicalTest):
             else:
                 print("DisplacementControlTest: Half cycle finished")
                 self._half_cycle -= 1
-                self._direction =  -self._direction
+                if Direction.STRETCH == self._direction:
+                    self._direction = Direction.COMPRESS
+                else:
+                    self._direction = Direction.STRETCH
 
                 #Set final posistion based on stretch or relax cycle
                 #Stretch cycle
-                if 0 < self._direction:
+                if Direction.STRETCH == self._direction:
                     self._fin_pos1 = self._start_pos1 - self._max_disp1/2 
                     self._fin_pos2 = self._start_pos2 - self._max_disp2/2
 
@@ -579,7 +566,7 @@ class DisplacementControlTest(MechanicalTest):
                     self._start_cycle_time = time.perf_counter()
 
                 #Relax cycle
-                elif 0 > self._direction:
+                elif Direction.COMPRESS == self._direction:
                     self._fin_pos1 = self._start_pos1
                     self._fin_pos2 = self._start_pos2
 
@@ -703,7 +690,7 @@ class LoadControlTest(MechanicalTest):
 
         #Set number of cycles and direction
         self._half_cycle = 2*self._num_cycles_precond #double for each half cycle
-        self._direction = 1 #Stretch sample; -1 relax
+        self._direction = Direction.STRETCH
 
         #Set final positions
         self._start_force1 = 0.0
@@ -712,9 +699,7 @@ class LoadControlTest(MechanicalTest):
         self._end_force2 = self._max_force2
 
         self._mot_daq.zeroPosition()
-        self._start_pos1, self._start_pos2 = self._mot_daq.get_positions()
         
-        print(f"self._start_pos1: {self._start_pos1}, self._start_pos2: {self._start_pos2}")
         self._force1,self._force2 = self._mot_daq.get_forces()
         
         self._vel_ax1 = self._disp_guess1/self._test_duration
@@ -744,46 +729,50 @@ class LoadControlTest(MechanicalTest):
             self._current_time = round(time.perf_counter() - self._start_time, 5)
             self._current_cycle_time = round(time.perf_counter() - self._start_cycle_time, 5)
             self._force1,self._force2 = self._mot_daq.get_forces() #try/except is inside
+            #self._av_force1,self._av_force2 = self._mot_daq.get_av_forces(n = 5) #try/except is inside
+            if len(self._load1) > 5:
+                self._av_force1 = sum(self._load1[-5:])/5
+            else:
+                self._av_force1 = self._force1
+
+            if len(self._load2) > 5:
+                self._av_force2 = sum(self._load2[-5:])/5
+            else:
+                self._av_force2 = self._force2
+
+
             self._pos1, self._pos2 = self._mot_daq.get_positions()
             self._update_arrays_emit_data()
 
             #If Stretch or Relax half cycle
-            if self._direction > 0 and self._force1 < self._end_force1 and self._force2 < self._end_force2 or \
-                self._direction < 0 and (self._pos1 < self._start_pos1-0.08 or self._pos2 < self._start_pos2-0.08):
+            if Direction.STRETCH == self._direction and self._av_force1 < self._end_force1 and self._av_force2 < self._end_force2 or \
+                Direction.COMPRESS == self._direction and (self._pos1 < -0.08 or self._pos2 < -0.08):
                 #(self._force1 > self._end_force1 or self._force2 > self._end_force2):
                 
                 
-                #Stop new 0 after very first cycle
+                #Stop at new 0 after very first cycle
                 if self._state == State.PRECONDITIONING and self._half_cycle == 2*self._num_cycles_precond-1:
                     #If only one of the motor reached zero load - stop it
-                    if self._direction < 0 and len(self._load1) > 5 and sum(self._load1[-5:])/5 <= 0:
+                    if Direction.COMPRESS == self._direction and self._av_force1 <= 0.1:
                         self._mot_daq.stop_motor1()
                         self._mot_daq.zero_pos1()
-                        #self._start_pos1 = self._pos1
-                    elif self._direction < 0 and len(self._load2) > 5 and sum(self._load2[-5:])/5 <= 0:
+                       
+                    if Direction.COMPRESS == self._direction and self._av_force2 <= 0.1:
                         self._mot_daq.stop_motor2()
                         self._mot_daq.zero_pos2()
-                        #self._start_pos2 = self._pos2
-                
-                #Stop motors at 0 force to update position before start of the main test
-                if self._half_cycle == 1:
-                    #If only one of the motor reached zero load - stop it
-                    if self._direction < 0 and len(self._load1) > 5 and sum(self._load1[-10:])/5 < self._end_force1:
-                        self._mot_daq.stop_motor1()
-                        self._mot_daq.zero_pos1()
-                        #self._start_pos1 = self._pos1
-                    elif self._direction < 0 and len(self._load2) > 5 and sum(self._load2[-10:])/5 < self._end_force2:
-                        self._mot_daq.stop_motor2()
-                        self._mot_daq.zero_pos2()
-                        #self._start_pos2 = self._pos2
+                    
 
             #Half cycle finished
             else:
                 self._half_cycle -= 1
-                self._direction =  -self._direction #Change direction
+                
+                if Direction.STRETCH == self._direction:
+                    self._direction = Direction.COMPRESS
+                else:
+                    self._direction = Direction.STRETCH
                 
                 #Change behaviour from relax to stretch loop
-                if self._direction > 0:
+                if Direction.STRETCH == self._direction:
                     #Increase force loop
                     #print("LoadControlTest: Start increasing force")
 
@@ -867,8 +856,8 @@ class LoadControlTest(MechanicalTest):
                     # Start motors
                     #self._mot_daq.move_velocity_ax1(self._vel_ax1) #in mm/s
                     #self._mot_daq.move_velocity_ax2(self._vel_ax2) #in mm/s
-                    self._mot_daq.move_position_ax1(self._start_pos1, self._vel_ax1)
-                    self._mot_daq.move_position_ax2(self._start_pos2, self._vel_ax2)
+                    self._mot_daq.move_position_ax1(0, self._vel_ax1)
+                    self._mot_daq.move_position_ax2(0, self._vel_ax2)
                 
 
         #If cycles are over on PRECONDITIONING
@@ -876,13 +865,10 @@ class LoadControlTest(MechanicalTest):
         elif self._half_cycle <= 0 and self._state == State.PRECONDITIONING:
             self._state = State.TEST
             self._half_cycle = 2*self._num_cycles_test
-            self._direction = 1
+            self._direction = Direction.STRETCH
             self._init_variables()
-            self._mot_daq.zeroPosition()
-            self._start_pos1 = 0
-            self._start_pos2 = 0
-            if (self._use_video):
-                self._init_markers2()
+            #self._mot_daq.zeroPosition()
+
             print("LoadControlTest: Preconditioning finished. Main test started.")
             self.signal_precond_finished.emit()
 

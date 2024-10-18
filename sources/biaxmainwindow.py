@@ -33,6 +33,7 @@ class BiaxMainWindow(QMainWindow):
     """
 
     signal_stop = pyqtSignal()
+    _liveforce_update_time = 50
     
     def __init__(self):
         """
@@ -63,6 +64,7 @@ class BiaxMainWindow(QMainWindow):
 
         self._ringbuffer1 = RingBuffer(200) #Ring buffer for live force display of channel1
         self._ringbuffer2 = RingBuffer(200) #Ring buffer for live force display of channel2
+        self._t_label = [i * self._liveforce_update_time/1000 for i in range(200)] #list to show time for force monitoring before the test
 
         # Construct the path to the desktop folder
         home_dir = os.path.expanduser('~')
@@ -509,7 +511,7 @@ class BiaxMainWindow(QMainWindow):
         else:
             self._liveforce_timer = QTimer(self)
             self._liveforce_timer.timeout.connect(self.__updateLabelForce)
-            self._liveforce_timer.start(20)
+            self._liveforce_timer.start(self._liveforce_update_time)
 
     def __stop_movement(self):
         
@@ -540,7 +542,7 @@ class BiaxMainWindow(QMainWindow):
             self._label_timer.stop()
 
         if hasattr(self, '_liveforce_timer'):
-            self._liveforce_timer.start(200)
+            self._liveforce_timer.start(self._liveforce_update_time)
 
         self._fl_executing = False
         self._ringbuffer1.reset()
@@ -834,8 +836,8 @@ class BiaxMainWindow(QMainWindow):
 
             #draw them in the chart
             self.ChartWidget_1.clear()
-            self.ChartWidget_1.plot(self._ringbuffer1.get_buffer(), pen=pg.mkPen(color='b', width=2))  
-            self.ChartWidget_1.plot(self._ringbuffer2.get_buffer(), pen=pg.mkPen(color='r', width=2))  
+            self.ChartWidget_1.plot(self._t_label, self._ringbuffer1.get_buffer(), pen=pg.mkPen(color='b', width=2))  
+            self.ChartWidget_1.plot(self._t_label, self._ringbuffer2.get_buffer(), pen=pg.mkPen(color='r', width=2))  
 
 
 
@@ -876,6 +878,7 @@ class BiaxMainWindow(QMainWindow):
 
 
     def block_gui(self):
+        self.buttonStart.setDisabled(True)
         self.buttonNewtons.setDisabled(True)
         self.buttonGrams.setDisabled(True)
         self.factorTareLoad1.setDisabled(True)
@@ -903,6 +906,7 @@ class BiaxMainWindow(QMainWindow):
         self.buttonCamera.setDisabled(True)
 
     def unblock_gui(self):
+        self.buttonStart.setDisabled(False)
         self.buttonNewtons.setDisabled(False)
         self.buttonGrams.setDisabled(False)
         self.factorTareLoad1.setDisabled(False)
