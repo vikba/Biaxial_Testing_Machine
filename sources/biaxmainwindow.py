@@ -771,47 +771,6 @@ class BiaxMainWindow(QMainWindow):
             self.ChartWidget_3.plot(self._disp1, self._load1, pen=pg.mkPen(color='b', width=2)) 
             self.ChartWidget_3.plot(self._disp2, self._load2, pen=pg.mkPen(color='r', width=2)) 
         
-        """
-        self.MplWidget_1.canvas.axes.clear()
-        self.MplWidget_1.canvas.axes.plot(self._t, self._load1)
-        self.MplWidget_1.canvas.axes.plot(self._t, self._load2)
-        if 0 == self.tabWidget.currentIndex():
-            self.MplWidget_1.canvas.axes.plot(t_s, f_s)
-        self.MplWidget_1.canvas.axes.legend(('ch1','ch2', 'setpoint'),loc='upper right')
-        self.MplWidget_1.canvas.axes.set_title('Load vs. Time')
-        self.MplWidget_1.canvas.axes.set_ylabel('Load, N')
-        self.MplWidget_1.canvas.axes.set_xlabel('Time, s')
-        self.MplWidget_1.canvas.draw()
-        
-        
-        self.MplWidget_2.canvas.axes.clear()
-        self.MplWidget_2.canvas.axes.plot(self._v1)
-        self.MplWidget_2.canvas.axes.plot(self._v2)
-        self.MplWidget_2.canvas.axes.legend(('ch1','ch2'),loc='upper right')
-        #self.MplWidget_2.canvas.axes.set_title('Displacement vs. Time')
-        self.MplWidget_2.canvas.axes.set_ylabel('Velocity')
-        self.MplWidget_2.canvas.axes.set_xlabel('Time, s')
-        self.MplWidget_2.canvas.draw()
-        
-        
-        self.MplWidget_3.canvas.axes.clear()
-        if len(self._E11) == len (self._load1):
-        #if self._mec_test.getMarksStatus():
-            #If initial marks are recorded than strain will be calculated and can be plotted
-            self.MplWidget_3.canvas.axes.plot(self._E11, self._load1)
-            self.MplWidget_3.canvas.axes.plot(self._E22, self._load2)
-            self.MplWidget_3.canvas.axes.set_xlabel('Strain, %')
-        else:
-            self.MplWidget_3.canvas.axes.plot(self._disp1, self._load1)
-            self.MplWidget_3.canvas.axes.plot(self._disp2, self._load2)
-            self.MplWidget_3.canvas.axes.set_xlabel('Displacement, mm')
-            
-        self.MplWidget_3.canvas.axes.legend(('ch1','ch2'),loc='upper right')
-        self.MplWidget_3.canvas.axes.set_title('Load vs. Strain')
-        self.MplWidget_3.canvas.axes.set_ylabel('Load, N')
-        self.MplWidget_3.canvas.draw()
-        """
-        
 
     def __updateLabelForce(self):
         if self._mot_daq is not None:

@@ -1,8 +1,9 @@
-from PyQt6.QtCore import QThread, QTimer, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal, pyqtSlot, QMetaObject
 import numpy as np
 from scipy.signal import butter, filtfilt
 import collections
 from statistics import mean
+import time
 
 
 from zaber_motion.ascii import Connection
@@ -21,6 +22,8 @@ class MotorDAQInterface (QThread):
     '''
    
     _units = None
+    signal_autoloading_finished = pyqtSignal()
+    signal_autoloading_progress = pyqtSignal(float, float, float, float)
     
     def __init__(self, unit):
         super().__init__()
@@ -30,8 +33,9 @@ class MotorDAQInterface (QThread):
         self._pos1_0 = self._pos2_0 = 0
           
         self._autoload_timer = QTimer(self)
-        self._autoload_timer.timeout.connect(self.__autoload_step)
+        self._autoload_timer.timeout.connect(self._autoload_step)
 
+        self._execute_autoloading = False
         self._mot_init = False
         self._daq_init = False
 
@@ -54,6 +58,11 @@ class MotorDAQInterface (QThread):
     
     def change_units(self, unit):
         self._units = unit
+
+
+    def run(self):
+        # Start the event loop in this thread
+        self.exec()
    
     
     def __initMorors(self):
@@ -123,7 +132,8 @@ class MotorDAQInterface (QThread):
         """
         Stops movemets, connections and  the execution of the current QThread
         """
-        self._autoload_timer.stop()
+        QMetaObject.invokeMethod(self._autoload_timer, "stop", Qt.ConnectionType.QueuedConnection)
+        self._execute_autoloading = False
         self._axis1.stop()
         self._axis2.stop()
         self._connection_z.close() #Connection to Zaber motors
@@ -368,63 +378,6 @@ class MotorDAQInterface (QThread):
     def move_velocity_ax2(self, speed):
         self._axis2.move_velocity(speed, Units.VELOCITY_MILLIMETRES_PER_SECOND) 
 
-    def autoload(self, load1, load2):
-
-        
-        self._load1 = load1
-        self._load2 = load2
-
-        self._force1, self._force2 = self.get_forces()
-        
-        if self._units == Unit.Newton and abs(self._force1 - self._load1) < 2 and abs(self._force2 - self._load2) < 2 \
-            or self._units == Unit.Gram and abs(self._force1 - self._load1) < 200 and abs(self._force2 - self._load2) < 200:
-            #Move with slow negative velocity to gently stretch the sample
-            self.move_velocity_ax1(-0.1) #in mm/sec
-            self.move_velocity_ax2(-0.1)
-            self.step = 1
-            self._autoload_timer.start(100)
-        else:
-            print("Autoload: The difference between current force and desired force is too high!")
-
-
-        self.exec()
-    
-        
-    def __autoload_step(self):
-
-        force_mean1, force_mean2 = self.get_av_forces(10)
-        
-        if self.step == 1:
-            if force_mean1 < self._load1 * 2 or force_mean2 < self._load2 * 2:
-                if force_mean1 > 1.2 * self._load1 * 2:
-                    self._axis1.stop()
-                if force_mean2 > 1.2 * self._load2 * 2:
-                    self._axis2.stop()
-            else:
-                self.step = 2
-                print("Autoload: Half Load reached")
-                self.move_velocity_ax1(0.1)
-                self.move_velocity_ax2(0.1)
-                
-        
-        elif self.step == 2:
-            if force_mean1 > self._load1 or force_mean2 > self._load2:
-                if force_mean1 < self._load1:
-                    self._axis1.stop()
-                if force_mean2 < self._load2:
-                    self._axis2.stop()
-            else:
-                print("Autoload: The Load reached")
-                self._axis1.stop()
-                self._axis2.stop()
-                self._autoload_timer.stop()  # Stop the timer when load is reached
-                self.zeroPosition()
-                #self.load_reached.emit()  # Emit the signal to indicate the load is reached
-
-        else:
-            self._axis1.stop()
-            self._axis2.stop()
-
     def butter_lowpass(self, cutoff, fs, order=5):
         nyquist = 0.5 * fs
         normal_cutoff = cutoff / nyquist
@@ -435,3 +388,83 @@ class MotorDAQInterface (QThread):
         b, a = self.butter_lowpass(cutoff, fs, order=order)
         y = filtfilt(b, a, data)
         return y
+
+    def perform_autoload(self, target_load1, target_load2):
+        self._execute_autoloading = True
+        
+        self._target_load1 = target_load1
+        self._target_load2 = target_load2
+
+        self._force1, self._force2 = self.get_forces()
+
+        self._init_offset_1 = self._target_load1 - self._force1
+        self._init_offset_2 = self._target_load2 - self._force2
+        
+        if self._units == Unit.Newton and self._init_offset_1 < 0.2 and self._init_offset_2 < 2 \
+            or self._units == Unit.Gram and self._init_offset_1 < 20 and self._init_offset_1 < 20:
+
+            self._start_time = round(time.perf_counter(), 5)
+            self._current_time = 0
+            self._autoload_timer.start(100)
+
+        else:
+            print("Autoload: The difference between current force and desired force is too high!")
+
+
+
+
+    def _autoload_step(self):
+        
+        #Condition to finish the test: positive number of steps left
+        if self._current_time < 30 and self._execute_autoloading:
+
+            # Read current forces, positions, time and record them
+            self._current_time = round(time.perf_counter() - self._start_time, 5)
+            self._force1,self._force2 = self.get_forces() #try/except is inside
+
+            #caulculate the current offset
+            offset1 = self._target_load1 - self._force1
+            offset2 = self._target_load2 - self._force2
+
+            threshold = 0.005  # Adjust as needed
+
+
+            # Check if autoloading is complete
+            if abs(offset1) <= threshold and abs(offset2) <= threshold:
+                self.stop_motors()
+                QMetaObject.invokeMethod(self._autoload_timer, "stop", Qt.ConnectionType.QueuedConnection)
+                self._execute_autoloading = False
+                self.signal_autoloading_finished.emit()  # Notify that autoloading is finished
+                return
+
+            # Adjust motor velocities
+            if self._units == Unit.Newton:
+                Kp = 15
+            else:
+                Kp = 0.15
+
+            max_velocity = 0.3 #mm/sec
+            v1 = max(-max_velocity, min(max_velocity, Kp * offset1))
+            v2 = max(-max_velocity, min(max_velocity, Kp * offset2))
+
+            # Emit progress signal
+            self.signal_autoloading_progress.emit(self._force1, self._force2, v1, v2)
+
+            # Command the motors
+            self.move_velocity_ax1(v1)
+            self.move_velocity_ax2(v2)
+
+        else:
+            self._execute_autoloading = False
+            self.stop_motors()
+            QMetaObject.invokeMethod(self._autoload_timer, "stop", Qt.ConnectionType.QueuedConnection)
+        
+            
+
+         
+            
+
+        
+            
+            
+    
