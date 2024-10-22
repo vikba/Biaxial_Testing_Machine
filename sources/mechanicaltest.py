@@ -37,7 +37,7 @@ class MechanicalTest (QThread):
         self._mot_daq = mot_daq
 
         self._use_video = False #Flag indicating whether marks are recorded
-        self._execute = True #Variable indicating if the test should continue running
+        self._execute = False #Variable indicating if the test should continue running
         self._state = State.PRECONDITIONING
         
         self._init_variables() 

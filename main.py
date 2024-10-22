@@ -8,8 +8,8 @@
 #Save pyqtgraph as img
 #Compare formulas with matlab
 #Save config in the same folder as sample
-#Nan afer load control
 #add reset after preconditioning to videothread
+#add arrown on an image
 #be sure that data are not lost
 
 
@@ -18,7 +18,7 @@ from PyQt6.QtWidgets import QApplication
 
 from sources import BiaxMainWindow
 
-if __name__ == '__main__':
+if __name__ == '__main__':  
     #start of the application
     app = QApplication([])
     app.setStyle('Fusion')

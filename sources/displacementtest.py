@@ -34,6 +34,8 @@ class DisplacementControlTest(MechanicalTest):
 
         self._num_cycles = num_cycles
 
+        self._execute = True
+
 
         #this timers should be created in class, but not in its parent class
         

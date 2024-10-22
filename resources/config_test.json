@@ -1,5 +1,5 @@
 {
-    "name": "3ms_fab3",
+    "name": "1ms_fab3",
     "unit": "gram",
     "thickness": 0.2,
     "length1": 8.0,
@@ -13,7 +13,7 @@
     "load_test1": "100",
     "load_test2": "100",
     "disp_guess1": "3",
-    "disp_guess2": "4",
+    "disp_guess2": "3",
     "halfcycltime": "15",
     "cycleprecond": "7",
     "cycletest": "8",
@@ -22,5 +22,5 @@
     "disptestlen1": "2",
     "disptestlen2": "2",
     "disptestcycle": "1",
-    "folder": "C:/Users/vbalashov/Desktop/Biax_Validation/new2"
+    "folder": "C:/Users/vbalashov/Desktop/Biax_Validation/new3"
 }

@@ -14,6 +14,7 @@ from datetime import datetime
 from .mechanicaltest import MechanicalTest
 from .state import State
 from .direction import Direction
+from .unit import Unit
 
 
 
@@ -31,6 +32,8 @@ class LoadControlTest(MechanicalTest):
 
     def __init__(self, mot_daq, folder, sam_name, autoloading, max_force1, max_force2, tare_load1, tare_load2, disp1, disp2, test_duration, num_cycles_precond, num_cycles_test):
         super().__init__(mot_daq)
+        self._execute = False
+
         self._mot_daq = mot_daq
 
         self._mot_daq.signal_autoloading_finished.connect(self.handle_autoloading_finished)
@@ -54,13 +57,17 @@ class LoadControlTest(MechanicalTest):
         self._disp_guess1 = disp1
         self._disp_guess2 = disp2
     
-    def update_parameters (self, work_folder, sam_name, end_force1, end_force2, disp_guess1, disp_guess2, test_duration, num_cycles_precond, num_cycles_test):
-        self._workfolder = work_folder
+    
+    def update_parameters (self, folder, sam_name, autoloading, max_force1, max_force2, tare_load1, tare_load2, disp1, disp2, test_duration, num_cycles_precond, num_cycles_test):
+        self._workfolder = folder
         self._sam_name = sam_name
-        self._end_force1 = end_force1
-        self._end_force2 = end_force2
-        self._disp_guess1 = disp_guess1
-        self._disp_guess2 = disp_guess2
+        self._fl_autoloading = autoloading
+        self._end_force1 = max_force1
+        self._end_force2 = max_force2
+        self._tare_load1 = tare_load1
+        self._tare_load2 = tare_load2
+        self._disp_guess1 = disp1
+        self._disp_guess2 = disp2
         self._test_duration = test_duration
         self._num_cycles_precond = num_cycles_precond
         self._num_cycles_test = num_cycles_test
@@ -82,19 +89,22 @@ class LoadControlTest(MechanicalTest):
     
     @pyqtSlot()
     def handle_autoloading_finished(self):
-        print("Autoloading finished, resuming test.")
 
-        self._start_cycle_time = time.perf_counter()
-        # Start stretching
-        self._mot_daq.move_velocity_ax1(-self._vel_ax1) #in mm/s
-        self._mot_daq.move_velocity_ax2(-self._vel_ax2) #in mm/s
+        if self._execute:
+            print("LoadControlTest: Autoloading finished, resuming test.")
+            self._start_cycle_time = time.perf_counter()
+            # Start stretching
+            self._mot_daq.move_velocity_ax1(-self._vel_ax1) #in mm/s
+            self._mot_daq.move_velocity_ax2(-self._vel_ax2) #in mm/s
 
-        self._test_timer.start(self._sample_time)
+            self._test_timer.start(self._sample_time)
+        else:
+            print("LoadControlTest: Autoloading finished, test not started yet")
 
     @pyqtSlot()
     def handle_autoloading_progress(self, force1, force2, vel1, vel2):
 
-        print(f"Autoloading progress load1: {force1}, load2: {force2}, vel1:{vel1}, vel2:{vel2}")
+        print(f"LoadControlTest: Autoloading progress load1: {force1}, load2: {force2}, vel1:{vel1}, vel2:{vel2}")
 
         #self.signal_update_charts.emit([self._time_abs[-1], self._force1, self._force2, self._pos1, self._pos2])
 
@@ -111,6 +121,9 @@ class LoadControlTest(MechanicalTest):
 
         #start performing test
         #this function is required to perform test with or without camera
+
+        print("LoadControlTest: Started")
+        self._execute = True
 
         self._init_variables()
 
@@ -196,18 +209,18 @@ class LoadControlTest(MechanicalTest):
 
             #If Stretch or Relax half cycle
             if Direction.STRETCH == self._direction and self._av_force1 < self._end_force1 and self._av_force2 < self._end_force2 or \
-                Direction.COMPRESS == self._direction and (self._pos1 < -0.08 or self._pos2 < -0.08):
+                Direction.COMPRESS == self._direction and (self._pos1 <= -0.01  or self._pos2 <= -0.01):
                 #(self._force1 > self._end_force1 or self._force2 > self._end_force2):
                 
                 
                 #Stop at new 0 after very first cycle
                 if self._state == State.PRECONDITIONING and self._half_cycle == 2*self._num_cycles_precond-1:
                     #If only one of the motor reached zero load - stop it
-                    if Direction.COMPRESS == self._direction and self._av_force1 <= 0.1:
+                    if Direction.COMPRESS == self._direction and self._av_force1 <= 0.05 :
                         self._mot_daq.stop_motor1()
                         self._mot_daq.zero_pos1()
                        
-                    if Direction.COMPRESS == self._direction and self._av_force2 <= 0.1:
+                    if Direction.COMPRESS == self._direction and self._av_force2 <= 0.05:
                         self._mot_daq.stop_motor2()
                         self._mot_daq.zero_pos2()
                     

@@ -132,16 +132,29 @@ class MotorDAQInterface (QThread):
         """
         Stops movemets, connections and  the execution of the current QThread
         """
-        QMetaObject.invokeMethod(self._autoload_timer, "stop", Qt.ConnectionType.QueuedConnection)
         self._execute_autoloading = False
+        QMetaObject.invokeMethod(self._autoload_timer, "stop", Qt.ConnectionType.QueuedConnection)
         self._axis1.stop()
         self._axis2.stop()
         self._connection_z.close() #Connection to Zaber motors
         self._conn_q.close_connection() #Connection to DAQ Qstation
         self.quit()
         self.wait()
+
+    @pyqtSlot()
+    def stop_test(self):
+        """
+        Stops movemets and qtimer
+        """
+        self._execute_autoloading = False
+        QMetaObject.invokeMethod(self._autoload_timer, "stop", Qt.ConnectionType.QueuedConnection)
+        self._axis1.stop()
+        self._axis2.stop()
+        self.quit()
+        self.wait()
     
     def stop_motors(self):
+        print("motors stopped")
         self._axis1.stop()
         self._axis2.stop()
 
@@ -218,21 +231,6 @@ class MotorDAQInterface (QThread):
         """
         Performs a zero force calibration by sleeping for 0.1 seconds, reading force values, and printing the initial force 1 and force 2 values.
         """
-        '''force_temp1 = []
-        force_temp2 = []
-
-        for i in range(0,20):
-          val1, val2  = self._read_force()
-          force_temp1.append(val1)
-          force_temp2.append(val2)
-          QThread.msleep(30)
-
-        
-        self._force1_0 = round(np.mean(force_temp1), 3)
-        self._force2_0 = round(np.mean(force_temp2), 3)'''
-
-        '''self._force1_0 = self._ringbuffer1.get_buffer().mean()
-        self._force2_0 = self._ringbuffer2.get_buffer().mean()'''
 
 
         self._force1_0 = mean(list(self._buffer1)[-10:]) #in mV/V
@@ -282,7 +280,7 @@ class MotorDAQInterface (QThread):
         convert mV/V into N or g according to the selected unit
         """
 
-        val1 /=2
+        val1 /=2 #correction for block system on a load cell that increaes force in 2 times
         val2 /=2
 
         if self._units == Unit.Newton:
@@ -390,6 +388,7 @@ class MotorDAQInterface (QThread):
         return y
 
     def perform_autoload(self, target_load1, target_load2):
+    
         self._execute_autoloading = True
         
         self._target_load1 = target_load1
@@ -399,13 +398,15 @@ class MotorDAQInterface (QThread):
 
         self._init_offset_1 = self._target_load1 - self._force1
         self._init_offset_2 = self._target_load2 - self._force2
+
+        print(f"Starting autoloading. Offset1: {self._init_offset_1}, Offset2: {self._init_offset_2}")
         
         if self._units == Unit.Newton and self._init_offset_1 < 0.2 and self._init_offset_2 < 2 \
             or self._units == Unit.Gram and self._init_offset_1 < 20 and self._init_offset_1 < 20:
 
             self._start_time = round(time.perf_counter(), 5)
             self._current_time = 0
-            self._autoload_timer.start(100)
+            self._autoload_timer.start(250)
 
         else:
             print("Autoload: The difference between current force and desired force is too high!")
@@ -420,14 +421,13 @@ class MotorDAQInterface (QThread):
 
             # Read current forces, positions, time and record them
             self._current_time = round(time.perf_counter() - self._start_time, 5)
-            self._force1,self._force2 = self.get_forces() #try/except is inside
+            self._force1,self._force2 = self.get_av_forces(n = 3) #try/except is inside
 
             #caulculate the current offset
             offset1 = self._target_load1 - self._force1
             offset2 = self._target_load2 - self._force2
 
-            threshold = 0.005  # Adjust as needed
-
+            threshold = 0.05 * self._target_load1
 
             # Check if autoloading is complete
             if abs(offset1) <= threshold and abs(offset2) <= threshold:
@@ -439,16 +439,18 @@ class MotorDAQInterface (QThread):
 
             # Adjust motor velocities
             if self._units == Unit.Newton:
-                Kp = 15
+                Kp = 100
             else:
-                Kp = 0.15
+                Kp = 0.01
 
-            max_velocity = 0.3 #mm/sec
-            v1 = max(-max_velocity, min(max_velocity, Kp * offset1))
-            v2 = max(-max_velocity, min(max_velocity, Kp * offset2))
+            max_velocity = 0.2 #mm/sec
+            v1 = min(max_velocity, max(-max_velocity, -Kp * offset1))
+            v2 = min(max_velocity, max(-max_velocity, -Kp * offset2))
 
             # Emit progress signal
-            self.signal_autoloading_progress.emit(self._force1, self._force2, v1, v2)
+            #self.signal_autoloading_progress.emit(self._force1, self._force2, v1, v2)
+
+            print(f"force1: {self._force1}, force2: {self._force2}, vel1: {v1}, vel2: {v2}")
 
             # Command the motors
             self.move_velocity_ax1(v1)

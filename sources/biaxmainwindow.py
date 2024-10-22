@@ -14,7 +14,8 @@ import pyqtgraph as pg
 import os
 import json
 
-from .mechanicaltests import DisplacementControlTest, LoadControlTest, MechanicalTest
+from .loadtest import LoadControlTest
+from .displacementtest import DisplacementControlTest
 from .camerawindow import VideoThread, VideoWindow
 from .loadcalculator import LoadCalculatorWindow
 from .motordaqinterface import MotorDAQInterface
@@ -32,7 +33,8 @@ class BiaxMainWindow(QMainWindow):
     It sets up the user interface and connects GUI elements to their functionalities.
     """
 
-    signal_stop = pyqtSignal()
+    signal_stop_test = pyqtSignal() #stop only currect test or autoloading
+    signal_stop = pyqtSignal() #sends signal to close everything
     _liveforce_update_time = 50
     
     def __init__(self):
@@ -62,9 +64,11 @@ class BiaxMainWindow(QMainWindow):
 
         self.__init_variables()
 
-        self._ringbuffer1 = RingBuffer(200) #Ring buffer for live force display of channel1
-        self._ringbuffer2 = RingBuffer(200) #Ring buffer for live force display of channel2
-        self._t_label = [i * self._liveforce_update_time/1000 for i in range(200)] #list to show time for force monitoring before the test
+        buffer_len = 300
+
+        self._ringbuffer1 = RingBuffer(buffer_len) #Ring buffer for live force display of channel1
+        self._ringbuffer2 = RingBuffer(buffer_len) #Ring buffer for live force display of channel2
+        self._t_label = [i * self._liveforce_update_time/1000 for i in range(buffer_len)] #list to show time for force monitoring before the test
 
         # Construct the path to the desktop folder
         home_dir = os.path.expanduser('~')
@@ -413,18 +417,21 @@ class BiaxMainWindow(QMainWindow):
                 # Get test parameters
                 end_force1 = float(self.factorLoadTest1.text())
                 end_force2 = float(self.factorLoadTest2.text())
+                tare_load1 = float(self.factorTareLoad1.text())
+                tare_load2 = float(self.factorTareLoad2.text())
                 disp_guess1 = float(self.factorDispGuess1.text())/2
                 disp_guess2 = float(self.factorDispGuess2.text())/2
                 test_duration = float(self.factorTimeAx.text())
                 cycl_num_precond = int(self.factorCyclNumPrecond.text())
                 cycl_num_test = int(self.factorCyclNumTest.text())
+                fl_autoloading = self.factor_check_box_autoloading.isChecked()
                 
                 if hasattr(self, '_mec_test') and isinstance(self._mec_test, LoadControlTest):
                     #If object of load control test exists just update test parameters
-                    self._mec_test.update_parameters(self._work_folder, self._sam_name, end_force1, end_force2, disp_guess1, disp_guess2, test_duration, cycl_num_precond, cycl_num_test)
+                    self._mec_test.update_parameters(self._work_folder, self._sam_name, fl_autoloading, end_force1, end_force2, tare_load1, tare_load2, disp_guess1, disp_guess2, test_duration, cycl_num_precond, cycl_num_test)
 
                 else:
-                    self._mec_test = LoadControlTest(self._mot_daq, self._work_folder, self._sam_name, end_force1, end_force2, disp_guess1, disp_guess2, test_duration, cycl_num_precond, cycl_num_test)
+                    self._mec_test = LoadControlTest(self._mot_daq, self._work_folder, self._sam_name, fl_autoloading, end_force1, end_force2, tare_load1, tare_load2, disp_guess1, disp_guess2, test_duration, cycl_num_precond, cycl_num_test)
                     self.signal_stop.connect(self._mec_test.stop)
                     self._mec_test.signal_update_charts.connect(self.__update_charts)
                     self._mec_test.signal_precond_finished.connect(self.reset)
@@ -500,6 +507,7 @@ class BiaxMainWindow(QMainWindow):
         try:
             self._mot_daq = MotorDAQInterface(self._units)
             self.signal_stop.connect(self._mot_daq.stop)
+            self.signal_stop_test.connect(self._mot_daq.stop_test)
     
         except Exception as e:
             warning_box = QMessageBox()
@@ -545,6 +553,7 @@ class BiaxMainWindow(QMainWindow):
             self._liveforce_timer.start(self._liveforce_update_time)
 
         self._fl_executing = False
+        self.signal_stop_test.emit()
         self._ringbuffer1.reset()
         self._ringbuffer2.reset()
         self.unblock_gui()
@@ -701,7 +710,7 @@ class BiaxMainWindow(QMainWindow):
             tare_load1 = float(self.factorTareLoad1.text())
             tare_load2 = float(self.factorTareLoad2.text())
 
-            self._mot_daq.autoload(tare_load1, tare_load2)
+            self._mot_daq.perform_autoload(tare_load1, tare_load2)
 
 
 
