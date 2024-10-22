@@ -277,27 +277,6 @@ class MechanicalTest (QThread):
             
 
             
-
-            '''
-            #Old formula for strain calculation
-            L1_0 = (math.dist(p1_0, p2_0) + math.dist(p3_0,p4_0)) / 2
-            L1_last = (math.dist(p1, p2) + math.dist(p3, p4)) / 2
-
-            if (p1_0[1]-p3_0[1] < p1_0[1]-p4_0[1]):
-                L2_0 = (math.dist(p1_0, p3_0) + math.dist(p2_0,p4_0)) / 2
-                L2_last = (math.dist(p1, p3) + math.dist(p2, p4)) / 2
-            else:
-                L2_0 = (math.dist(p1_0, p4_0) + math.dist(p2_0, p3_0)) / 2
-                L2_last = (math.dist(p1, p4) + math.dist(p2, p3)) / 2
-
-            # Calculate strains
-            lambda1 = 1 + (L1_last - L1_0) / L1_0
-            lambda2 = 1 + (L2_last - L2_0) / L2_0
-
-            E11 = (lambda1*lambda1 - 1)/2
-            E22 = (lambda2*lambda2 - 1)/2'''
-
-            
             roundDecimals = 4
             
             self._E11.append(round(E11,roundDecimals))
@@ -311,7 +290,7 @@ class MechanicalTest (QThread):
 
             self.signal_update_charts.emit([self._time_abs[-1], self._load1[-1], self._load2[-1], self._disp1[-1], self._disp2[-1], self._E11[-1], self._E22[-1], self._vel_1[-1],self._vel_2[-1]])
 
-
+    
     def _finish_test(self):
         
         self._use_video = False
@@ -892,6 +871,46 @@ class LoadControlTest(MechanicalTest):
             self.stop_measurement()
             print("LoadControlTest: Test finished")
             self.signal_test_finished.emit()
+
+
+    def _autoload(self):
+        init_offset_1 = target_force1 - self._force1
+        init_offset_2 = target_force2 - self._force2
+
+    def _autoload_step(self):
+
+        #Condition to finish the test: positive number of steps left
+        if self._current_time < 1000 and self._execute and self._autoload_cycle < 10:
+
+            # Read current forces, positions, time and record them
+            self._current_time = round(time.perf_counter() - self._start_time, 5)
+            self._current_cycle_time = round(time.perf_counter() - self._start_cycle_time, 5)
+            self._force1,self._force2 = self._mot_daq.get_forces() #try/except is inside
+
+            #caulculate the current offset
+            offset_1 = target_force1 - self._force1
+            offset_2 = target_force2 - self._force2
+
+            #if both offsets are small enought stop the test
+            if offset_1 < 0.05 and offset_2 < 0.05:
+                QMetaObject.invokeMethod(self._autoload_timer, "stop", Qt.ConnectionType.QueuedConnection)
+            elif offset_1 < 0.05:
+                self._mot_daq.stop_motor1()
+            elif offset_2 < 0.05:
+                self._mot_daq.stop_motor2()
+
+            corfact_1 = offset_1 / init_offset_1
+            corfact_2 = offset_2 / init_offset_2
+            
+            if corfact_1 > 1:
+                corfact_1 = 1
+            elif corfact_1 < 0.3:
+                corfact_1 = 0.3
+
+            if corfact_2 > 1:
+                corfact_2 = 1
+            elif corfact_2 < 0.3:
+                corfact_2 = 0.3
             
 
          

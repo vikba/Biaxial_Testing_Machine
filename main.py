@@ -4,8 +4,6 @@
 #Load/save configuration to a file
 #Reset video classes after the test
 #Freeze the application
-#Record only last points in videothread
-#Name of the sample creates a workfolder
 #Write cycles in different files
 #Save pyqtgraph as img
 #Compare formulas with matlab
