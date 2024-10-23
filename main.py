@@ -1,5 +1,5 @@
 
-#Check if all conditions met to start the test
+#Check if markers are choosen before starting the test
 #Check what happens at the end of test
 #Reset video classes after the test
 #Freeze the application
