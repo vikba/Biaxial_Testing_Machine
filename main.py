@@ -1,7 +1,6 @@
 
 #Check if all conditions met to start the test
 #Check what happens at the end of test
-#Load/save configuration to a file
 #Reset video classes after the test
 #Freeze the application
 #Write cycles in different files
@@ -9,7 +8,6 @@
 #Compare formulas with matlab
 #Save config in the same folder as sample
 #add reset after preconditioning to videothread
-#add arrown on an image
 #be sure that data are not lost
 
 

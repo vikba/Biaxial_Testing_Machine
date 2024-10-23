@@ -9,6 +9,7 @@ from PyQt6.QtCore import QThread,  Qt, QTimer, QMetaObject, pyqtSlot
 import numpy as np
 import time
 from datetime import datetime
+import os
 
 
 from .mechanicaltest import MechanicalTest
@@ -140,7 +141,7 @@ class LoadControlTest(MechanicalTest):
             
             current_datetime = datetime.now()
             formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-            img_addr = self._workfolder + '\\Test_'+self._sam_name+'_'+formatted_datetime+'_first_frame.jpg'
+            img_addr = os.path.join(self._workfolder, self._sam_name, 'Test_'+self._sam_name+'_'+formatted_datetime+'_first_frame.jpg')
             self.signal_save_image.emit(img_addr)
 
 
@@ -279,11 +280,11 @@ class LoadControlTest(MechanicalTest):
                     self._end_force1 = 0
                     self._end_force2 = 0
 
-                    if self._use_video and 1 == self._half_cycle:
+                    if self._use_video and 1 == self._half_cycle and self._state == State.TEST:
                         #Get current date for filename
                         current_datetime = datetime.now()
                         formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-                        img_addr = self._workfolder + '\\Test_'+self._sam_name+'_'+formatted_datetime+'_last_frame.jpg'
+                        img_addr = os.path.join(self._workfolder, self._sam_name,  'Test_'+self._sam_name+'_'+formatted_datetime+'_last_frame.jpg')
                         self.signal_save_image.emit(img_addr)
 
 

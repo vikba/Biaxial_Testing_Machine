@@ -252,8 +252,9 @@ class BiaxMainWindow(QMainWindow):
 
         
         #Save second time into sample folder
-        os.makedirs(self._work_folder, exist_ok=True)
-        config_path2 = os.path.join(self._work_folder, 'config_test.json')
+        folder = os.path.join(self._work_folder, self._sam_name)
+        os.makedirs(folder, exist_ok=True)
+        config_path2 = os.path.join(folder, 'config_test.json')
         with open(config_path2, 'w') as file:
             json.dump(self._config_test, file, indent=4)
         
@@ -407,7 +408,7 @@ class BiaxMainWindow(QMainWindow):
                                         QMessageBox.StandardButton.No)
 
                 if reply == QMessageBox.StandardButton.No:
-                    return
+                    return 0
             
 
             #Load control test
@@ -477,24 +478,25 @@ class BiaxMainWindow(QMainWindow):
         if hasattr(self, '_mot_daq'):
 
             #Creating an instance of mechanical test
-            self.__create_mec_test()
-        
-            self._video_thread = VideoThread()
-            self.signal_stop.connect(self._video_thread.stop)
-            self._video_window = VideoWindow(self._video_thread)
-            self.signal_stop.connect(self._video_window.stop)
+            response = self.__create_mec_test() #Will return 0 if user will reject creating that test
 
-            self._video_thread.signal_markers_recorded.connect(self._mec_test.init_markers)
-            self._video_thread.signal_markers_coordinates.connect(self._mec_test.update_markers)
-            self._video_thread.signal_change_pixmap.connect(self._video_window.update_image)
-            
-            self._mec_test.signal_start_stop_tracking.connect(self._video_thread.start_stop_tracking)
-            self._mec_test.signal_save_image.connect(self._video_thread.save_image)
+            if response != 0:
+                self._video_thread = VideoThread()
+                self.signal_stop.connect(self._video_thread.stop)
+                self._video_window = VideoWindow(self._video_thread)
+                self.signal_stop.connect(self._video_window.stop)
+
+                self._video_thread.signal_markers_recorded.connect(self._mec_test.init_markers)
+                self._video_thread.signal_markers_coordinates.connect(self._mec_test.update_markers)
+                self._video_thread.signal_change_pixmap.connect(self._video_window.update_image)
+                
+                self._mec_test.signal_start_stop_tracking.connect(self._video_thread.start_stop_tracking)
+                self._mec_test.signal_save_image.connect(self._video_thread.save_image)
 
 
-            
-            self._video_window.show()
-            self._video_thread.start()  
+                
+                self._video_window.show()
+                self._video_thread.start()  
         else:
             warning_box = QMessageBox()
             warning_box.setIcon(QMessageBox.Icon.Warning)

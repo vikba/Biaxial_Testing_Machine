@@ -9,6 +9,7 @@ from PyQt6.QtCore import  Qt, QTimer, QMetaObject
 import numpy as np
 import time
 from datetime import datetime
+import os
 
 from .mechanicaltest import MechanicalTest
 from .direction import Direction
@@ -71,7 +72,7 @@ class DisplacementControlTest(MechanicalTest):
             #Get current date for filename
             current_datetime = datetime.now()
             formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-            img_addr = self._workfolder + '\\Test_'+self._sam_name+'_'+formatted_datetime+'_first_frame.jpg'
+            img_addr = os.path.join(self._workfolder, self._sam_name,  'Test_'+self._sam_name+'_'+formatted_datetime+'_first_frame.jpg')
             self.signal_save_image.emit(img_addr)
         
         #Here should be a condition to start the test
@@ -160,7 +161,7 @@ class DisplacementControlTest(MechanicalTest):
                     #Get current date for filename
                     current_datetime = datetime.now()
                     formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-                    img_addr = self._workfolder + '\\Test_'+self._sam_name+'_'+formatted_datetime+'_last_frame.jpg'
+                    img_addr = os.path.join(self._workfolder, self._sam_name,  'Test_'+self._sam_name+'_'+formatted_datetime+'_last_frame.jpg')
                     self.signal_save_image.emit(img_addr)
                 
                 if self._half_cycle > 0:
