@@ -48,9 +48,9 @@ class VideoThread(QThread):
         self._roi_x2 = VideoThread.RES_X_FULL
         self._roi_y2 = VideoThread.RES_Y_FULL
 
-        self.__initVariables()
+        self._initVariables()
 
-    def __initVariables(self):
+    def _initVariables(self):
         """
         Initialize variables to store tracks of marks and groups.
         """
@@ -85,10 +85,14 @@ class VideoThread(QThread):
         self.wait()
 
     @pyqtSlot()
-    def reset(self):
+    def reset_flags(self):
         self._execute = True
         self._init_marks = False  # Initialize first set of marks
         self._track_marks = False  # Continiously track marks
+
+    def reset_countours(self):
+        self._img_track = np.zeros((VideoThread.RES_Y_FULL, VideoThread.RES_X_FULL, 1), dtype=np.uint8)
+        self._img_track.fill(0)
         
     @pyqtSlot(int, int, int, int)
     def update_roi(self, x1,y1, x2, y2):
@@ -127,7 +131,7 @@ class VideoThread(QThread):
         self._roi_y2 = y2
         
         self._init_marks = True
-        self.__initVariables()
+        self._initVariables()
         
     def _if_within_roi (self, p):
         """
@@ -188,8 +192,8 @@ class VideoThread(QThread):
         """
         
         
-        self.__img_track = np.zeros((VideoThread.RES_Y_FULL, VideoThread.RES_X_FULL, 1), dtype=np.uint8)
-        self.__img_track.fill(0)
+        self._img_track = np.zeros((VideoThread.RES_Y_FULL, VideoThread.RES_X_FULL, 1), dtype=np.uint8)
+        self._img_track.fill(0)
         self._time = []
         
         with Vimba.get_instance () as vimba:
@@ -201,12 +205,12 @@ class VideoThread(QThread):
 
                 while self._execute:
                     t = time.perf_counter()
-                    self.__grab_frame(cam)
+                    self._grab_frame(cam)
                     QThread.msleep(100)
                     #print("One frame {}".format(time.perf_counter()-t))
 
                 '''self._timer_video = QTimer()
-                self._timer_video.timeout.connect(lambda: self.__grab_frame(cam))
+                self._timer_video.timeout.connect(lambda: self._grab_frame(cam))
                 self._timer_video.start(1)  # Grab a frame every 300ms (about 3.3fps)'''
 
 
@@ -225,12 +229,12 @@ class VideoThread(QThread):
 
             # storing time after function execution
             end = time.time()
-            print("Total time taken in : ", func.__name__, end - begin)
+            print("Total time taken in : ", func._name_, end - begin)
 
         return inner1
     
     #@calculate_time
-    def __grab_frame(self, cam):
+    def _grab_frame(self, cam):
         if cam is not None and self._execute:
 
             frame = cam.get_frame ()
@@ -243,10 +247,10 @@ class VideoThread(QThread):
                 #print("Time 1 {}".format(time.perf_counter()-t))
                 
                 #detect markers
-                img, coord_temp = self.__detectMarkers(img_cv) #detection of Markers
+                img, coord_temp = self._detectMarkers(img_cv) #detection of Markers
 
                 #Draw all the markers
-                img = cv2.addWeighted(self.__img_track, 1, img, 1, 0)
+                img = cv2.addWeighted(self._img_track, 1, img, 1, 0)
 
                 #Draw point numbers on image
                 if 0 < len(self._point1):
@@ -271,7 +275,7 @@ class VideoThread(QThread):
                 # True only one time to record initial position of the marks
                 if self._init_marks:
 
-                    self.__initVariables()
+                    self._initVariables()
                     
                     print("Start recording")
                     print("Point 1 {},  {}".format(self._roi_x1, self._roi_y1))
@@ -348,7 +352,7 @@ class VideoThread(QThread):
                     lg = len(group)
                     if lg > 1:
                         #print(group[lg-2])
-                        cv2.line(self.__img_track, tuple(int(x) for x in group[lg-2]), tuple(int(x) for x in group[lg-1]), 150, 1)
+                        cv2.line(self._img_track, tuple(int(x) for x in group[lg-2]), tuple(int(x) for x in group[lg-1]), 150, 1)
             
             
     def restart(self):
@@ -365,11 +369,11 @@ class VideoThread(QThread):
         self._roi_x2 = VideoThread.RES_X_FULL
         self._roi_y2 = VideoThread.RES_Y_FULL
 
-        self.__initVariables()
+        self._initVariables()
 
         self.start()
 
-    def __detectMarkers(self, image):
+    def _detectMarkers(self, image):
         """
         Detects markers in the given image and returns the resulting image with markers 
         drawn and the coordinates of the detected markers.
@@ -417,13 +421,6 @@ class VideoThread(QThread):
             circularity = 4*math.pi*(area/(perimeter*perimeter))
            
             if 0.5 < circularity and area > 50 and area < 4000:
-                '''
-                ((x, y), r) = cv2.minEnclosingCircle(c)
-                x = int (x)
-                y = int (y)
-                r = int (r)
-
-                cv2.circle(res_img, (x, y), r, 120, 2) '''
 
                 #Find center with image moments
                 M = cv2.moments(c)
@@ -462,14 +459,14 @@ class VideoWindow(QWidget):
     RES_Y = 480#int(768/2)
     
 
-    def __init__(self, thread):
+    def _init_(self, thread):
         
 
         """
         Initializes the video stream window and sets up the interface for displaying the video feed 
         and controlling the webcam. 
         """
-        super().__init__()
+        super()._init_()
         self.setWindowTitle("Video Stream")
         self._image_label = QLabel(self)
         self._image_label.resize(VideoWindow.RES_X, VideoWindow.RES_Y)
@@ -566,7 +563,7 @@ class VideoWindow(QWidget):
 
 
 
-if __name__ == '__main__':
+if _name_ == '_main_':
     print("Started")
     app = QApplication(sys.argv)
     _video_thread = VideoThread()

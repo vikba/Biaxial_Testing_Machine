@@ -1,0 +1,336 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>900</width>
+    <height>800</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Material Testing Application</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <widget class="QSplitter" name="splitter">
+    <property name="orientation">
+     <enum>Qt::Horizontal</enum>
+    </property>
+    <widget class="QWidget" name="leftWidget">
+     <layout class="QVBoxLayout" name="leftLayout">
+      <item>
+       <widget class="QTabWidget" name="tabWidgetPlots">
+        <property name="currentIndex">
+         <number>0</number>
+        </property>
+        <widget class="QWidget" name="tabPlot1">
+         <attribute name="title">
+          <string>Plot 1</string>
+         </attribute>
+         <layout class="QVBoxLayout" name="verticalLayoutPlot1">
+          <item>
+           <widget class="PlotWidget" name="ChartWidget_1" native="true"/>
+          </item>
+         </layout>
+        </widget>
+        <widget class="QWidget" name="tabPlot2">
+         <attribute name="title">
+          <string>Plot 2</string>
+         </attribute>
+         <layout class="QVBoxLayout" name="verticalLayoutPlot2">
+          <item>
+           <widget class="PlotWidget" name="ChartWidget_2" native="true"/>
+          </item>
+         </layout>
+        </widget>
+        <widget class="QWidget" name="tabPlot3">
+         <attribute name="title">
+          <string>Plot 3</string>
+         </attribute>
+         <layout class="QVBoxLayout" name="verticalLayoutPlot3">
+          <item>
+           <widget class="PlotWidget" name="ChartWidget_3" native="true"/>
+          </item>
+         </layout>
+        </widget>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+    <widget class="QWidget" name="rightWidget">
+     <layout class="QVBoxLayout" name="rightLayout">
+      <item>
+       <widget class="QLabel" name="instructionLabel">
+        <property name="text">
+         <string>Choose testing method and press 'Connect' to start</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
+        </property>
+        <property name="font">
+         <font>
+          <weight>75</weight>
+          <bold>true</bold>
+         </font>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QGroupBox" name="groupBox_TestControls">
+        <property name="title">
+         <string>Test Controls</string>
+        </property>
+        <layout class="QGridLayout" name="gridLayout_TestControls">
+         <item row="0" column="0">
+          <widget class="QPushButton" name="buttonConnect">
+           <property name="text">
+            <string>Connect</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QPushButton" name="buttonCamera">
+           <property name="text">
+            <string>Camera</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QPushButton" name="buttonStart">
+           <property name="text">
+            <string>Start</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QPushButton" name="buttonStop">
+           <property name="text">
+            <string>Stop</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QPushButton" name="buttonAutoload">
+           <property name="text">
+            <string>Autoload</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QPushButton" name="buttonCalcLoad">
+           <property name="text">
+            <string>Calc Load</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QRadioButton" name="buttonNewtons">
+           <property name="text">
+            <string>Newtons</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QRadioButton" name="buttonGrams">
+           <property name="text">
+            <string>Grams</string>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <widget class="QTabWidget" name="tabWidgetParameters">
+        <property name="currentIndex">
+         <number>0</number>
+        </property>
+        <widget class="QWidget" name="tabLoad">
+         <attribute name="title">
+          <string>Load</string>
+         </attribute>
+         <!-- Load tab content remains the same -->
+        </widget>
+        <widget class="QWidget" name="tabStrain">
+         <attribute name="title">
+          <string>Strain</string>
+         </attribute>
+         <!-- Strain tab content -->
+        </widget>
+        <widget class="QWidget" name="tabDisp">
+         <attribute name="title">
+          <string>Displacement</string>
+         </attribute>
+         <!-- Displacement tab content remains the same -->
+        </widget>
+       </widget>
+      </item>
+      <item>
+       <widget class="QGroupBox" name="groupBox_MotorControls">
+        <property name="title">
+         <string>Motor Controls</string>
+        </property>
+        <layout class="QGridLayout" name="gridLayout_MotorControls">
+         <item row="0" column="0">
+          <widget class="QPushButton" name="buttonZeroPosition">
+           <property name="text">
+            <string>Set Zero Position</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QPushButton" name="buttonZeroForce">
+           <property name="text">
+            <string>Set Zero Force</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QPushButton" name="buttonSampleP">
+           <property name="text">
+            <string>Move to Sample Position</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QPushButton" name="buttonInitMot">
+           <property name="text">
+            <string>Initialize Motors</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="label_Axis1">
+           <property name="text">
+            <string>Axis 1</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QLabel" name="label_Axis2">
+           <property name="text">
+            <string>Axis 2</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QPushButton" name="buttonCompressAx1">
+           <property name="text">
+            <string>Compress</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QPushButton" name="buttonCompressAx2">
+           <property name="text">
+            <string>Compress</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="0">
+          <widget class="QPushButton" name="buttonStretchAx1">
+           <property name="text">
+            <string>Stretch</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
+          <widget class="QPushButton" name="buttonStretchAx2">
+           <property name="text">
+            <string>Stretch</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="labelSampleName">
+        <property name="text">
+         <string>Sample Name (for folder):</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="factorSampleName">
+        <property name="text">
+         <string>Sample</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="labelWorkingFolder">
+        <property name="text">
+         <string>Working Folder:</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayoutFolder">
+        <item>
+         <widget class="QLabel" name="labelFolder">
+          <property name="text">
+           <string>Folder address</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="buttonFolder">
+          <property name="maximumSize">
+           <size>
+            <width>20</width>
+            <height>23</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>...</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <spacer name="verticalSpacer">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeHint">
+         <size>
+          <width>20</width>
+          <height>40</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+     </layout>
+    </widget>
+   </widget>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>900</width>
+     <height>21</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>PlotWidget</class>
+   <extends>QWidget</extends>
+   <header location="global">pyqtgraph</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>
