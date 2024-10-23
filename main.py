@@ -5,8 +5,6 @@
 #Freeze the application
 #Write cycles in different files
 #Save pyqtgraph as img
-#Compare formulas with matlab
-#Save config in the same folder as sample
 #add reset after preconditioning to videothread
 #be sure that data are not lost
 

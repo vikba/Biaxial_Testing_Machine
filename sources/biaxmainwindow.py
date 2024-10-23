@@ -682,7 +682,7 @@ class BiaxMainWindow(QMainWindow):
     def __calculate_loads (self):
 
         self._fl_sample_initialized = True
-        self._calc_loads_window = LoadCalculatorWindow(self._thickness, self._len1, self._len2, self._max_stress1, self._max_stress2)
+        self._calc_loads_window = LoadCalculatorWindow(self._thickness, self._len1, self._len2, self._max_stress1, self._max_stress2, self._units)
         self._calc_loads_window.signal_loads_calculated.connect(self.__set_sample_params)
 
         self._calc_loads_window.show()
