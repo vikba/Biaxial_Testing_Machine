@@ -64,7 +64,7 @@ class BiaxMainWindow(QMainWindow):
 
         self.__init_variables()
 
-        buffer_len = 300
+        buffer_len = 500
 
         self._ringbuffer1 = RingBuffer(buffer_len) #Ring buffer for live force display of channel1
         self._ringbuffer2 = RingBuffer(buffer_len) #Ring buffer for live force display of channel2

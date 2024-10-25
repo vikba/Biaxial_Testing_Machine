@@ -1,5 +1,5 @@
 {
-    "name": "eeeee",
+    "name": "",
     "unit": "gram",
     "thickness": 0.2,
     "length1": 8.0,
@@ -17,10 +17,10 @@
     "halfcycltime": "15",
     "cycleprecond": "7",
     "cycletest": "8",
-    "disptestspeed1": "4",
-    "disptestspeed2": "4",
-    "disptestlen1": "2",
-    "disptestlen2": "2",
-    "disptestcycle": "1",
+    "disptestspeed1": "150",
+    "disptestspeed2": "150",
+    "disptestlen1": "5",
+    "disptestlen2": "5",
+    "disptestcycle": "20",
     "folder": "C:/Users/vbalashov/Desktop"
 }

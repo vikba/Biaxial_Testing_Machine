@@ -252,9 +252,10 @@ class LoadControlTest(MechanicalTest):
                     self._mot_daq.stop_motors()
 
                     if self._state == State.PRECONDITIONING:
-                        self._writeDataToFile(self._file_name, self._num_cycles_precond - self._half_cycle/2)
+                        self._writeDataToFile(self._file_name, self._num_cycles_precond - self._half_cycle/2, False)
                     elif self._state == State.TEST:
-                        self._writeDataToFile(self._file_name, self._num_cycles_test - self._half_cycle/2 )
+                        fl_txt = (self._half_cycle == 0)
+                        self._writeDataToFile(self._file_name, self._num_cycles_test - self._half_cycle/2, fl_txt )
 
                     self._init_variables()
 
@@ -347,13 +348,6 @@ class LoadControlTest(MechanicalTest):
             current_datetime = datetime.now()
             formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
             self._file_name = 'Test_'+ self._sam_name + '_' + formatted_datetime
-
-            #Write old data to file
-            #Initialize variables from the beginning
-            #Initialize markers
-            #Send signal to main GUI to clear the old data
-            #Give a warning "Continue with a test?"
-            #Start the test
         
         
         #When test finished

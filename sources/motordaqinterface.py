@@ -346,7 +346,7 @@ class MotorDAQInterface (QThread):
         #self._axis2.move_velocity(speed, Units.VELOCITY_MILLIMETRES_PER_SECOND)
 
         self._axis1.home(wait_until_idle=False)
-        self._axis2.home()
+        self._axis2.home(wait_until_idle=False)
 
         # Set the soft limits (in millimeters)
         min_limit = 0    # Adjust this value as necessary

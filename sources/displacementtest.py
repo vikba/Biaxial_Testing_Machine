@@ -149,7 +149,7 @@ class DisplacementControlTest(MechanicalTest):
                     self._fin_pos1 = self._start_pos1 - self._max_disp1/2 
                     self._fin_pos2 = self._start_pos2 - self._max_disp2/2
 
-                    self._writeDataToFile(self._file_name, self._half_cycle/2 +1)
+                    self._writeDataToFile(self._file_name, self._half_cycle/2 +1, False)
                     self._start_cycle_time = time.perf_counter()
 
                 #Relax cycle

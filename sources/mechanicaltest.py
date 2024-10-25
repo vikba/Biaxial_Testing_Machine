@@ -302,9 +302,9 @@ class MechanicalTest (QThread):
         self._sam_name = sam_name
         
 
-    def _writeDataToFile(self, file_name, cycl_num):
-        # Combine the lists
-
+    def _writeDataToFile(self, file_name, cycl_num, fl_txt):
+        
+        #Zip data in one variable for export
         if self._use_video:
             X11	= [x for x,_ in self._point1]
             X12	= [x for x,_ in self._point2]
@@ -328,6 +328,7 @@ class MechanicalTest (QThread):
         folder = os.path.join(self._workfolder, self._sam_name)
         os.makedirs(folder, exist_ok=True)
 
+        #Write in excel file
         file_path = os.path.join(folder, f'{file_name}.xlsx')
 
         # Check if the file exists
@@ -351,6 +352,24 @@ class MechanicalTest (QThread):
 
         # Save the workbook to the specified file
         wb.save(file_path)
+
+        #If we need to save the file also in txt format
+        if fl_txt:
+            # Define the file path with .txt extension
+            file_path = os.path.join(folder, f'{file_name}.txt')
+
+            # Open the file in append mode if it exists, else write mode
+            with open(file_path, 'w') as f:
+                header_line = '\t'.join(header)
+                f.write(header_line + '\n')
+
+                # Write each row of data
+                for row in combined_lists:
+                    # Convert all elements to string to ensure proper formatting
+                    row_str = '\t'.join(map(str, row))
+                    f.write(row_str + '\n')
+
+            print(f"Data successfully written to {file_path}")
 
             
 
