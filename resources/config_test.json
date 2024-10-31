@@ -1,17 +1,17 @@
 {
-    "name": "",
+    "name": "ant_1500_1)_autoload3",
     "unit": "gram",
-    "thickness": 0.2,
-    "length1": 8.0,
-    "length2": 8.0,
-    "maxstress1": 700.0,
-    "maxstress2": 700.0,
+    "thickness": 0.135,
+    "length1": 9.0,
+    "length2": 9.0,
+    "maxstress1": 500.0,
+    "maxstress2": 500.0,
     "tareload1": "3",
     "tareload2": "3",
     "load_precond1": "92",
     "load_precond2": "92",
-    "load_test1": "100",
-    "load_test2": "100",
+    "load_test1": "70",
+    "load_test2": "70",
     "disp_guess1": "3",
     "disp_guess2": "3",
     "halfcycltime": "15",
@@ -22,5 +22,5 @@
     "disptestlen1": "5",
     "disptestlen2": "5",
     "disptestcycle": "20",
-    "folder": "C:/Users/vbalashov/Desktop"
+    "folder": "C:/Users/vbalashov/Desktop/Tan_vel_vs._AR"
 }

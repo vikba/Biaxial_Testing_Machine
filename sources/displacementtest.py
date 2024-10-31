@@ -40,8 +40,9 @@ class DisplacementControlTest(MechanicalTest):
 
         #this timers should be created in class, but not in its parent class
         
-    def update_parameters(self, sam_name, vel1, vel2, len1, len2, num_cycles):
+    def update_parameters(self, folder, sam_name, vel1, vel2, len1, len2, num_cycles):
 
+        self._workfolder = folder
         self._sam_name = sam_name
         
         # Set speed

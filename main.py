@@ -3,14 +3,13 @@
 #Check what happens at the end of test
 #Reset video classes after the test
 #Freeze the application
-#Write cycles in different files
-#Save pyqtgraph as img
 #add reset after preconditioning to videothread
-#be sure that data are not lost
+
+   
 
 
 
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication 
 
 from sources import BiaxMainWindow
 

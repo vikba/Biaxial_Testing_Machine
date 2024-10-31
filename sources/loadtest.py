@@ -98,7 +98,10 @@ class LoadControlTest(MechanicalTest):
             self._mot_daq.move_velocity_ax1(-self._vel_ax1) #in mm/s
             self._mot_daq.move_velocity_ax2(-self._vel_ax2) #in mm/s
 
-            self._test_timer.start(self._sample_time)
+            #self._test_timer.start(self._sample_time)
+
+            QMetaObject.invokeMethod(self._test_timer, "start", Qt.ConnectionType.QueuedConnection)
+
         else:
             print("LoadControlTest: Autoloading finished, test not started yet")
 

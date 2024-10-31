@@ -439,9 +439,9 @@ class MotorDAQInterface (QThread):
 
             # Adjust motor velocities
             if self._units == Unit.Newton:
-                Kp = 100
+                Kp = 1.5
             else:
-                Kp = 0.01
+                Kp = 0.015
 
             max_velocity = 0.2 #mm/sec
             v1 = min(max_velocity, max(-max_velocity, -Kp * offset1))
