@@ -111,6 +111,7 @@ class BiaxMainWindow(QMainWindow):
         self.upperLabel_2.setStyleSheet("color: black; font-size: 14px;")
 
         #Configure charts
+        self.ChartWidget_1.addLegend()
         self.ChartWidget_1.setBackground('w')  # Set background to white
         self.ChartWidget_1.getAxis('left').setPen(pg.mkPen(color='k', width=1))
         self.ChartWidget_1.getAxis('bottom').setPen(pg.mkPen(color='k', width=1))
@@ -128,6 +129,7 @@ class BiaxMainWindow(QMainWindow):
             self.ChartWidget_1.setLabel('left', 'Load, g', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
         self.ChartWidget_1.setLabel('bottom', 'Time, s', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
 
+        
         self.ChartWidget_2.setBackground('w')  # Set background to white
         self.ChartWidget_2.getAxis('left').setPen(pg.mkPen(color='k', width=1))
         self.ChartWidget_2.getAxis('bottom').setPen(pg.mkPen(color='k', width=1))
@@ -789,8 +791,8 @@ class BiaxMainWindow(QMainWindow):
 
 
         self.ChartWidget_1.clear()
-        self.ChartWidget_1.plot(self._t, self._load1, pen=pg.mkPen(color='b', width=2))  
-        self.ChartWidget_1.plot(self._t, self._load2, pen=pg.mkPen(color='r', width=2))  
+        self.ChartWidget_1.plot(self._t, self._load1, pen=pg.mkPen(color='b', width=2), name = "Channel 1")  
+        self.ChartWidget_1.plot(self._t, self._load2, pen=pg.mkPen(color='r', width=2), name = "Channel 2")  
         #if 0 == self.tabWidget.currentIndex():
         #    self.ChartWidget_1.plot(t_s, f_s)
 
@@ -832,8 +834,8 @@ class BiaxMainWindow(QMainWindow):
 
             #draw them in the chart
             self.ChartWidget_1.clear()
-            self.ChartWidget_1.plot(self._t_label, self._ringbuffer1.get_buffer(), pen=pg.mkPen(color='b', width=2))  
-            self.ChartWidget_1.plot(self._t_label, self._ringbuffer2.get_buffer(), pen=pg.mkPen(color='r', width=2))  
+            self.ChartWidget_1.plot(self._t_label, self._ringbuffer1.get_buffer(), pen=pg.mkPen(color='b', width=2), name = "Channel 1")  
+            self.ChartWidget_1.plot(self._t_label, self._ringbuffer2.get_buffer(), pen=pg.mkPen(color='r', width=2), name = "Channel 2")  
 
 
     @pyqtSlot()

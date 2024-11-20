@@ -189,7 +189,7 @@ class LoadControlTest(MechanicalTest):
     def __one_cycle_labview_alg(self):
 
         #Condition to finish the test: positive number of steps left
-        if self._current_time < 1000 and self._execute and self._half_cycle > 0:
+        if self._current_time < 3000 and self._execute and self._half_cycle > 0:
 
             # Read current forces, positions, time and record them
             self._current_time = round(time.perf_counter() - self._start_time, 5)
@@ -260,7 +260,7 @@ class LoadControlTest(MechanicalTest):
                         fl_txt = (self._half_cycle == 0)
                         self._writeDataToFile(self._file_name, self._num_cycles_test - self._half_cycle/2, fl_txt )
 
-                    self._init_variables()
+                    
 
                     #For autoloading we need to stop the current timer and start autoloading
                     if self._fl_autoloading:
@@ -271,6 +271,8 @@ class LoadControlTest(MechanicalTest):
                         # Start stretching
                         self._mot_daq.move_velocity_ax1(-self._vel_ax1) #in mm/s
                         self._mot_daq.move_velocity_ax2(-self._vel_ax2) #in mm/s
+
+                    self._init_variables()
 
                     
 

@@ -316,14 +316,14 @@ class MechanicalTest (QThread):
             X24 = [y for _,y in self._point4]
 
             header = ["Time_rel", "Load_1","Load_2", "F11","F12","F21","F22", "E11","E12","E22", "X11","X12","X13","X14","X21","X22","X23","X24", "Disp_1", "Disp_2", "Time_abs"]
-            combined_lists = zip(self._time_rel, self._load1, self._load2, 
+            combined_lists = list(zip(self._time_rel, self._load1, self._load2, 
                                  self._F11, self._F12, self._F21, self._F22,
                                  self._E11, self._E12, self._E22, X11,X12,X13,X14,X21,X22,X23,X24, 
-                                 self._disp1, self._disp2, self._time_abs)
+                                 self._disp1, self._disp2, self._time_abs))
         
         else: 
             header = ["Time_rel", "Load_1", "Load_2", "Disp_1", "Disp_2", "Time_abs"]
-            combined_lists = zip( self._time_rel, self._load1, self._load2, self._disp1, self._disp2, self._time_abs)
+            combined_lists = list(zip( self._time_rel, self._load1, self._load2, self._disp1, self._disp2, self._time_abs))
 
         folder = os.path.join(self._workfolder, self._sam_name)
         os.makedirs(folder, exist_ok=True)
@@ -355,21 +355,25 @@ class MechanicalTest (QThread):
 
         #If we need to save the file also in txt format
         if fl_txt:
-            # Define the file path with .txt extension
-            file_path = os.path.join(folder, f'{file_name}.txt')
+            txt_file_path = os.path.join(folder, f'{file_name}.txt')
+            try:
+                with open(txt_file_path, 'w', encoding='utf-8') as f:
+                    # Write header
+                    header_line = '\t'.join(header)
+                    f.write(header_line + '\n')
+                    print(f"Written header to text file: {header_line}")
 
-            # Open the file in append mode if it exists, else write mode
-            with open(file_path, 'w') as f:
-                header_line = '\t'.join(header)
-                f.write(header_line + '\n')
+                    # Write data rows
+                    for idx, row in enumerate(combined_lists):
+                        # Ensure each element is a string and join with tabs
+                        row_str = '\t'.join(map(str, row))
+                        f.write(row_str + '\n')
+                        if idx <= 5:  # Print first 5 rows for debugging
+                            print(f"Written row {idx} to text file: {row_str}")
 
-                # Write each row of data
-                for row in combined_lists:
-                    # Convert all elements to string to ensure proper formatting
-                    row_str = '\t'.join(map(str, row))
-                    f.write(row_str + '\n')
-
-            print(f"Data successfully written to {file_path}")
+                print(f"Data successfully written to text file: {txt_file_path}")
+            except Exception as e:
+                print(f"Error writing to text file: {e}")
 
             
 
