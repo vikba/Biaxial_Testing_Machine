@@ -37,6 +37,8 @@ class DisplacementControlTest(MechanicalTest):
 
         self._execute = True
 
+        print("Displacement Control Test created.")
+
 
         #this timers should be created in class, but not in its parent class
         
@@ -137,12 +139,14 @@ class DisplacementControlTest(MechanicalTest):
                 
             #If Half cycle finished - change direction
             else:
-                print("DisplacementControlTest: Half cycle finished")
+                
                 self._half_cycle -= 1
                 if Direction.STRETCH == self._direction:
                     self._direction = Direction.COMPRESS
+                    print("DisplacementControlTest: Start compressing the sample")
                 else:
                     self._direction = Direction.STRETCH
+                    print("DisplacementControlTest: Start stretching the sample")
 
                 #Set final posistion based on stretch or relax cycle
                 #Stretch cycle
@@ -158,12 +162,12 @@ class DisplacementControlTest(MechanicalTest):
                     self._fin_pos1 = self._start_pos1
                     self._fin_pos2 = self._start_pos2
 
-                if (self._use_video):
-                    #Get current date for filename
-                    current_datetime = datetime.now()
-                    formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
-                    img_addr = os.path.join(self._workfolder, self._sam_name,  'Test_'+self._sam_name+'_'+formatted_datetime+'_last_frame.jpg')
-                    self.signal_save_image.emit(img_addr)
+                if self._use_video and 1 == self._half_cycle:
+                        #Get current date for filename
+                        current_datetime = datetime.now()
+                        formatted_datetime = current_datetime.strftime("%Y_%m_%d_%H_%M")
+                        img_addr = os.path.join(self._workfolder, self._sam_name,  'Test_'+self._sam_name+'_'+formatted_datetime+'_last_frame.jpg')
+                        self.signal_save_image.emit(img_addr)
                 
                 if self._half_cycle > 0:
                     print(f"positions current: {self._pos1} , final: {self._fin_pos1}")

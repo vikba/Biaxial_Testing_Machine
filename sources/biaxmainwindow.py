@@ -152,7 +152,7 @@ class BiaxMainWindow(QMainWindow):
         self.ChartWidget_3.getAxis('left').setTickFont(font)
         self.ChartWidget_3.getAxis('bottom').setTickFont(font)
         self.ChartWidget_3.setLabel('left', 'Stress, kPa', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
-        self.ChartWidget_3.setLabel('bottom', 'Strain, %', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
+        self.ChartWidget_3.setLabel('bottom', 'Strain', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
         
         
 
@@ -274,6 +274,8 @@ class BiaxMainWindow(QMainWindow):
         self._E22 = [] 
         self._v1 = [] 
         self._v2 = []
+        self._strain_disp1 = []
+        self._strain_disp2 = []
 
     @pyqtSlot() #To clear charts then preconditioning or test are finished
     def reset(self):
@@ -477,10 +479,15 @@ class BiaxMainWindow(QMainWindow):
                 length2 = float(self.factorLength2.text())/2
                 cycl_num = int(self.factorCyclNumD.text())
 
-                self._mec_test = DisplacementControlTest(self._mot_daq, self._work_folder, self._sam_name, vel_ax1, vel_ax2, length1, length2, cycl_num)
-                self.signal_stop.connect(self._mec_test.stop)
-                self._mec_test.signal_update_charts.connect(self.__update_charts)
-                self._mec_test.signal_precond_finished.connect(self.reset)
+                if hasattr(self, '_mec_test') and isinstance(self._mec_test, DisplacementControlTest):
+                    #If object of load control test exists just update test parameters
+                    self._mec_test.update_parameters(self._work_folder, self._sam_name, vel_ax1, vel_ax2, length1, length2, cycl_num)
+                else:
+                
+                    self._mec_test = DisplacementControlTest(self._mot_daq, self._work_folder, self._sam_name, vel_ax1, vel_ax2, length1, length2, cycl_num)
+                    self.signal_stop.connect(self._mec_test.stop)
+                    self._mec_test.signal_update_charts.connect(self.__update_charts)
+                    self._mec_test.signal_precond_finished.connect(self.reset)
                 #self._mec_test.signal_test_finished.connect(self.reset)
                 
                 
@@ -770,6 +777,8 @@ class BiaxMainWindow(QMainWindow):
         self._disp1.append(array[3]) 
         self._disp2.append(array[4]) 
 
+        #print(array)
+
         #Stress calculation depends on force units used
         if Unit.Newton == self._units:
             self._stress1.append(array[1]*1000/self._area1)  #kPa
@@ -783,7 +792,9 @@ class BiaxMainWindow(QMainWindow):
             self._E22.append(array[6]) 
             self._v1.append(array[7]) 
             self._v2.append(array[8])
-        
+        else:
+            self._strain_disp1.append(array[3]/self._len1)
+            self._strain_disp2.append(array[4]/self._len2)
         #t_s = [0, self.test_duration]
         #f_s = [0, self.end_force1]
     
@@ -802,13 +813,14 @@ class BiaxMainWindow(QMainWindow):
         self.ChartWidget_2.plot(self._t, self._disp2, pen=pg.mkPen(color='r', width=2))  
 
         self.ChartWidget_3.clear()
-        if len(self._E11) == len (self._load1):
+        if 9 == len(array):
             #print(self._E11)
             self.ChartWidget_3.plot(self._E11, self._stress1, pen=pg.mkPen(color='b', width=2)) 
             self.ChartWidget_3.plot(self._E22, self._stress2, pen=pg.mkPen(color='r', width=2)) 
         else:
-            self.ChartWidget_3.plot(self._disp1, self._load1, pen=pg.mkPen(color='b', width=2)) 
-            self.ChartWidget_3.plot(self._disp2, self._load2, pen=pg.mkPen(color='r', width=2)) 
+            self.ChartWidget_3.setLabel('bottom', 'Strain (displacement)', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
+            self.ChartWidget_3.plot(self._strain_disp1, self._stress1, pen=pg.mkPen(color='b', width=2)) 
+            self.ChartWidget_3.plot(self._strain_disp2, self._stress2, pen=pg.mkPen(color='r', width=2)) 
         
 
     def __updateLabelForce(self):

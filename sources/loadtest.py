@@ -57,6 +57,8 @@ class LoadControlTest(MechanicalTest):
 
         self._disp_guess1 = disp1
         self._disp_guess2 = disp2
+
+        print("Load Control Test created.")
     
     
     def update_parameters (self, folder, sam_name, autoloading, max_force1, max_force2, tare_load1, tare_load2, disp1, disp2, test_duration, num_cycles_precond, num_cycles_test):
