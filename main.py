@@ -5,7 +5,7 @@
 #Freeze the application
 #add reset after preconditioning to videothread
 #add a point list of all the steps that should be followed
-#change color font of "axis 1" and "axis 2" words. To be consistent with the color of the charts
+#take first frame on the beginning of the first cycle of test (not the pretest)
 
    
 

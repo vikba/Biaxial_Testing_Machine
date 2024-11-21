@@ -96,8 +96,8 @@ class DisplacementControlTest(MechanicalTest):
 
             self._start_pos1 = self._pos1
             self._start_pos2 = self._pos2
-            self._fin_pos1 = self._start_pos1 - self._max_disp1/2 #when sample is stretched, the position is decreased
-            self._fin_pos2 = self._start_pos2 - self._max_disp2/2
+            self._fin_pos1 = self._start_pos1 - self._max_disp1 #when sample is stretched, the position is decreased
+            self._fin_pos2 = self._start_pos2 - self._max_disp2
 
             #Start movement to final position
             self._mot_daq.move_position_ax1(self._fin_pos1, self._vel_ax1)
@@ -147,8 +147,8 @@ class DisplacementControlTest(MechanicalTest):
                 #Set final posistion based on stretch or relax cycle
                 #Stretch cycle
                 if Direction.STRETCH == self._direction:
-                    self._fin_pos1 = self._start_pos1 - self._max_disp1/2 
-                    self._fin_pos2 = self._start_pos2 - self._max_disp2/2
+                    self._fin_pos1 = self._start_pos1 - self._max_disp1
+                    self._fin_pos2 = self._start_pos2 - self._max_disp2
 
                     self._writeDataToFile(self._file_name, self._half_cycle/2 +1, True)
                     self._start_cycle_time = time.perf_counter()
