@@ -1,5 +1,5 @@
 {
-    "name": "fdfdfd",
+    "name": "",
     "unit": "gram",
     "thickness": 0.184,
     "length1": 10.0,
@@ -19,8 +19,8 @@
     "cycletest": "8",
     "disptestspeed1": "50",
     "disptestspeed2": "50  ",
-    "disptestlen1": "20",
-    "disptestlen2": "20",
+    "disptestlen1": "4",
+    "disptestlen2": "4",
     "disptestcycle": "2",
     "folder": "C:/Users/vbalashov/Desktop/Tan_vel_vs._AR"
 }

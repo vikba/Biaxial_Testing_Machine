@@ -176,11 +176,12 @@ class DisplacementControlTest(MechanicalTest):
         #Test finished
         else:
             # Stop motors after measurement cycle is finished
-            #self._test_timer.stop()
             QMetaObject.invokeMethod(self._test_timer, "stop", Qt.ConnectionType.QueuedConnection)
             print("DisplacementControlTest: Test finished")
             self.stop_measurement()
-            self._finish_test()
+            #self._finish_test()
+            print("DisplacementControlTest: Test finished")
+            self.signal_test_finished.emit()
             
         
         
