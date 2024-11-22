@@ -167,6 +167,7 @@ class LoadControlTest(MechanicalTest):
         self._end_force2 = self._max_force2
 
         self._mot_daq.zeroPosition()
+        self._write_points_reference(os.path.join(self._workfolder, self._sam_name))
         
         self._force1,self._force2 = self._mot_daq.get_forces()
         
@@ -235,12 +236,16 @@ class LoadControlTest(MechanicalTest):
             else:
                 self._half_cycle -= 1
                 
+                #Change behaviour from relax to stretch loop
                 if Direction.STRETCH == self._direction:
                     self._direction = Direction.COMPRESS
                 else:
                     self._direction = Direction.STRETCH
+
+                #After first cycle in both PRECONDITIONING and TEST write reference of points
+                if self._half_cycle == 2*self._num_cycles_precond-1:
+                    self._write_points_reference(os.path.join(self._workfolder, self._sam_name))
                 
-                #Change behaviour from relax to stretch loop
                 #Setting all the variables but the loop will start after autoloading if performed if needed
                 if Direction.STRETCH == self._direction:
                     #Increase force loop
@@ -346,6 +351,7 @@ class LoadControlTest(MechanicalTest):
             self._half_cycle = 2*self._num_cycles_test
             self._direction = Direction.STRETCH
             self._init_variables()
+            self._write_points_reference(os.path.join(self._workfolder, self._sam_name)) #Write points reference before the main test
             #self._mot_daq.zeroPosition()
 
             print("LoadControlTest: Preconditioning finished. Main test started.")
@@ -360,6 +366,7 @@ class LoadControlTest(MechanicalTest):
         #When test finished
         else:
             # Stop motors after measurement cycle is finished
+            self._write_points_reference(os.path.join(self._workfolder, self._sam_name)) #Write points reference after the test
             QMetaObject.invokeMethod(self._test_timer, "stop", Qt.ConnectionType.QueuedConnection)
             self.stop_measurement()
             print("LoadControlTest: Test finished")

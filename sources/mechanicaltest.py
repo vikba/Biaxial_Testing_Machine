@@ -10,6 +10,7 @@ import numpy as np
 import time
 import os
 from openpyxl import Workbook, load_workbook
+from datetime import datetime
 
 from .state import State
 
@@ -372,6 +373,36 @@ class MechanicalTest (QThread):
                             print(f"Written row {idx} to text file: {row_str}")
 
                 print(f"Data successfully written to text file: {txt_file_path}")
+            except Exception as e:
+                print(f"Error writing to text file: {e}")
+
+
+    def _write_points_reference(self, folder):
+        if self._use_video:
+            # Format the date and time with tabulation
+            now = datetime.now()
+            formatted_time = now.strftime("%m/%d/%Y\t%I:%M %p")
+
+            # Validate that temporary points have at least two coordinates
+            if not all(len(p) >= 2 for p in [self._temp_p1, self._temp_p2, self._temp_p3, self._temp_p4]):
+                print("_write_points_reference: One or more temporary points do not contain enough coordinates.")
+                return
+
+            # Extract X and Y coordinates
+            x_coords = [p[0] for p in [self._temp_p1, self._temp_p2, self._temp_p3, self._temp_p4]]
+            y_coords = [p[1] for p in [self._temp_p1, self._temp_p2, self._temp_p3, self._temp_p4]]
+
+            combined_lists = [formatted_time] + x_coords + y_coords
+
+
+            txt_file_path = os.path.join(folder, f'REFERENCE_LOG.txt')
+            try:
+                with open(txt_file_path, 'a', encoding='utf-8') as f:
+
+                    row_str = '\t'.join(map(str, combined_lists))
+                    f.write(row_str + '\n')
+
+                print(f"Updating REFERENCE_LOG.txt\n{row_str}")
             except Exception as e:
                 print(f"Error writing to text file: {e}")
 
