@@ -366,7 +366,6 @@ class LoadControlTest(MechanicalTest):
         #When test finished
         else:
             # Stop motors after measurement cycle is finished
-            self._write_points_reference(os.path.join(self._workfolder, self._sam_name)) #Write points reference after the test
             QMetaObject.invokeMethod(self._test_timer, "stop", Qt.ConnectionType.QueuedConnection)
             self.stop_measurement()
             print("LoadControlTest: Test finished")

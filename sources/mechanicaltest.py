@@ -389,8 +389,8 @@ class MechanicalTest (QThread):
                 return
 
             # Extract X and Y coordinates
-            x_coords = [p[0] for p in [self._temp_p1, self._temp_p2, self._temp_p3, self._temp_p4]]
-            y_coords = [p[1] for p in [self._temp_p1, self._temp_p2, self._temp_p3, self._temp_p4]]
+            x_coords = [int(p[0]) for p in [self._temp_p1, self._temp_p2, self._temp_p3, self._temp_p4]]
+            y_coords = [int(p[1]) for p in [self._temp_p1, self._temp_p2, self._temp_p3, self._temp_p4]]
 
             combined_lists = [formatted_time] + x_coords + y_coords
 

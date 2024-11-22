@@ -487,8 +487,8 @@ class VideoThread(QThread):
                 M = cv2.moments(c)
 
                 if M["m00"] != 0:
-                    x = round(M["m10"] / M["m00"], 3)
-                    y = round(M["m01"] / M["m00"], 3)
+                    x = round(M["m10"] / M["m00"], 1)
+                    y = round(M["m01"] / M["m00"], 1)
                 else:
                     x, y = 0, 0  # Assign default value if m00 is zero
 
