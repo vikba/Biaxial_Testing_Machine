@@ -55,6 +55,8 @@ class DisplacementControlTest(MechanicalTest):
         self._max_disp2 = len2
 
         self._num_cycles = num_cycles
+
+        print("Displacement Control Test updated.")
         
         
     def run(self):

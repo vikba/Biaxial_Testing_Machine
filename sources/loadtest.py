@@ -74,6 +74,8 @@ class LoadControlTest(MechanicalTest):
         self._test_duration = test_duration
         self._num_cycles_precond = num_cycles_precond
         self._num_cycles_test = num_cycles_test
+
+        print("Load Control Test updated.")
     
     def increase_desired_force(self, start_force, end_force, duration, current_time):
         """

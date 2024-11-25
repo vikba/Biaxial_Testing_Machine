@@ -370,7 +370,7 @@ class BiaxMainWindow(QMainWindow):
 
         if isinstance(self._mec_test, LoadControlTest):
 
-            # Get test parameters
+            '''# Get test parameters
             end_force1 = float(self.factorLoadTest1.text())
             end_force2 = float(self.factorLoadTest2.text())
             tare_load1 = float(self.factorTareLoad1.text())
@@ -383,21 +383,21 @@ class BiaxMainWindow(QMainWindow):
             fl_autoloading = self.factor_check_box_autoloading.isChecked()
             
             self._mec_test.update_parameters(self._work_folder, self._sam_name, fl_autoloading, end_force1, end_force2, tare_load1, tare_load2, disp_guess1, disp_guess2, test_duration, cycl_num_precond, cycl_num_test)
-
+'''
 
             self.upperLabel_1.setText("Warning!")
             self.upperLabel_2.setText("Load control test")
 
         elif isinstance(self._mec_test, DisplacementControlTest):
 
-            # Calculate velocity
+            '''# Calculate velocity
             vel_ax1 = float(self.factorSpeedAx1.text())/120 #convert from mm/min to mm/sec and divide by 2 as one axis pulls sample from 2 sites
             vel_ax2 = float(self.factorSpeedAx2.text())/120
             length1 = float(self.factorLength1.text())/2
             length2 = float(self.factorLength2.text())/2
             cycl_num = int(self.factorCyclNumD.text())
 
-            self._mec_test.update_parameters(self._work_folder, self._sam_name, vel_ax1, vel_ax2, length1, length2, cycl_num)
+            self._mec_test.update_parameters(self._work_folder, self._sam_name, vel_ax1, vel_ax2, length1, length2, cycl_num)'''
 
             self.upperLabel_1.setText("Warning!")
             self.upperLabel_2.setText("Displacement control test")
