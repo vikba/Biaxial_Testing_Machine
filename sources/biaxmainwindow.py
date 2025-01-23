@@ -75,8 +75,6 @@ class BiaxMainWindow(QMainWindow):
         self._work_folder = os.path.join(home_dir, 'Desktop', 'Biax_Tests')
 
         self._load_test_config()
-
-        self.__change_units()
         
         
         # Initialization of GUI elements
@@ -175,9 +173,21 @@ class BiaxMainWindow(QMainWindow):
         if unit == "gram":
             self._units = Unit.Gram
             self.buttonGrams.setChecked(True)
+
+            self.ChartWidget_1.setLabel('left', 'Load, g', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
+            self.label_17.setText("g")
+            self.label_18.setText("g")
+            self.label_26.setText("g")
+            self.label_29.setText("g")
         else:
             self._units = Unit.Newton
             self.buttonNewtons.setChecked(True)
+
+            self.ChartWidget_1.setLabel('left', 'Load, N', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
+            self.label_17.setText("N")
+            self.label_18.setText("N")
+            self.label_26.setText("N")
+            self.label_29.setText("N")
 
         
         self._work_folder = self._config_test.get("folder")
@@ -882,6 +892,12 @@ class BiaxMainWindow(QMainWindow):
             self.label_29.setText("g")
             self._ringbuffer1.reset()
             self._ringbuffer2.reset()
+
+            self.factorTareLoad1.setText(f"{round(float(self.factorTareLoad1.text())*1000/9.8, 0)}")
+            self.factorTareLoad2.setText(f"{round(float(self.factorTareLoad2.text())*1000/9.8, 0)}")
+            self.factorLoadTest1.setText(f"{round(float(self.factorLoadTest1.text())*1000/9.8, 0)}")
+            self.factorLoadTest2.setText(f"{round(float(self.factorLoadTest2.text())*1000/9.8, 0)}")
+            
         else:
             self._units = Unit.Newton
             self.ChartWidget_1.setLabel('left', 'Load, N', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
@@ -891,6 +907,11 @@ class BiaxMainWindow(QMainWindow):
             self.label_29.setText("N")
             self._ringbuffer1.reset()
             self._ringbuffer2.reset()
+
+            self.factorTareLoad1.setText(f"{round(float(self.factorTareLoad1.text())*9.8/1000, 2)}")
+            self.factorTareLoad2.setText(f"{round(float(self.factorTareLoad2.text())*9.8/1000, 2)}")
+            self.factorLoadTest1.setText(f"{round(float(self.factorLoadTest1.text())*9.8/1000, 2)}")
+            self.factorLoadTest2.setText(f"{round(float(self.factorLoadTest2.text())*9.8/1000, 2)}")
 
         #Update the units in a class responsible for communicaiton with DAQ
         if hasattr(self, '_mot_daq'):

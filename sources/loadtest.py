@@ -220,6 +220,12 @@ class LoadControlTest(MechanicalTest):
             if Direction.STRETCH == self._direction and self._av_force1 < self._end_force1 and self._av_force2 < self._end_force2 or \
                 Direction.COMPRESS == self._direction and (self._pos1 <= -0.01  or self._pos2 <= -0.01):
                 #(self._force1 > self._end_force1 or self._force2 > self._end_force2):
+
+                
+                '''print(f"end force1: {self._end_force1}, end force2: {self._end_force2}")
+                print(f"av force1: {self._av_force1}, av force2: {self._av_force2}")
+                print(f"force1: {self._force1}, force2: {self._force2}")'''
+                
                 
                 
                 #Stop at new 0 after very first cycle

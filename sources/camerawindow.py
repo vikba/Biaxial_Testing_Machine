@@ -61,6 +61,8 @@ class VideoThread(QThread):
         # Initialize gain and exposure values
         self._gain_value = 15
         self._exposure_value = 700
+        self._threshold_value = 30  # Default threshold
+
 
         self._cam = None  # Camera object
 
@@ -428,6 +430,17 @@ class VideoThread(QThread):
     def example_decorated_function():
         pass  # Example usage
 
+    @pyqtSlot(int)
+    def set_threshold(self, value):
+        """
+        Sets the threshold value for marker detection.
+
+        Args:
+            value (int): The new threshold value.
+        """
+        self._threshold_value = value
+
+
     def _detectMarkers(self, image):
         """
         Detects markers in the given image and returns the resulting image with markers
@@ -442,7 +455,7 @@ class VideoThread(QThread):
                 - marks_groups (list): List of coordinates of detected markers.
         """
         # Apply median blur to reduce noise
-        blur = cv2.medianBlur(image, 3)
+        blur = cv2.medianBlur(image, 15)
         blur_strong = cv2.medianBlur(image, 71)
 
         # Invert the blurred images
@@ -453,12 +466,11 @@ class VideoThread(QThread):
         subtract_image = cv2.subtract(blur_inv, blur_strong_inv)
 
         # Apply thresholding to obtain binary image
-        ret, thresh = cv2.threshold(
-            subtract_image,
-            30,
-            255,
-            cv2.THRESH_BINARY + cv2.THRESH_OTSU
-        )
+        #ret, thresh = cv2.threshold( blur, 30, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU  )
+        ret, thresh = cv2.threshold(subtract_image, self._threshold_value, 255, cv2.THRESH_BINARY)
+
+        #ret, thresh = cv2.threshold( subtract_image, 30, 255, cv2.THRESH_BINARY)
+        #thresh = cv2.adaptiveThreshold(subtract_image ,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY,51,2)
 
         # Define morphological kernel
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
@@ -473,16 +485,16 @@ class VideoThread(QThread):
         cnts = cnts[0] if len(cnts) == 2 else cnts[1]
 
         marks_groups = []
-        res_img = image.copy()
+        res_img =  image.copy()# thresh.copy() #
 
         for c in cnts:
             area = cv2.contourArea(c)
             perimeter = cv2.arcLength(c, True)
-            if perimeter == 0:
+            if perimeter == 0 or area < 500:
                 continue
             circularity = 4 * math.pi * (area / (perimeter * perimeter))
 
-            if 0.5 < circularity and 50 < area < 4000:
+            if 0.3 < circularity and 50 < area < 7000:
                 # Find center with image moments
                 M = cv2.moments(c)
 
@@ -509,6 +521,7 @@ class VideoWindow(QWidget):
     signal_update_roi = pyqtSignal(int, int, int, int)
     signal_gain_changed = pyqtSignal(int)
     signal_exposure_changed = pyqtSignal(int)
+    signal_threshold_changed = pyqtSignal(int)
 
     RES_X = 640  # Width of the display window
     RES_Y = 480  # Height of the display window
@@ -546,6 +559,7 @@ class VideoWindow(QWidget):
         self.signal_update_roi.connect(self.thread.update_roi)
         self.signal_gain_changed.connect(self.thread.set_gain)
         self.signal_exposure_changed.connect(self.thread.set_exposure)
+        self.signal_threshold_changed.connect(self.thread.set_threshold)
 
     def _init_sliders(self):
         """
@@ -589,6 +603,24 @@ class VideoWindow(QWidget):
         sliders_layout.addLayout(exposure_layout)
 
         self._layout.addLayout(sliders_layout)
+
+        # Threshold Controls
+        self._threshold_label = QLabel('Threshold:', self)
+        self._threshold_slider = QSlider(Qt.Orientation.Horizontal, self)
+        self._threshold_slider.setMinimum(0)
+        self._threshold_slider.setMaximum(255)
+        self._threshold_slider.setValue(30)  # Default value
+        self._threshold_slider.valueChanged.connect(self.change_threshold)
+
+        self._threshold_value_label = QLabel(str(self._threshold_slider.value()), self)
+
+        # Layout for Threshold Slider
+        threshold_layout = QHBoxLayout()
+        threshold_layout.addWidget(self._threshold_label)
+        threshold_layout.addWidget(self._threshold_slider)
+        threshold_layout.addWidget(self._threshold_value_label)
+
+        sliders_layout.addLayout(threshold_layout)  # Add to the main sliders layout
 
     @pyqtSlot()
     def stop(self):
@@ -658,6 +690,17 @@ class VideoWindow(QWidget):
         """
         self._exposure_value_label.setText(str(value))
         self.signal_exposure_changed.emit(value)
+
+    @pyqtSlot(int)
+    def change_threshold(self, value):
+        """
+        Slot to handle threshold slider value change.
+
+        Args:
+            value (int): The new threshold value.
+        """
+        self._threshold_value_label.setText(str(value))
+        self.signal_threshold_changed.emit(value)
 
     @pyqtSlot(np.ndarray)
     def update_image(self, cv_img):
