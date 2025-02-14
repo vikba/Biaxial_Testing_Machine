@@ -1,4 +1,4 @@
-
+  
 #Check if markers are choosen before starting the test
 #Check what happens at the end of test
 #Reset video classes after the test

@@ -441,76 +441,82 @@ class VideoThread(QThread):
         self._threshold_value = value
 
 
-    def _detectMarkers(self, image):
+    def _detectMarkers(self, image, apply_bg_correction=False):
         """
-        Detects markers in the given image and returns the resulting image with markers
-        drawn and the coordinates of the detected markers.
+        Detects dark markers on a gray/white background robustly.
+        Uses a difference-of-Gaussians (DoG) approach with optional background correction.
 
         Args:
-            image (np.ndarray): The input image.
+            image (np.ndarray): Input grayscale image.
+            apply_bg_correction (bool): Whether to perform background correction.
 
         Returns:
             tuple:
-                - res_img (np.ndarray): The image with detected markers drawn.
-                - marks_groups (list): List of coordinates of detected markers.
+                - res_img (np.ndarray): Image with markers drawn.
+                - marks_groups (list): List of (x, y) coordinates for detected markers.
         """
-        # Apply median blur to reduce noise
-        blur = cv2.medianBlur(image, 15)
-        blur_strong = cv2.medianBlur(image, 71)
+        # Optional background correction via a large Gaussian blur.
+        if apply_bg_correction:
+            # Estimate background with a heavy Gaussian blur.
+            bg = cv2.GaussianBlur(image, (0, 0), sigmaX=50, sigmaY=50)
+            # Subtract the marker-enhanced image from the background.
+            corrected = cv2.subtract(bg, image)
+            # Invert so that markers become bright.
+            corrected = cv2.bitwise_not(corrected)
+        else:
+            corrected = image.copy()
 
-        # Invert the blurred images
-        blur_inv = cv2.bitwise_not(blur)
-        blur_strong_inv = cv2.bitwise_not(blur_strong)
+        # Use difference-of-Gaussians (DoG) to enhance blob-like structures.
+        blur_small = cv2.GaussianBlur(corrected, (7, 7), 0)
+        blur_large = cv2.GaussianBlur(corrected, (21, 21), 0)
+        dog = cv2.subtract(blur_large, blur_small)
+        dog = cv2.normalize(dog, None, 0, 255, cv2.NORM_MINMAX)
 
-        # Subtract the strong blur from the regular blur
-        subtract_image = cv2.subtract(blur_inv, blur_strong_inv)
+        # Apply Otsu thresholding to obtain a binary image.
+        _, thresh = cv2.threshold(dog, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-        # Apply thresholding to obtain binary image
-        #ret, thresh = cv2.threshold( blur, 30, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU  )
-        ret, thresh = cv2.threshold(subtract_image, self._threshold_value, 255, cv2.THRESH_BINARY)
+        # Invert thresholded image to have markers in white.
+        thresh = cv2.bitwise_not(thresh)
 
-        #ret, thresh = cv2.threshold( subtract_image, 30, 255, cv2.THRESH_BINARY)
-        #thresh = cv2.adaptiveThreshold(subtract_image ,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY,51,2)
-
-        # Define morphological kernel
+        # Clean up small artifacts.
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-        closing = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=2)
-        opening = cv2.morphologyEx(closing, cv2.MORPH_OPEN, kernel, iterations=3)
+        cleaned = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=2)
 
-        # Invert the image back
-        opening = ~opening
-
-        # Find contours
-        cnts = cv2.findContours(opening, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+        # Find contours from the binary image.
+        cnts = cv2.findContours(cleaned, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         cnts = cnts[0] if len(cnts) == 2 else cnts[1]
 
         marks_groups = []
-        res_img =  image.copy()# thresh.copy() #
+        res_img = image.copy()
 
         for c in cnts:
             area = cv2.contourArea(c)
-            perimeter = cv2.arcLength(c, True)
-            if perimeter == 0 or area < 500:
+            if area < 100 or area > 10000:
                 continue
+
+            perimeter = cv2.arcLength(c, True)
+            if perimeter == 0:
+                continue
+
             circularity = 4 * math.pi * (area / (perimeter * perimeter))
+            if circularity < 0.3:
+                continue
 
-            if 0.3 < circularity and 50 < area < 7000:
-                # Find center with image moments
-                M = cv2.moments(c)
+            M = cv2.moments(c)
+            if M["m00"] != 0:
+                cx = int(M["m10"] / M["m00"])
+                cy = int(M["m01"] / M["m00"])
+            else:
+                cx, cy = 0, 0
 
-                if M["m00"] != 0:
-                    x = round(M["m10"] / M["m00"], 1)
-                    y = round(M["m01"] / M["m00"], 1)
-                else:
-                    x, y = 0, 0  # Assign default value if m00 is zero
-
-                # Draw contours and center point
-                cv2.drawContours(res_img, [c], -1, (0, 255, 0), 1)
-                cv2.circle(res_img, (int(x), int(y)), 3, (0, 0, 255), -1)
-
-                marks_groups.append((x, y))
+            # Draw contour and center point.
+            cv2.drawContours(res_img, [c], -1, (0, 255, 0), 1)
+            cv2.circle(res_img, (cx, cy), 3, (0, 0, 255), -1)
+            marks_groups.append((cx, cy))
 
         return res_img, marks_groups
+
+
 
 
 class VideoWindow(QWidget):
