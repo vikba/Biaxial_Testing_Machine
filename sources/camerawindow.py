@@ -21,7 +21,7 @@ import time
 
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QPushButton, QVBoxLayout, QLabel,
-    QHBoxLayout, QSlider
+    QHBoxLayout, QSlider, QGroupBox, QRadioButton, QCheckBox, QButtonGroup
 )
 from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot, Qt
 from PyQt6.QtGui import QImage, QPixmap
@@ -49,6 +49,8 @@ class VideoThread(QThread):
         self._init_marks = False  # Initialize first set of marks
         self._track_marks = False  # Continuously track marks
 
+        self._init_points = None
+
         self._execute = True
 
         self._roi_x1 = 0
@@ -60,8 +62,12 @@ class VideoThread(QThread):
 
         # Initialize gain and exposure values
         self._gain_value = 15
-        self._exposure_value = 700
-        self._threshold_value = 30  # Default threshold
+        self._exposure_value = 2000
+        self._threshold_value = 70  # Default threshold
+
+        self._apply_bg_correction = True
+        self._use_simple_thresh = True
+        self._center_method = 'bounding_box'
 
 
         self._cam = None  # Camera object
@@ -108,6 +114,11 @@ class VideoThread(QThread):
         self._execute = True
         self._init_marks = False  # Initialize first set of marks
         self._track_marks = False  # Continuously track marks
+
+    @pyqtSlot(list)
+    def set_init_points(self, points):
+        self._init_points = points
+        self._init_marks = True
 
     def reset_countours(self):
         """
@@ -217,6 +228,18 @@ class VideoThread(QThread):
         if self._cam is not None:
             self._cam.ExposureTime.set(value)
 
+    @pyqtSlot(bool)
+    def set_apply_bg_correction(self, value):
+        self._apply_bg_correction = value
+
+    @pyqtSlot(bool)
+    def set_use_simple_thresh(self, value):
+        self._use_simple_thresh = value
+
+    @pyqtSlot(str)
+    def set_center_method(self, method):
+        self._center_method = method
+
     def run(self):
         """
         The run function controls the execution of the main camera loop.
@@ -246,136 +269,89 @@ class VideoThread(QThread):
                 self._execute = False
 
     def _grab_frame(self):
-        """
-        Captures a frame from the camera, processes it, and emits the signal to update the image.
-        """
         if self._cam is not None and self._execute:
             frame = self._cam.get_frame()
             if frame:
                 img_cv = frame.as_opencv_image()
 
-                # Detect markers
-                img, coord_temp = self._detectMarkers(img_cv)  # Detection of Markers
+                # Detect markers with current parameters
+                processed_img, coord_temp = self._detectMarkers(
+                    img_cv,
+                    apply_bg_correction=self._apply_bg_correction,
+                    use_simple_thresh=self._use_simple_thresh,
+                    center_method=self._center_method,
+                    thresh_val=self._threshold_value
+                )
 
-                # Draw all the markers
-                img = cv2.addWeighted(self._img_track, 1, img, 1, 0)
-
-                # Draw point numbers on image
+                # Combine tracking visualization
+                combined_img = cv2.addWeighted(self._img_track, 1, processed_img, 1, 0)
+                
+                # Draw marker numbers if available
                 if len(self._point1) > 0:
                     font = cv2.FONT_HERSHEY_SIMPLEX
+                    points = [
+                        self._point1[-1] if self._point1 else (0,0),
+                        self._point2[-1] if self._point2 else (0,0),
+                        self._point3[-1] if self._point3 else (0,0),
+                        self._point4[-1] if self._point4 else (0,0)
+                    ]
+                    for i, p in enumerate(points, 1):
+                        if p != (0,0):
+                            cv2.putText(combined_img, str(i), 
+                                    (int(p[0])+10, int(p[1])+10), 
+                                    font, 1, 155, 2)
 
-                    p = (int(self._point1[-1][0] + 10), int(self._point1[-1][1] + 10))
-                    cv2.putText(img, "1", p, font, 1, 155, 2)
-                    p = (int(self._point2[-1][0] + 10), int(self._point2[-1][1] + 10))
-                    cv2.putText(img, "2", p, font, 1, 155, 2)
-                    p = (int(self._point3[-1][0] + 10), int(self._point3[-1][1] + 10))
-                    cv2.putText(img, "3", p, font, 1, 155, 2)
-                    p = (int(self._point4[-1][0] + 10), int(self._point4[-1][1] + 10))
-                    cv2.putText(img, "4", p, font, 1, 155, 2)
+                # Draw coordinate system
+                self._draw_coordinate_system(combined_img)
 
-                # Variable to be accessed in other functions
-                self._img = img
+                # Store images for display
+                self._img = combined_img
+                #self._thresh_img = thresh_img
 
-                # Draw X and Y arrows in the left bottom corner
-                arrow_length = 50  # Length of the arrows in pixels
-
-                # Coordinates for the origin point (left bottom corner)
-                origin_x = 50
-                origin_y = VideoThread.RES_Y_FULL - 50
-
-                # Draw X axis arrow
-                cv2.arrowedLine(
-                    img,
-                    (origin_x, origin_y),
-                    (origin_x + arrow_length, origin_y),
-                    255,
-                    2,
-                    tipLength=0.3
-                )
-
-                # Draw Y axis arrow
-                cv2.arrowedLine(
-                    img,
-                    (origin_x, origin_y),
-                    (origin_x, origin_y - arrow_length),
-                    255,
-                    2,
-                    tipLength=0.3
-                )
-
-                # Label the axes
-                cv2.putText(
-                    img,
-                    'Axis 1',
-                    (origin_x + arrow_length + 10, origin_y),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7,
-                    255,
-                    2
-                )
-                cv2.putText(
-                    img,
-                    'Axis 2',
-                    (origin_x, origin_y - arrow_length - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7,
-                    255,
-                    2
-                )
-
-                # Decrease the resolution to decrease amount of data sent via signal-slot mechanism
-                img_resized = cv2.resize(img, (VideoWindow.RES_X, VideoWindow.RES_Y))
+                # Emit both images for display
+                img_resized = cv2.resize(combined_img, (VideoWindow.RES_X, VideoWindow.RES_Y))
+                #thresh_resized = cv2.resize(thresh_img, (VideoWindow.RES_X, VideoWindow.RES_Y))
                 self.signal_change_pixmap.emit(img_resized)
 
-                # True only one time to record initial position of the marks
-                if self._init_marks:
-                    self._initVariables()
+                # Handle marker initialization
+                if self._init_marks and self._init_points:
+                    sorted_coord = []
+                    for target_point in self._init_points:
+                        
+                        # Find closest detected marker
+                        min_dist = float('inf')
+                        closest = None
+                        for detected in coord_temp:
+                            dist = math.dist(target_point, detected)
+                            
+                            if dist < min_dist and dist < 40:  # 100px max distance
+                                min_dist = dist
+                                closest = detected
+                        if closest:
+                            sorted_coord.append(closest)
 
-                    print("Start recording")
-                    print("Point 1 {},  {}".format(self._roi_x1, self._roi_y1))
-                    print("Point 2 {},  {}".format(self._roi_x2, self._roi_y2))
-
-                    filtered_coord = [coord for coord in coord_temp if self._if_within_roi(coord)]
-
-                    # We need to ensure constant point order on the image
-                    # Sort by y coord to separate upper and lower marks
-                    sorted_y = sorted(filtered_coord, key=lambda x: x[1])
-                    # Split into upper and lower
-                    upper_coord = sorted_y[:2]
-                    lower_coord = sorted_y[2:]
-                    # Sort by x coord
-                    upper_sorted = sorted(upper_coord, key=lambda x: x[0], reverse=False)
-                    lower_sorted = sorted(lower_coord, key=lambda x: x[0], reverse=True)
-
-                    sorted_coord = lower_sorted + upper_sorted
-
-                    print("Sorted: ")
+                    print(self._init_points)
                     print(sorted_coord)
-                    n_marks = len(filtered_coord)
 
-                    if n_marks == 4:
-                        # Allocate (x,y) in first empty sublist
-                        i = 0
-                        for coord in sorted_coord:
-                            # Print a number on the image
-                            # Font type
-                            if self._if_within_roi(coord) and i < len(self._marks_groups):
-                                self._marks_groups[i].append(coord)
-                                i += 1
-
-                        print("Marks count: {}".format(i))
-
-                        self.signal_markers_recorded.emit(
-                            [
-                                self._point1[-1],
-                                self._point2[-1],
-                                self._point3[-1],
-                                self._point4[-1]
-                            ]
-                        )
-                        self._init_marks = False
+                    if (len(sorted_coord) == 4):
+                        # Assign to groups
+                        for i in range(4):
+                            self._marks_groups[i].append(sorted_coord[i])
+                        
+                        # Emit initial positions
+                        self.signal_markers_recorded.emit([
+                            self._point1[-1],
+                            self._point2[-1],
+                            self._point3[-1],
+                            self._point4[-1]
+                        ])
+                        
                     else:
-                        print("Wrong number of marks. Expected 4. Detected {}".format(n_marks))
+                        print("Could not find all the markers")
+
+                    self._init_marks = False
+                    self._init_points = None
+                    
 
                 elif self._track_marks:
                     # Distribute marks in the groups
@@ -388,7 +364,7 @@ class VideoThread(QThread):
                             for element in coord_temp:
                                 # last = gr[len(gr) - 1]
                                 dist = math.dist(element, group[-1])
-                                if dist < min_dist and dist < 70:
+                                if dist < min_dist and dist < 10:
                                     el = element
                                     min_dist = dist
                             if el is not None:
@@ -414,6 +390,67 @@ class VideoThread(QThread):
                             150,
                             1
                         )
+
+    def _draw_coordinate_system(self, img):
+        """
+        Draws a coordinate system visualization in the bottom-left corner of the image.
+        Includes X and Y axes with labels indicating the coordinate plane orientation.
+        
+        Args:
+            img (np.ndarray): The image array to draw on (modified in-place)
+        """
+        # Coordinate system parameters
+        arrow_length = 50  # Length of axis arrows in pixels
+        origin_x = 50       # X position of origin (left padding)
+        origin_y = self.RES_Y_FULL - 50  # Y position of origin (from bottom)
+        color = 255         # White color (8-bit grayscale)
+        thickness = 2       # Line thickness
+        font_scale = 0.7    # Text size
+        
+        # Draw X-axis (horizontal arrow pointing right)
+        cv2.arrowedLine(
+            img, 
+            (origin_x, origin_y), 
+            (origin_x + arrow_length, origin_y), 
+            color, 
+            thickness, 
+            tipLength=0.3
+        )
+        
+        # Draw Y-axis (vertical arrow pointing up)
+        cv2.arrowedLine(
+            img, 
+            (origin_x, origin_y), 
+            (origin_x, origin_y - arrow_length), 
+            color, 
+            thickness, 
+            tipLength=0.3
+        )
+        
+        # Add axis labels
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        
+        # X-axis label ("Axis 1")
+        cv2.putText(
+            img, 
+            'Axis 1', 
+            (origin_x + arrow_length + 10, origin_y),  # Position right of X arrow
+            font, 
+            font_scale, 
+            color, 
+            thickness
+        )
+        
+        # Y-axis label ("Axis 2")
+        cv2.putText(
+            img, 
+            'Axis 2', 
+            (origin_x - 30, origin_y - arrow_length - 10),  # Position above Y arrow
+            font, 
+            font_scale, 
+            color, 
+            thickness
+        )
 
     def calculate_time(func):
         """
@@ -441,80 +478,99 @@ class VideoThread(QThread):
         self._threshold_value = value
 
 
-    def _detectMarkers(self, image, apply_bg_correction=False):
+    def _detectMarkers(
+        self, 
+        image, 
+        apply_bg_correction=True, 
+        use_simple_thresh=True, 
+        thresh_val=100, 
+        center_method='bounding_box'
+    ):
         """
-        Detects dark markers on a gray/white background robustly.
-        Uses a difference-of-Gaussians (DoG) approach with optional background correction.
-
+        Detects markers on a gray/white background.
+        
         Args:
             image (np.ndarray): Input grayscale image.
             apply_bg_correction (bool): Whether to perform background correction.
-
+            use_simple_thresh (bool): If True, use fixed thresholding; otherwise, use DoG approach.
+            thresh_val (int): Fixed threshold value used if use_simple_thresh is True.
+            center_method (str): Method to compute marker center. Options: 'moments' (contour moments) 
+                or 'bounding_box' (bounding box center). Defaults to 'moments'.
+        
         Returns:
             tuple:
                 - res_img (np.ndarray): Image with markers drawn.
                 - marks_groups (list): List of (x, y) coordinates for detected markers.
         """
-        # Optional background correction via a large Gaussian blur.
+        # Optional background correction
         if apply_bg_correction:
-            # Estimate background with a heavy Gaussian blur.
             bg = cv2.GaussianBlur(image, (0, 0), sigmaX=50, sigmaY=50)
-            # Subtract the marker-enhanced image from the background.
-            corrected = cv2.subtract(bg, image)
-            # Invert so that markers become bright.
-            corrected = cv2.bitwise_not(corrected)
+            corrected = cv2.bitwise_not(cv2.subtract(bg, image))
         else:
             corrected = image.copy()
-
-        # Use difference-of-Gaussians (DoG) to enhance blob-like structures.
-        blur_small = cv2.GaussianBlur(corrected, (7, 7), 0)
-        blur_large = cv2.GaussianBlur(corrected, (21, 21), 0)
-        dog = cv2.subtract(blur_large, blur_small)
-        dog = cv2.normalize(dog, None, 0, 255, cv2.NORM_MINMAX)
-
-        # Apply Otsu thresholding to obtain a binary image.
-        _, thresh = cv2.threshold(dog, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
-        # Invert thresholded image to have markers in white.
-        thresh = cv2.bitwise_not(thresh)
-
+        
+        # Choose between two thresholding approaches
+        if use_simple_thresh:
+            # Use a fixed threshold (without Otsu)
+            _, thresh = cv2.threshold(corrected, thresh_val, 255, cv2.THRESH_BINARY_INV)
+        else:
+            # DoG approach
+            blur_small = cv2.GaussianBlur(corrected, (7, 7), 0)
+            blur_large = cv2.GaussianBlur(corrected, (21, 21), 0)
+            dog = cv2.normalize(cv2.subtract(blur_large, blur_small), None, 0, 255, cv2.NORM_MINMAX)
+            # Otsu thresholding
+            _, thresh = cv2.threshold(dog, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            thresh = cv2.bitwise_not(thresh)
+        
         # Clean up small artifacts.
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        
         cleaned = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=2)
+        cleaned = cv2.morphologyEx(cleaned, cv2.MORPH_CLOSE, kernel, iterations=2)
 
-        # Find contours from the binary image.
+        # Find contours and process them
         cnts = cv2.findContours(cleaned, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         cnts = cnts[0] if len(cnts) == 2 else cnts[1]
-
+        
         marks_groups = []
         res_img = image.copy()
-
+        
         for c in cnts:
             area = cv2.contourArea(c)
-            if area < 100 or area > 10000:
+            if area < 150 or area > 10000:
                 continue
-
             perimeter = cv2.arcLength(c, True)
             if perimeter == 0:
                 continue
-
             circularity = 4 * math.pi * (area / (perimeter * perimeter))
             if circularity < 0.3:
                 continue
+            
+            # Compute center coordinates based on selected method
+            if center_method == 'bounding_box':
+                x, y, w, h = cv2.boundingRect(c)
+                cx = round(x + w / 2, 1)
+                cy = round(y + h / 2, 1)
 
-            M = cv2.moments(c)
-            if M["m00"] != 0:
-                cx = int(M["m10"] / M["m00"])
-                cy = int(M["m01"] / M["m00"])
-            else:
-                cx, cy = 0, 0
+                cv2.rectangle(res_img, (x, y), (x + w, y + h), (255, 0, 0), 1)
 
-            # Draw contour and center point.
-            cv2.drawContours(res_img, [c], -1, (0, 255, 0), 1)
-            cv2.circle(res_img, (cx, cy), 3, (0, 0, 255), -1)
+            else:  # Default to 'moments'
+                M = cv2.moments(c)
+                if M["m00"] != 0:
+                    cx = round(M["m10"] / M["m00"], 1)
+                    cy = round(M["m01"] / M["m00"], 1)
+                else:
+                    cx, cy = 0, 0
+
+                # Draw contours and center (unchanged)
+                cv2.drawContours(res_img, [c], -1, (0, 255, 0), 1)
+            
+            # Draw center
+            cv2.circle(res_img, (int(cx), int(cy)), 3, (0, 0, 255), -1)
             marks_groups.append((cx, cy))
-
+        
         return res_img, marks_groups
+
 
 
 
@@ -528,6 +584,7 @@ class VideoWindow(QWidget):
     signal_gain_changed = pyqtSignal(int)
     signal_exposure_changed = pyqtSignal(int)
     signal_threshold_changed = pyqtSignal(int)
+    signal_init_points = pyqtSignal(list)
 
     RES_X = 640  # Width of the display window
     RES_Y = 480  # Height of the display window
@@ -548,10 +605,14 @@ class VideoWindow(QWidget):
         self._layout.addWidget(self._image_label)
         self.setLayout(self._layout)
 
-        # Stop Webcam Button
+        '''# Stop Webcam Button
         self._button_stop = QPushButton('Stop Webcam', self)
         self._button_stop.clicked.connect(self.stop_webcam)
-        self._layout.addWidget(self._button_stop)
+        self._layout.addWidget(self._button_stop)'''
+
+        self.init_button = QPushButton("Initialize Markers")
+        self.init_button.clicked.connect(self.start_point_collection)
+        self._layout.addWidget(self.init_button)
 
         self._start_point = self._end_point = None
         self._draw_rectangle = False
@@ -566,6 +627,14 @@ class VideoWindow(QWidget):
         self.signal_gain_changed.connect(self.thread.set_gain)
         self.signal_exposure_changed.connect(self.thread.set_exposure)
         self.signal_threshold_changed.connect(self.thread.set_threshold)
+        self.signal_init_points.connect(self.thread.set_init_points)
+
+        
+        
+        # Add point collection variables
+        self.point_collection_mode = False
+        self.clicked_points = []
+        
 
     def _init_sliders(self):
         """
@@ -628,6 +697,61 @@ class VideoWindow(QWidget):
 
         sliders_layout.addLayout(threshold_layout)  # Add to the main sliders layout
 
+    
+        # Detection Parameters Group
+        self.detect_params_group = QGroupBox("Detection Parameters")
+        self.bg_correction_check = QCheckBox("Apply BG Correction")
+        self.simple_thresh_check = QCheckBox("Use Simple Threshold")
+        self.center_method_group = QButtonGroup()
+        self.bbox_radio = QRadioButton("Bounding Box Center")
+        self.moments_radio = QRadioButton("Contour Moments")
+
+        # Set defaults
+        self.bg_correction_check.setChecked(True)
+        self.simple_thresh_check.setChecked(True)
+        self.bbox_radio.setChecked(True)
+
+        # Layout
+        params_layout = QVBoxLayout()
+        params_layout.addWidget(self.bg_correction_check)
+        params_layout.addWidget(self.simple_thresh_check)
+        params_layout.addWidget(QLabel("Center Calculation:"))
+        params_layout.addWidget(self.bbox_radio)
+        params_layout.addWidget(self.moments_radio)
+        self.detect_params_group.setLayout(params_layout)
+        self._layout.addWidget(self.detect_params_group)
+
+        # Connect signals
+        self.bg_correction_check.toggled.connect(lambda v: self.thread.set_apply_bg_correction(v))
+        self.simple_thresh_check.toggled.connect(lambda v: self.thread.set_use_simple_thresh(v))
+        self.bbox_radio.toggled.connect(lambda: self.thread.set_center_method('bounding_box'))
+        self.moments_radio.toggled.connect(lambda: self.thread.set_center_method('moments'))
+
+
+    def start_point_collection(self):
+        self.point_collection_mode = True
+        self.clicked_points = []
+        self._image_label.setText("Click four points in any order")
+
+    def mouseReleaseEvent(self, event):
+        if self.point_collection_mode:
+            x = event.pos().x() * (VideoThread.RES_X_FULL / VideoWindow.RES_X)
+            y = event.pos().y() * (VideoThread.RES_Y_FULL / VideoWindow.RES_Y)
+            self.clicked_points.append((x, y))
+            
+            if len(self.clicked_points) == 4:
+                self.point_collection_mode = False
+                sorted_points = self.sort_points(self.clicked_points)
+                self.signal_init_points.emit(sorted_points)
+                print("4 clicks made")
+
+    def sort_points(self, points):
+        # Sort by descending y (bottom points first)
+        sorted_y = sorted(points, key=lambda p: p[1], reverse=True)
+        bottom_points = sorted(sorted_y[:2], key=lambda p: p[0], reverse=True)  # Right first
+        top_points = sorted(sorted_y[2:], key=lambda p: p[0])  # Left first
+        return [bottom_points[0], bottom_points[1], top_points[0], top_points[1]]
+
     @pyqtSlot()
     def stop(self):
         """
@@ -635,7 +759,7 @@ class VideoWindow(QWidget):
         """
         self.close()
 
-    def mousePressEvent(self, event):
+    '''def mousePressEvent(self, event):
         """
         Handle the mouse press event and update the start point.
 
@@ -673,7 +797,7 @@ class VideoWindow(QWidget):
             self._end_point.x(),
             self._end_point.y()
         )
-        self._draw_rectangle = False
+        self._draw_rectangle = False'''
 
     @pyqtSlot(int)
     def change_gain(self, value):

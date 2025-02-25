@@ -7,7 +7,7 @@
 #add a point list of all the steps that should be followed
 #take first frame on the beginning of the first cycle of test (not the pretest)
 #Tare and load values are weird numbers when the program starts
-#BIG PROBLEM: Machine does not stop at desired load value --> causes samples to break!
+
 
    
 

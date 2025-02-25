@@ -229,7 +229,7 @@ class LoadControlTest(MechanicalTest):
                 
                 
                 #Stop at new 0 after very first cycle
-                if self._state == State.PRECONDITIONING and self._half_cycle == 2*self._num_cycles_precond-1:
+                '''if self._state == State.PRECONDITIONING and self._half_cycle == 2*self._num_cycles_precond-1:
                     #If only one of the motor reached zero load - stop it
                     if Direction.COMPRESS == self._direction and self._av_force1 <= 0.05 :
                         self._mot_daq.stop_motor1()
@@ -237,7 +237,7 @@ class LoadControlTest(MechanicalTest):
                        
                     if Direction.COMPRESS == self._direction and self._av_force2 <= 0.05:
                         self._mot_daq.stop_motor2()
-                        self._mot_daq.zero_pos2()
+                        self._mot_daq.zero_pos2()'''
                     
 
             #Half cycle finished
