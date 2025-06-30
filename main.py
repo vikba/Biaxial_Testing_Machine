@@ -1,4 +1,7 @@
-
+  
+#use marker after last autoloading as initial for strain calculation
+#load IP address from json config file
+#add anisotropy ratio calculation 
 #Check if markers are choosen before starting the test
 #Check what happens at the end of test
 #Reset video classes after the test
@@ -6,8 +9,7 @@
 #add reset after preconditioning to videothread
 #add a point list of all the steps that should be followed
 #take first frame on the beginning of the first cycle of test (not the pretest)
-
-   
+#Tare and load values are weird numbers when the program starts
 
 
 
@@ -21,7 +23,7 @@ if __name__ == '__main__':
     app.setStyle('Fusion')
     window = BiaxMainWindow()
     window.show()
-    app.exec() 
+    app.exec()  
 
  
  

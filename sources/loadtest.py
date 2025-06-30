@@ -102,6 +102,12 @@ class LoadControlTest(MechanicalTest):
             self._mot_daq.move_velocity_ax1(-self._vel_ax1) #in mm/s
             self._mot_daq.move_velocity_ax2(-self._vel_ax2) #in mm/s
 
+            #Update initial markers before new cycle started
+            self._p1_0 = self._temp_p1
+            self._p2_0 = self._temp_p2
+            self._p3_0 = self._temp_p3
+            self._p4_0 = self._temp_p4
+
             #self._test_timer.start(self._sample_time)
 
             QMetaObject.invokeMethod(self._test_timer, "start", Qt.ConnectionType.QueuedConnection)
@@ -220,10 +226,16 @@ class LoadControlTest(MechanicalTest):
             if Direction.STRETCH == self._direction and self._av_force1 < self._end_force1 and self._av_force2 < self._end_force2 or \
                 Direction.COMPRESS == self._direction and (self._pos1 <= -0.01  or self._pos2 <= -0.01):
                 #(self._force1 > self._end_force1 or self._force2 > self._end_force2):
+
+                
+                '''print(f"end force1: {self._end_force1}, end force2: {self._end_force2}")
+                print(f"av force1: {self._av_force1}, av force2: {self._av_force2}")
+                print(f"force1: {self._force1}, force2: {self._force2}")'''
+                
                 
                 
                 #Stop at new 0 after very first cycle
-                if self._state == State.PRECONDITIONING and self._half_cycle == 2*self._num_cycles_precond-1:
+                '''if self._state == State.PRECONDITIONING and self._half_cycle == 2*self._num_cycles_precond-1:
                     #If only one of the motor reached zero load - stop it
                     if Direction.COMPRESS == self._direction and self._av_force1 <= 0.05 :
                         self._mot_daq.stop_motor1()
@@ -231,7 +243,7 @@ class LoadControlTest(MechanicalTest):
                        
                     if Direction.COMPRESS == self._direction and self._av_force2 <= 0.05:
                         self._mot_daq.stop_motor2()
-                        self._mot_daq.zero_pos2()
+                        self._mot_daq.zero_pos2()'''
                     
 
             #Half cycle finished
@@ -342,6 +354,18 @@ class LoadControlTest(MechanicalTest):
                     #self._mot_daq.move_velocity_ax2(self._vel_ax2) #in mm/s
                     self._mot_daq.move_position_ax1(0, self._vel_ax1)
                     self._mot_daq.move_position_ax2(0, self._vel_ax2)
+
+                    
+
+                    try:
+                        #calculate AR
+                        slope1, _ = np.polyfit(self._E11[-50:], self._load1[-50:], 1)
+                        slope2, _ = np.polyfit(self._E22[-50:], self._load2[-50:], 1)
+                        AR = slope1 / slope2 if slope1 > slope2 else slope2 / slope1
+                        print (f"Anisotropy ratio as slope ratio: {AR}")
+                    except Exception as e:
+                        print(f"An error occurred: {e}")
+
                 
 
         #If cycles are over on PRECONDITIONING
