@@ -25,7 +25,7 @@ class MotorDAQInterface (QThread):
     signal_autoloading_finished = pyqtSignal()
     signal_autoloading_progress = pyqtSignal(float, float, float, float)
     
-    def __init__(self, unit):
+    def __init__(self, unit, ip_motor = "172.31.100.108", ip_daq = "172.31.100.200"):
         super().__init__()
 
         self._force1 = self._force2 = 0
@@ -50,6 +50,9 @@ class MotorDAQInterface (QThread):
         self._units = unit
         print(f"_units: {self._units}")
 
+        self._ip_motor = ip_motor
+        self._ip_daq = ip_daq
+
         self.__initMorors()
         self.__initDAQ()
 
@@ -70,12 +73,11 @@ class MotorDAQInterface (QThread):
         motors initialization
         """
 
-        ip_zaber = "172.31.100.108"
         
         try:
-            self._connection_z = Connection.open_tcp(ip_zaber, Connection.TCP_PORT_CHAIN)
+            self._connection_z = Connection.open_tcp(self._ip_motor, Connection.TCP_PORT_CHAIN)
         except:
-            raise Exception("Connection with motors failed at IP: " + ip_zaber + " Please check the network connection and ensure that the specified IP address is correct.")
+            raise Exception("Connection with motors failed at IP: " + self._ip_motor + " Please check the network connection and ensure that the specified IP address is correct.")
             pass
         else:
             print("Motors were found")
@@ -98,15 +100,14 @@ class MotorDAQInterface (QThread):
         The function also connects the controller buffer and variable, removes the first 
         values from the buffer, and reads load cell data before installing the sample. 
         """
-        ip_daq = "172.31.100.107"#Controller IP
 
         #Initialisation of a buffer connection
         self._conn_q=Qstation.ConnectGIns()
         self._conn_q.bufferindex=0
-        init_con_res = self._conn_q.init_connection(str(ip_daq))
+        init_con_res = self._conn_q.init_connection(str(self._ip_daq))
 
         if not init_con_res:
-            raise Exception("Connection with DAQ failed at IP: " + ip_daq + " Please check the network connection and ensure that the specified IP address is correct.")
+            raise Exception("Connection with DAQ failed at IP: " + self._ip_daq + " Please check the network connection and ensure that the specified IP address is correct.")
     
         #Return some information of the controller
         self._conn_q.read_controller_name()
