@@ -218,6 +218,8 @@ class BiaxMainWindow(QMainWindow):
         self._len2 = self._config_test.get("length2")
         self._max_stress1 = self._config_test.get("maxstress1")
         self._max_stress2 = self._config_test.get("maxstress2")
+        self._ip_motor = self._config_test.get("ip_motor", "172.31.100.108")
+        self._ip_daq   = self._config_test.get("ip_daq",   "172.31.100.200")
 
         self._area1 = self._thickness * self._len1
         self._area2 = self._thickness * self._len2
@@ -448,7 +450,7 @@ class BiaxMainWindow(QMainWindow):
                                         QMessageBox.StandardButton.No)
 
                 if reply == QMessageBox.StandardButton.No:
-                    return 0
+                    return False
             
 
             #Load control test
@@ -552,7 +554,11 @@ class BiaxMainWindow(QMainWindow):
     def __connect(self):
         
         try:
-            self._mot_daq = MotorDAQInterface(self._units)
+            self._mot_daq = MotorDAQInterface(
+                self._units,
+                ip_motor=self._ip_motor,
+                ip_daq=self._ip_daq
+            )
             self.signal_stop.connect(self._mot_daq.stop)
             self.signal_stop_test.connect(self._mot_daq.stop_test)
     

@@ -22,5 +22,7 @@
     "disptestlen1": "3",
     "disptestlen2": "3",
     "disptestcycle": "10",
-    "folder": "C:/Users/vbalashov/Desktop/Melika/test3"
+    "folder": "C:/Users/vbalashov/Desktop/Melika/test3",
+    "ip_motor": "172.31.100.108",
+    "ip_daq":   "172.31.100.200"
 }

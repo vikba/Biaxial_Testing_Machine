@@ -1,5 +1,4 @@
   
-#use marker after last autoloading as initial for strain calculation
 #load IP address from json config file
 #add anisotropy ratio calculation 
 #Check if markers are choosen before starting the test
