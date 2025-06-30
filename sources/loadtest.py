@@ -102,6 +102,12 @@ class LoadControlTest(MechanicalTest):
             self._mot_daq.move_velocity_ax1(-self._vel_ax1) #in mm/s
             self._mot_daq.move_velocity_ax2(-self._vel_ax2) #in mm/s
 
+            #Update initial markers before new cycle started
+            self._p1_0 = self._temp_p1
+            self._p2_0 = self._temp_p2
+            self._p3_0 = self._temp_p3
+            self._p4_0 = self._temp_p4
+
             #self._test_timer.start(self._sample_time)
 
             QMetaObject.invokeMethod(self._test_timer, "start", Qt.ConnectionType.QueuedConnection)
@@ -348,6 +354,18 @@ class LoadControlTest(MechanicalTest):
                     #self._mot_daq.move_velocity_ax2(self._vel_ax2) #in mm/s
                     self._mot_daq.move_position_ax1(0, self._vel_ax1)
                     self._mot_daq.move_position_ax2(0, self._vel_ax2)
+
+                    
+
+                    try:
+                        #calculate AR
+                        slope1, _ = np.polyfit(self._E11[-50:], self._load1[-50:], 1)
+                        slope2, _ = np.polyfit(self._E22[-50:], self._load2[-50:], 1)
+                        AR = slope1 / slope2 if slope1 > slope2 else slope2 / slope1
+                        print (f"Anisotropy ratio as slope ratio: {AR}")
+                    except Exception as e:
+                        print(f"An error occurred: {e}")
+
                 
 
         #If cycles are over on PRECONDITIONING

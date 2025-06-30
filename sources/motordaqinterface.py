@@ -98,7 +98,7 @@ class MotorDAQInterface (QThread):
         The function also connects the controller buffer and variable, removes the first 
         values from the buffer, and reads load cell data before installing the sample. 
         """
-        ip_daq = "172.31.100.107"#Controller IP
+        ip_daq = "172.31.100.200"#Controller IP
 
         #Initialisation of a buffer connection
         self._conn_q=Qstation.ConnectGIns()

@@ -808,6 +808,12 @@ class BiaxMainWindow(QMainWindow):
         #t_s = [0, self.test_duration]
         #f_s = [0, self.end_force1]
     
+        try:
+            if (abs(self._stress1[-1] - 400) < 5 and abs(self._stress2[-1] - 400) < 10):
+                AR = self._E11[-1] / self._E22[-1] if self._E11[-1] > self._E22[-1] else self._E22[-1] / self._E11[-1]
+                print (f"Anisotropy ratio at 400 kPa: {AR}")
+        except Exception as e:
+            print(f"An error occurred: {e}")
         
 
 
