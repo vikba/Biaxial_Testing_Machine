@@ -77,7 +77,7 @@ class LoadCalculatorWindow(QWidget):
             float: Load in the desired unit.
         """
         if self.unit == Unit.Gram:
-            g = 9.81  # Acceleration due to gravity in m/s²
+            g = 9.80665  # Acceleration due to gravity in m/s²
             return load_newton * 1000 / g  # Convert N to g
         return load_newton  # Already in newtons
     

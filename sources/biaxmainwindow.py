@@ -68,9 +68,9 @@ class BiaxMainWindow(QMainWindow):
         self._t_label = [i * self._liveforce_update_time / 1000 for i in range(buffer_len)]
 
     def _init_config_repository(self, script_dir):
-        self._config_path = os.path.join(script_dir, "..", "resources", "config_test.json")
+        self._config_path = os.path.join(script_dir, "..", "resources", "config.local.json")
         self._config_repository = ConfigRepository(self._config_path)
-        self._config = self._config_repository.load()
+        self.load_config()
         if not self._config.runtime.folder:
             home_dir = os.path.expanduser("~")
             self._config.runtime.folder = os.path.join(home_dir, "Desktop", "Biax_Tests")
@@ -144,7 +144,11 @@ class BiaxMainWindow(QMainWindow):
         self._area2 = config.sample.area2
 
     def load_config(self) -> MachineConfig:
-        self._config = self._config_repository.load()
+        if os.path.exists(self._config_path):
+            self._config = self._config_repository.load()
+        else:
+            example = os.path.join(os.path.dirname(self._config_path), "config.example.json")
+            self._config = ConfigRepository(example).load()
         self._apply_sample_config(self._config)
         return self._config
 
@@ -461,8 +465,8 @@ class BiaxMainWindow(QMainWindow):
             stress1 = array[1] * 1000 / self._area1
             stress2 = array[2] * 1000 / self._area2
         else:
-            stress1 = array[1] * 9.8 / self._area1
-            stress2 = array[2] * 9.8 / self._area2
+            stress1 = array[1] * 9.80665 / self._area1
+            stress2 = array[2] * 9.80665 / self._area2
 
         self._stress1.append(stress1)
         self._stress2.append(stress2)
@@ -558,18 +562,18 @@ class BiaxMainWindow(QMainWindow):
             self._units = Unit.Gram
             self._ringbuffer1.reset()
             self._ringbuffer2.reset()
-            self.factorTareLoad1.setText(f"{round(self._read_float(self.factorTareLoad1.text()) * 1000 / 9.8, 0)}")
-            self.factorTareLoad2.setText(f"{round(self._read_float(self.factorTareLoad2.text()) * 1000 / 9.8, 0)}")
-            self.factorLoadTest1.setText(f"{round(self._read_float(self.factorLoadTest1.text()) * 1000 / 9.8, 0)}")
-            self.factorLoadTest2.setText(f"{round(self._read_float(self.factorLoadTest2.text()) * 1000 / 9.8, 0)}")
+            self.factorTareLoad1.setText(f"{round(self._read_float(self.factorTareLoad1.text()) * 1000 / 9.80665, 0)}")
+            self.factorTareLoad2.setText(f"{round(self._read_float(self.factorTareLoad2.text()) * 1000 / 9.80665, 0)}")
+            self.factorLoadTest1.setText(f"{round(self._read_float(self.factorLoadTest1.text()) * 1000 / 9.80665, 0)}")
+            self.factorLoadTest2.setText(f"{round(self._read_float(self.factorLoadTest2.text()) * 1000 / 9.80665, 0)}")
         else:
             self._units = Unit.Newton
             self._ringbuffer1.reset()
             self._ringbuffer2.reset()
-            self.factorTareLoad1.setText(f"{round(self._read_float(self.factorTareLoad1.text()) * 9.8 / 1000, 2)}")
-            self.factorTareLoad2.setText(f"{round(self._read_float(self.factorTareLoad2.text()) * 9.8 / 1000, 2)}")
-            self.factorLoadTest1.setText(f"{round(self._read_float(self.factorLoadTest1.text()) * 9.8 / 1000, 2)}")
-            self.factorLoadTest2.setText(f"{round(self._read_float(self.factorLoadTest2.text()) * 9.8 / 1000, 2)}")
+            self.factorTareLoad1.setText(f"{round(self._read_float(self.factorTareLoad1.text()) * 9.80665 / 1000, 2)}")
+            self.factorTareLoad2.setText(f"{round(self._read_float(self.factorTareLoad2.text()) * 9.80665 / 1000, 2)}")
+            self.factorLoadTest1.setText(f"{round(self._read_float(self.factorLoadTest1.text()) * 9.80665 / 1000, 2)}")
+            self.factorLoadTest2.setText(f"{round(self._read_float(self.factorLoadTest2.text()) * 9.80665 / 1000, 2)}")
 
         self._update_units_labels(self._units)
         self._config.runtime.unit = "gram" if self._units == Unit.Gram else "newton"

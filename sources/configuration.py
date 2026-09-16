@@ -3,9 +3,34 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 import json
 import os
+from math import isfinite
 from typing import Any
 
 from .unit import Unit
+
+
+@dataclass
+class ForceConfig:
+    axis1_serial: str = "0017835720"
+    axis2_serial: str = "0017835697"
+    # Preserve the old /2 correction until mechanical geometry is verified.
+    axis1_transmission_factor: float = 0.5
+    axis2_transmission_factor: float = 0.5
+    timeout: float = 0.075
+    max_data_age: float = 0.25
+
+    def __post_init__(self):
+        serials = (self.axis1_serial, self.axis2_serial)
+        if any(not isinstance(s, str) or len(s) != 10 or not s.isdecimal() for s in serials):
+            raise ValueError("DSCUSB serials must be ten-digit strings")
+        if serials[0] == serials[1]:
+            raise ValueError("Each axis requires a different DSCUSB serial")
+        for value in (self.axis1_transmission_factor, self.axis2_transmission_factor,
+                      self.timeout, self.max_data_age):
+            if not isfinite(value) or value <= 0:
+                raise ValueError("Force factors and timeouts must be finite and positive")
+        if 2 * self.timeout >= self.max_data_age:
+            raise ValueError("Maximum force age must exceed two serial timeouts")
 
 
 @dataclass
@@ -14,7 +39,6 @@ class RuntimeConfig:
     folder: str = ""
     sample_name: str = ""
     ip_motor: str = "172.31.100.108"
-    ip_daq: str = "172.31.100.107"
 
 
 @dataclass
@@ -65,52 +89,15 @@ class MachineConfig:
     sample: SampleConfig = field(default_factory=SampleConfig)
     load_test: LoadTestConfig = field(default_factory=LoadTestConfig)
     displacement_test: DisplacementTestConfig = field(default_factory=DisplacementTestConfig)
+    force: ForceConfig = field(default_factory=ForceConfig)
 
     @property
     def unit_enum(self) -> Unit:
         return Unit.Gram if self.runtime.unit == "gram" else Unit.Newton
 
     def to_dict(self) -> dict[str, Any]:
-        data = {
-            "runtime": asdict(self.runtime),
-            "sample": asdict(self.sample),
-            "load_test": asdict(self.load_test),
-            "displacement_test": asdict(self.displacement_test),
-        }
+        return asdict(self)
 
-        # Keep flat keys for compatibility with existing persisted files.
-        data.update(
-            {
-                "name": self.runtime.sample_name,
-                "unit": self.runtime.unit,
-                "folder": self.runtime.folder,
-                "ip_motor": self.runtime.ip_motor,
-                "ip_daq": self.runtime.ip_daq,
-                "thickness": self.sample.thickness,
-                "length1": self.sample.length1,
-                "length2": self.sample.length2,
-                "maxstress1": self.sample.maxstress1,
-                "maxstress2": self.sample.maxstress2,
-                "tareload1": self.load_test.tareload1,
-                "tareload2": self.load_test.tareload2,
-                "load_precond1": self.load_test.load_precond1,
-                "load_precond2": self.load_test.load_precond2,
-                "load_test1": self.load_test.load_test1,
-                "load_test2": self.load_test.load_test2,
-                "disp_guess1": self.load_test.disp_guess1,
-                "disp_guess2": self.load_test.disp_guess2,
-                "halfcycltime": self.load_test.halfcycltime,
-                "cycleprecond": self.load_test.cycleprecond,
-                "cycletest": self.load_test.cycletest,
-                "autoloading": self.load_test.autoloading,
-                "disptestspeed1": self.displacement_test.disptestspeed1,
-                "disptestspeed2": self.displacement_test.disptestspeed2,
-                "disptestlen1": self.displacement_test.disptestlen1,
-                "disptestlen2": self.displacement_test.disptestlen2,
-                "disptestcycle": self.displacement_test.disptestcycle,
-            }
-        )
-        return data
 
 
 class ConfigRepository:
@@ -138,7 +125,6 @@ class ConfigRepository:
             folder=str(runtime_data.get("folder", data.get("folder", ""))),
             sample_name=str(runtime_data.get("sample_name", data.get("name", ""))),
             ip_motor=str(runtime_data.get("ip_motor", data.get("ip_motor", RuntimeConfig.ip_motor))),
-            ip_daq=str(runtime_data.get("ip_daq", data.get("ip_daq", RuntimeConfig.ip_daq))),
         )
         sample = SampleConfig(
             thickness=float(sample_data.get("thickness", data.get("thickness", SampleConfig.thickness))),
@@ -170,6 +156,7 @@ class ConfigRepository:
         )
 
         return MachineConfig(
+            force=ForceConfig(**data.get("force", {})),
             runtime=runtime,
             sample=sample,
             load_test=load_test,

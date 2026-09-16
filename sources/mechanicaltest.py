@@ -44,8 +44,6 @@ class MechanicalTest (QThread):
         self._init_variables() 
           
     
-    #def __del__(self):
-        #self.quit()
         
         
     def _init_variables(self):
@@ -91,13 +89,6 @@ class MechanicalTest (QThread):
         self._start_cycle_time = time.perf_counter()
     
         
-    
-    def run(self):
-        #Generation of random signal to test the class
-        #This method is redefined in subclassess
-        while (self._counter < 100):
-            self._sendRandSignal()
-            QThread.msleep(100)
     
     @pyqtSlot()
     def stop(self):
@@ -467,26 +458,3 @@ class MechanicalTest (QThread):
                 print(f"Updating REFERENCE_LOG.txt\n{row_str}")
             except Exception as e:
                 print(f"Error writing to text file: {e}")
-
-            
-
-    def _send_rand_signal(self):
-       
-        print("Sending random")
-        self._counter +=1
-        self._load1 = np.random.rand(1)
-        self._load2 = np.random.rand(1) 
-        self._disp1 = np.random.rand(1) 
-        self._disp2 = np.random.rand(1) 
-        self._E11 = np.random.rand(1) 
-        self._E22 = np.random.rand(1) 
-        self._vel_1 = np.random.rand(1) 
-        self._vel_2 = np.random.rand(1) 
-        self.signal_update_charts.emit([self._counter, self._load1[-1], self._load2[-1], self._disp1[-1], self._disp2[-1], self._E11[-1], self._E22[-1], self._vel_1[-1],self._vel_2[-1]])
-
-
-
-        
-            
-            
-    

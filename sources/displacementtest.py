@@ -12,6 +12,7 @@ from datetime import datetime
 import os
 
 from .mechanicaltest import MechanicalTest
+from .dscusb import ForceDataError
 
 
 class DisplacementTestPhase(Enum):
@@ -93,7 +94,11 @@ class DisplacementControlTest(MechanicalTest):
             return
 
         self._pos1, self._pos2 = self._mot_daq.get_positions()
-        self._force1, self._force2 = self._mot_daq.get_forces()
+        try:
+            self._force1, self._force2 = self._mot_daq.get_forces()
+        except ForceDataError:
+            self._finish_test()
+            return
         self._current_time = time.perf_counter() - self._start_time
         self._current_cycle_time = time.perf_counter() - self._phase_started_at
 

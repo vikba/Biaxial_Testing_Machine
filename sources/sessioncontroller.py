@@ -53,10 +53,11 @@ class TestSessionController(QObject):
         self._mot_daq = MotorDAQInterface(
             config.unit_enum,
             ip_motor=config.runtime.ip_motor,
-            ip_daq=config.runtime.ip_daq,
+            force_config=config.force,
         )
         self._mot_daq.signal_live_forces.connect(self.signal_live_forces.emit)
         self._mot_daq.signal_error.connect(self.signal_error.emit)
+        self._mot_daq.signal_force_fault.connect(self._handle_force_fault)
         self._mot_daq.signal_autoload_started.connect(self._handle_autoload_started)
         self._mot_daq.signal_autoloading_finished.connect(self._handle_autoload_finished)
         self._mot_daq.signal_autoload_rejected.connect(self._handle_autoload_rejected)
@@ -151,6 +152,8 @@ class TestSessionController(QObject):
         if not self._mot_daq.is_initialized():
             raise RuntimeError("Motors and DAQ not connected or not initialized!")
 
+        if tab_index == 0:
+            self._mot_daq.arm_force_guard()
         self.signal_reset_charts.emit()
         self.signal_ui_block_requested.emit(True)
         self._set_state(SessionState.RUNNING_PRECONDITION if tab_index == 0 else SessionState.RUNNING_TEST)
@@ -172,6 +175,11 @@ class TestSessionController(QObject):
     def shutdown(self):
         self.stop_test()
         self.disconnect_hardware()
+
+    @pyqtSlot(str)
+    def _handle_force_fault(self, message):
+        self.stop_test()
+        self.signal_error.emit(message + " Reconnect hardware to reset.")
 
     def _require_hardware(self):
         if self._mot_daq is None:

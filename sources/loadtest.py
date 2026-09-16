@@ -15,6 +15,7 @@ import os
 from .mechanicaltest import MechanicalTest
 from .state import State
 from .unit import Unit
+from .dscusb import ForceDataError
 
 
 class LoadTestPhase(Enum):
@@ -107,6 +108,12 @@ class LoadControlTest(MechanicalTest):
         print("Load Control Test updated.")
 
     def run(self):
+        try:
+            self._run_test()
+        except ForceDataError as exc:
+            self._mot_daq.force_fault(str(exc))
+
+    def _run_test(self):
         print("LoadControlTest: Started")
         self._execute = True
         self._state = State.PRECONDITIONING
@@ -148,6 +155,13 @@ class LoadControlTest(MechanicalTest):
         self.exec()
 
     def _tick(self):
+        try:
+            self._control_tick()
+        except ForceDataError as exc:
+            self._execute = False
+            self._mot_daq.force_fault(str(exc))
+
+    def _control_tick(self):
         if not self._execute or self._phase == LoadTestPhase.FINISHED:
             self._finish_test()
             return
