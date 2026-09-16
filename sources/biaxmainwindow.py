@@ -4,83 +4,88 @@
 
 """
 
-from PyQt6.QtWidgets import*
+from __future__ import annotations
+
+import os
+import sys
+
+from PyQt6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
 from PyQt6.uic import loadUi
 from PyQt6.QtCore import QTimer, pyqtSlot, pyqtSignal
 from PyQt6.QtGui import QFont
-#from PyQt5.QtChart import QLineSeries
 import pyqtgraph as pg
 
-import os
-import json
+if __package__ is None or __package__ == "":
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from .loadtest import LoadControlTest
-from .displacementtest import DisplacementControlTest
-from .camerawindow import VideoThread, VideoWindow
-from .loadcalculator import LoadCalculatorWindow
-from .motordaqinterface import MotorDAQInterface
-from .ringbuffer import RingBuffer
-from .unit import Unit
+from sources.configuration import ConfigRepository, MachineConfig
+from sources.loadcalculator import LoadCalculatorWindow
+from sources.ringbuffer import RingBuffer
+from sources.sessioncontroller import TestSessionController
+from sources.state import State
+from sources.unit import Unit
+from sources.camerawindow import VideoThread, VideoWindow
+from sources.loadtest import LoadControlTest
+from sources.displacementtest import DisplacementControlTest
 
 
-
-
-     
 class BiaxMainWindow(QMainWindow):
-    """
-    BiaxMainWindow class inherits from QMainWindow.
-    This class is the main application window for a biaxial testing machine.
-    It sets up the user interface and connects GUI elements to their functionalities.
-    """
-
-    signal_stop_test = pyqtSignal() #stop only currect test or autoloading
-    signal_stop = pyqtSignal() #sends signal to close everything
+    signal_stop = pyqtSignal()
     _liveforce_update_time = 50
-    
-    def __init__(self):
-        """
-        Constructor method for initializing the Biaxial testing machine GUI. 
-        This method initializes various GUI elements such as buttons, labels, and 
-        matplotlib widgets, and sets up event connections for button clicks. It also 
-        sets the work folder, reads motor speed, and loads the .ui file. 
-        """
-        
-        QMainWindow.__init__(self)
 
-        #Flags
+    def __init__(self):
+        super().__init__()
+
         self._fl_sample_initialized = False
         self._fl_executing = False
+        self._live_monitor_enabled = True
+        self._video_connected_test = None
+        self._mec_test = None
+        self._mot_daq = None
+        self._warning_blink_enabled = False
+        self._warning_color_is_red = False
 
-        # Get the directory of the current script
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        ui_file_path = os.path.join(script_dir, '..', 'resources', 'biax_ui.ui')
-
-        print(ui_file_path)
-
-        # Load the .ui file
+        ui_file_path = os.path.join(script_dir, "..", "resources", "biax_ui.ui")
         loadUi(ui_file_path, self)
 
-        #loadUi("biax_ui.ui",self)
-
         self.__init_variables()
+        self._init_buffers()
+        self._init_config_repository(script_dir)
+        self._init_controller()
+        self._bind_ui()
+        self._configure_charts()
+        self.populate_ui(self._config)
 
-        buffer_len = 500
-
-        self._ringbuffer1 = RingBuffer(buffer_len) #Ring buffer for live force display of channel1
-        self._ringbuffer2 = RingBuffer(buffer_len) #Ring buffer for live force display of channel2
-        self._t_label = [i * self._liveforce_update_time/1000 for i in range(buffer_len)] #list to show time for force monitoring before the test
-
-        # Construct the path to the desktop folder
-        home_dir = os.path.expanduser('~')
-        self._work_folder = os.path.join(home_dir, 'Desktop', 'Biax_Tests')
-
-        self._load_test_config()
-        
-        
-        # Initialization of GUI elements
         self.setWindowTitle("Biaxial testing machine")
+        self._set_force_label_color("black")
+        self._reset_status_labels()
 
-        #init buttons
+    def _init_buffers(self):
+        buffer_len = 500
+        self._ringbuffer1 = RingBuffer(buffer_len)
+        self._ringbuffer2 = RingBuffer(buffer_len)
+        self._t_label = [i * self._liveforce_update_time / 1000 for i in range(buffer_len)]
+
+    def _init_config_repository(self, script_dir):
+        self._config_path = os.path.join(script_dir, "..", "resources", "config_test.json")
+        self._config_repository = ConfigRepository(self._config_path)
+        self._config = self._config_repository.load()
+        if not self._config.runtime.folder:
+            home_dir = os.path.expanduser("~")
+            self._config.runtime.folder = os.path.join(home_dir, "Desktop", "Biax_Tests")
+        self._apply_sample_config(self._config)
+
+    def _init_controller(self):
+        self._session_controller = TestSessionController(self)
+        self._session_controller.signal_error.connect(self._show_warning)
+        self._session_controller.signal_live_forces.connect(self.__update_live_forces)
+        self._session_controller.signal_reset_charts.connect(self.reset)
+        self._session_controller.signal_save_charts.connect(self._save_charts)
+        self._session_controller.signal_ui_block_requested.connect(self._set_test_running_ui)
+        self._session_controller.signal_test_created.connect(self._handle_test_created)
+
+    def _bind_ui(self):
         self.buttonStart.clicked.connect(self.__start_test)
         self.buttonStop.clicked.connect(self.__stop_test)
         self.buttonSampleP.clicked.connect(self.__moveSamplePosition)
@@ -92,843 +97,587 @@ class BiaxMainWindow(QMainWindow):
         self.buttonConnect.clicked.connect(self.__connect)
         self.buttonCalcLoad.clicked.connect(self.__calculate_loads)
         self.buttonAutoload.clicked.connect(self.__autoload)
-        
-        self.buttonMoveCentAx1.pressed.connect(self.__moveForwardAxis1)
-        self.buttonMoveCentAx2.pressed.connect(self.__moveForwardAxis2)
-        self.buttonMoveBackAx1.pressed.connect(self.__moveBackwardAxis1)
-        self.buttonMoveBackAx2.pressed.connect(self.__moveBackwardAxis2)
-        
+
+        self.buttonMoveCentAx1.pressed.connect(lambda: self.__moveAxis(1, 1))
+        self.buttonMoveCentAx2.pressed.connect(lambda: self.__moveAxis(2, 1))
+        self.buttonMoveBackAx1.pressed.connect(lambda: self.__moveAxis(1, -1))
+        self.buttonMoveBackAx2.pressed.connect(lambda: self.__moveAxis(2, -1))
+
         self.buttonMoveCentAx1.released.connect(self.__stop_movement)
         self.buttonMoveCentAx2.released.connect(self.__stop_movement)
         self.buttonMoveBackAx1.released.connect(self.__stop_movement)
         self.buttonMoveBackAx2.released.connect(self.__stop_movement)
 
         self.buttonGrams.toggled.connect(self.__change_units)
-        
-        self.upperLabel_1.setStyleSheet("color: black; font-size: 14px;")
-        self.upperLabel_2.setStyleSheet("color: black; font-size: 14px;")
 
-        #Configure charts
+    def _configure_charts(self):
         self.ChartWidget_1.addLegend()
-        self.ChartWidget_1.setBackground('w')  # Set background to white
-        self.ChartWidget_1.getAxis('left').setPen(pg.mkPen(color='k', width=1))
-        self.ChartWidget_1.getAxis('bottom').setPen(pg.mkPen(color='k', width=1))
-        self.ChartWidget_1.getAxis('left').setTextPen(pg.mkPen(color='k'))
-        self.ChartWidget_1.getAxis('bottom').setTextPen(pg.mkPen(color='k'))
-        self.ChartWidget_1.showGrid(x=False, y=False, alpha=0.5)
-        self.ChartWidget_1.getPlotItem().getViewBox().setBorder(pg.mkPen(color='k', width=1))
         font = QFont()
         font.setPointSize(15)
-        self.ChartWidget_1.getAxis('left').setTickFont(font)
-        self.ChartWidget_1.getAxis('bottom').setTickFont(font)
-        if self._units == Unit.Newton:
-            self.ChartWidget_1.setLabel('left', 'Load, N', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
-        else:
-            self.ChartWidget_1.setLabel('left', 'Load, g', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
-        self.ChartWidget_1.setLabel('bottom', 'Time, s', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
 
-        
-        self.ChartWidget_2.setBackground('w')  # Set background to white
-        self.ChartWidget_2.getAxis('left').setPen(pg.mkPen(color='k', width=1))
-        self.ChartWidget_2.getAxis('bottom').setPen(pg.mkPen(color='k', width=1))
-        self.ChartWidget_2.getAxis('left').setTextPen(pg.mkPen(color='k'))
-        self.ChartWidget_2.getAxis('bottom').setTextPen(pg.mkPen(color='k'))
-        self.ChartWidget_2.showGrid(x=False, y=False, alpha=0.5)
-        self.ChartWidget_2.getPlotItem().getViewBox().setBorder(pg.mkPen(color='k', width=1))
-        self.ChartWidget_2.getAxis('left').setTickFont(font)
-        self.ChartWidget_2.getAxis('bottom').setTickFont(font)
-        self.ChartWidget_2.setLabel('left', 'Displacement, mm', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
-        self.ChartWidget_2.setLabel('bottom', 'Time, s', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
+        for chart in (self.ChartWidget_1, self.ChartWidget_2, self.ChartWidget_3):
+            chart.setBackground("w")
+            chart.getAxis("left").setPen(pg.mkPen(color="k", width=1))
+            chart.getAxis("bottom").setPen(pg.mkPen(color="k", width=1))
+            chart.getAxis("left").setTextPen(pg.mkPen(color="k"))
+            chart.getAxis("bottom").setTextPen(pg.mkPen(color="k"))
+            chart.showGrid(x=False, y=False, alpha=0.5)
+            chart.getPlotItem().getViewBox().setBorder(pg.mkPen(color="k", width=1))
+            chart.getAxis("left").setTickFont(font)
+            chart.getAxis("bottom").setTickFont(font)
 
-        self.ChartWidget_3.setBackground('w')  # Set background to white
-        self.ChartWidget_3.getAxis('left').setPen(pg.mkPen(color='k', width=1))
-        self.ChartWidget_3.getAxis('bottom').setPen(pg.mkPen(color='k', width=1))
-        self.ChartWidget_3.getAxis('left').setTextPen(pg.mkPen(color='k'))
-        self.ChartWidget_3.getAxis('bottom').setTextPen(pg.mkPen(color='k'))
-        self.ChartWidget_3.showGrid(x=False, y=False, alpha=0.5)
-        self.ChartWidget_3.getPlotItem().getViewBox().setBorder(pg.mkPen(color='k', width=1))
-        self.ChartWidget_3.getAxis('left').setTickFont(font)
-        self.ChartWidget_3.getAxis('bottom').setTickFont(font)
-        self.ChartWidget_3.setLabel('left', 'Stress, kPa', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
-        self.ChartWidget_3.setLabel('bottom', 'Strain', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
-        
-        
+        self.ChartWidget_2.setLabel("left", "Displacement, mm", **{"color": "#000", "font-size": "14pt", "font-family": "Arial"})
+        self.ChartWidget_2.setLabel("bottom", "Time, s", **{"color": "#000", "font-size": "14pt", "font-family": "Arial"})
+        self.ChartWidget_3.setLabel("left", "Stress, kPa", **{"color": "#000", "font-size": "14pt", "font-family": "Arial"})
+        self.ChartWidget_3.setLabel("bottom", "Strain", **{"color": "#000", "font-size": "14pt", "font-family": "Arial"})
 
-        
+    def _apply_sample_config(self, config: MachineConfig):
+        self._units = config.unit_enum
+        self._work_folder = config.runtime.folder
+        self._sam_name = config.runtime.sample_name
+        self._thickness = config.sample.thickness
+        self._len1 = config.sample.length1
+        self._len2 = config.sample.length2
+        self._max_stress1 = config.sample.maxstress1
+        self._max_stress2 = config.sample.maxstress2
+        self._area1 = config.sample.area1
+        self._area2 = config.sample.area2
 
+    def load_config(self) -> MachineConfig:
+        self._config = self._config_repository.load()
+        self._apply_sample_config(self._config)
+        return self._config
 
-    def _load_test_config(self):
-
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        config_path = os.path.join(script_dir, '..', 'resources', 'config_test.json')
-
-        if os.path.exists(config_path):
-            with open(config_path, 'r') as file:
-                self._config_test = json.load(file)
-        else:
-            raise FileNotFoundError(f"The configuration file {config_path} does not exist.")
-
-
-        unit = self._config_test.get("unit")
-        if unit == "gram":
-            self._units = Unit.Gram
+    def populate_ui(self, config: MachineConfig):
+        self._apply_sample_config(config)
+        self.buttonGrams.blockSignals(True)
+        self.buttonNewtons.blockSignals(True)
+        if config.unit_enum == Unit.Gram:
             self.buttonGrams.setChecked(True)
-
-            self.ChartWidget_1.setLabel('left', 'Load, g', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
-            self.label_17.setText("g")
-            self.label_18.setText("g")
-            self.label_26.setText("g")
-            self.label_29.setText("g")
         else:
-            self._units = Unit.Newton
             self.buttonNewtons.setChecked(True)
+        self.buttonGrams.blockSignals(False)
+        self.buttonNewtons.blockSignals(False)
 
-            self.ChartWidget_1.setLabel('left', 'Load, N', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
-            self.label_17.setText("N")
-            self.label_18.setText("N")
-            self.label_26.setText("N")
-            self.label_29.setText("N")
+        self.labelFolder.setText(config.runtime.folder)
+        self.factorSampleName.setText(config.runtime.sample_name)
+        self.factorTareLoad1.setText(config.load_test.tareload1)
+        self.factorTareLoad2.setText(config.load_test.tareload2)
+        self.factorLoadTest1.setText(config.load_test.load_test1)
+        self.factorLoadTest2.setText(config.load_test.load_test2)
+        self.factorDispGuess1.setText(config.load_test.disp_guess1)
+        self.factorDispGuess2.setText(config.load_test.disp_guess2)
+        self.factorTimeAx.setText(config.load_test.halfcycltime)
+        self.factorCyclNumPrecond.setText(config.load_test.cycleprecond)
+        self.factorCyclNumTest.setText(config.load_test.cycletest)
+        self.factor_check_box_autoloading.setChecked(config.load_test.autoloading)
+        self.factorSpeedAx1.setText(config.displacement_test.disptestspeed1)
+        self.factorSpeedAx2.setText(config.displacement_test.disptestspeed2)
+        self.factorLength1.setText(config.displacement_test.disptestlen1)
+        self.factorLength2.setText(config.displacement_test.disptestlen2)
+        self.factorCyclNumD.setText(config.displacement_test.disptestcycle)
+        self._update_units_labels(config.unit_enum)
 
-        
-        self._work_folder = self._config_test.get("folder")
-        print("Work folder: " + self._work_folder)
-        self.labelFolder.setText(self._work_folder)
-    
-        self._sam_name = "" #self._config_test.get("name")
-        self.factorSampleName.setText(self._sam_name)
-        self.factorTareLoad1.setText(self._config_test.get("tareload1"))
-        self.factorTareLoad2.setText(self._config_test.get("tareload2"))
-        self.factorLoadTest1.setText(self._config_test.get("load_test1"))
-        self.factorLoadTest2.setText(self._config_test.get("load_test2"))
-        self.factorDispGuess1.setText(self._config_test.get("disp_guess1"))
-        self.factorDispGuess2.setText(self._config_test.get("disp_guess2"))
-        self.factorTimeAx.setText(self._config_test.get("halfcycltime"))
-        self.factorCyclNumPrecond.setText(self._config_test.get("cycleprecond"))
-        self.factorCyclNumTest.setText(self._config_test.get("cycletest"))
+    def read_ui_into_config(self, config: MachineConfig | None = None) -> MachineConfig:
+        cfg = config or self._config
+        cfg.runtime.unit = "gram" if self.buttonGrams.isChecked() else "newton"
+        cfg.runtime.folder = self._work_folder
+        cfg.runtime.sample_name = self.factorSampleName.text().strip()
+        cfg.sample.thickness = self._thickness
+        cfg.sample.length1 = self._len1
+        cfg.sample.length2 = self._len2
+        cfg.sample.maxstress1 = self._max_stress1
+        cfg.sample.maxstress2 = self._max_stress2
+        cfg.load_test.tareload1 = self.factorTareLoad1.text()
+        cfg.load_test.tareload2 = self.factorTareLoad2.text()
+        cfg.load_test.load_test1 = self.factorLoadTest1.text()
+        cfg.load_test.load_test2 = self.factorLoadTest2.text()
+        cfg.load_test.disp_guess1 = self.factorDispGuess1.text()
+        cfg.load_test.disp_guess2 = self.factorDispGuess2.text()
+        cfg.load_test.halfcycltime = self.factorTimeAx.text()
+        cfg.load_test.cycleprecond = self.factorCyclNumPrecond.text()
+        cfg.load_test.cycletest = self.factorCyclNumTest.text()
+        cfg.load_test.autoloading = self.factor_check_box_autoloading.isChecked()
+        cfg.displacement_test.disptestspeed1 = self.factorSpeedAx1.text()
+        cfg.displacement_test.disptestspeed2 = self.factorSpeedAx2.text()
+        cfg.displacement_test.disptestlen1 = self.factorLength1.text()
+        cfg.displacement_test.disptestlen2 = self.factorLength2.text()
+        cfg.displacement_test.disptestcycle = self.factorCyclNumD.text()
+        self._config = cfg
+        self._apply_sample_config(cfg)
+        return cfg
 
-        #Displacement test
-        self.factorSpeedAx1.setText(self._config_test.get("disptestspeed1"))
-        self.factorSpeedAx2.setText(self._config_test.get("disptestspeed2"))
-        self.factorLength1.setText(self._config_test.get("disptestlen1"))
-        self.factorLength2.setText(self._config_test.get("disptestlen2"))
-        self.factorCyclNumD.setText(self._config_test.get("disptestcycle"))
-
-        self._thickness = self._config_test.get("thickness")
-        self._len1 = self._config_test.get("length1")
-        self._len2 = self._config_test.get("length2")
-        self._max_stress1 = self._config_test.get("maxstress1")
-        self._max_stress2 = self._config_test.get("maxstress2")
-        self._ip_motor = self._config_test.get("ip_motor", "172.31.100.108")
-        self._ip_daq   = self._config_test.get("ip_daq",   "172.31.100.200")
-
-        self._area1 = self._thickness * self._len1
-        self._area2 = self._thickness * self._len2
-
-    def _save_test_config(self):
-
-        if self._units == Unit.Gram:
-            self._config_test["unit"] = "gram"
-        else:
-            self._config_test["unit"] = "newton"
-
-
-        self._config_test["name"] = self.factorSampleName.text()
-        self._config_test["tareload1"] = self.factorTareLoad1.text()
-        self._config_test["tareload2"] = self.factorTareLoad2.text()
-        self._config_test["load_test1"] = self.factorLoadTest1.text()
-        self._config_test["load_test2"] = self.factorLoadTest2.text()
-        self._config_test["disp_guess1"] = self.factorDispGuess1.text()
-        self._config_test["disp_guess2"] = self.factorDispGuess2.text()
-        self._config_test["halfcycltime"] = self.factorTimeAx.text()
-        self._config_test["cycleprecond"] = self.factorCyclNumPrecond.text()
-        self._config_test["cycletest"] = self.factorCyclNumTest.text()
-
-        #Disp test
-        self._config_test["disptestspeed1"] = self.factorSpeedAx1.text()
-        self._config_test["disptestspeed2"] = self.factorSpeedAx2.text()
-        self._config_test["disptestlen1"] = self.factorLength1.text()
-        self._config_test["disptestlen2"] = self.factorLength2.text()
-        self._config_test["disptestcycle"] = self.factorCyclNumD.text()
-
-        self._config_test["thickness"] = self._thickness
-        self._config_test["length1"] = self._len1
-        self._config_test["length2"] = self._len2
-        self._config_test["maxstress1"] = self._max_stress1
-        self._config_test["maxstress2"] = self._max_stress2
-        self._config_test["folder"] = self._work_folder
-
-        
-        #Save into program folder
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        config_path = os.path.join(script_dir, '..', 'resources', 'config_test.json')
-        with open(config_path, 'w') as file:
-            json.dump(self._config_test, file, indent=4)
-
-        
-        #Save second time into sample folder
-        folder = os.path.join(self._work_folder, self._sam_name)
+    def save_config(self, config: MachineConfig, save_sample_copy: bool = False):
+        self._config_repository.save(config)
+        if not save_sample_copy or not config.runtime.sample_name:
+            return
+        folder = os.path.join(config.runtime.folder, config.runtime.sample_name)
         os.makedirs(folder, exist_ok=True)
-        config_path2 = os.path.join(folder, 'config_test.json')
-        with open(config_path2, 'w') as file:
-            json.dump(self._config_test, file, indent=4)
-        
+        self._config_repository.save(config, os.path.join(folder, "config_test.json"))
 
-    
     def __init_variables(self):
-        self._t = [] 
-        self._load1 = [] 
+        self._t = []
+        self._load1 = []
         self._load2 = []
         self._stress1 = []
-        self._stress2 = [] 
-        self._disp1 = [] 
-        self._disp2 = [] 
-        self._E11 = [] 
-        self._E22 = [] 
-        self._v1 = [] 
+        self._stress2 = []
+        self._disp1 = []
+        self._disp2 = []
+        self._E11 = []
+        self._E22 = []
+        self._v1 = []
         self._v2 = []
         self._strain_disp1 = []
         self._strain_disp2 = []
 
-    @pyqtSlot() #To clear charts then preconditioning or test are finished
+    @pyqtSlot()
     def reset(self):
         self.__init_variables()
         self.ChartWidget_1.clear()
         self.ChartWidget_2.clear()
         self.ChartWidget_3.clear()
-
+        self._reset_status_labels()
 
     def closeEvent(self, event):
-        # This method is called when the window is closed.
         self.__terminate_application()
         event.accept()
 
     def __terminate_application(self):
-        
         self.signal_stop.emit()
-        
-        # Terminate Threads
-        '''if hasattr(self, '_mec_test'):
-            self._mec_test.stop()
+        self._session_controller.shutdown()
+        print("Application terminated")
 
-        if hasattr(self, '_video_thread'):
-            self._video_thread.stop()
-        
-        if hasattr(self, '_video_window'):
-            self._video_window.close()
-            
-        if hasattr(self, '_label_timer'):
-            self._label_timer.stop()
-
-        if hasattr(self, '_liveforce_timer'):
-            self._liveforce_timer.stop()
-            
-        self.close()'''
-            
-            
-        
-        
-        print('Application terminated')
-        
-    
-    #functions connected to buttons
-    
     def __start_test(self):
-        """
-        Start the measurement process, connect tracking signal, and set up timer for label updates.
-        Set end force values, test duration, and cycle number. 
-        If load control test object exists, update test parameters and start the test. 
-        If not, display a warning message to connect to motors and DAQ first.
-        """
-
-        #Reset all the variables
-        self.__init_variables()
-        self._save_test_config()
-        self.block_gui()
-
-        #Motors and DAQ should be initialized
-        if not hasattr(self, '_mot_daq') or not self._mot_daq.is_initialized():
-            warning_box = QMessageBox()
-            warning_box.setIcon(QMessageBox.Icon.Warning)
-            warning_box.setWindowTitle("Warning")
-            warning_box.setText("Motors and DAQ not connected or not initialized!")
-            warning_box.exec()
-            return
-        
-        '''if not self._fl_sample_initialized:
-            warning_box = QMessageBox()
-            warning_box.setIcon(QMessageBox.Icon.Warning)
-            warning_box.setWindowTitle("Warning")
-            warning_box.setText("Sample dimensions should be initizlied")
-            warning_box.exec()
-            self.__calculate_loads()
-            return'''
-
-        self._mot_daq.zeroPosition()
-
-        #Setting lavel properties
-        self._liveforce_timer.stop()
-        
-        if hasattr(self, '_label_timer'):
-            self._label_timer.stop()
-            self._label_timer.start(1000)  # 1000 milliseconds = 1 second
-        else:
-            self._label_timer = QTimer(self)
-            self._label_timer.timeout.connect(self.__changeLabelColor)
-            self._label_timer.start(1000)  # 1000 milliseconds = 1 second
-        
-        
-        #Setting michanical test
-        self.__create_mec_test()
-
-        if isinstance(self._mec_test, LoadControlTest):
-
-            '''# Get test parameters
-            end_force1 = float(self.factorLoadTest1.text())
-            end_force2 = float(self.factorLoadTest2.text())
-            tare_load1 = float(self.factorTareLoad1.text())
-            tare_load2 = float(self.factorTareLoad2.text())
-            disp_guess1 = float(self.factorDispGuess1.text())/2
-            disp_guess2 = float(self.factorDispGuess2.text())/2
-            test_duration = float(self.factorTimeAx.text())
-            cycl_num_precond = int(self.factorCyclNumPrecond.text())
-            cycl_num_test = int(self.factorCyclNumTest.text())
-            fl_autoloading = self.factor_check_box_autoloading.isChecked()
-            
-            self._mec_test.update_parameters(self._work_folder, self._sam_name, fl_autoloading, end_force1, end_force2, tare_load1, tare_load2, disp_guess1, disp_guess2, test_duration, cycl_num_precond, cycl_num_test)
-'''
-
-            self.upperLabel_1.setText("Warning!")
-            self.upperLabel_2.setText("Load control test")
-
-        elif isinstance(self._mec_test, DisplacementControlTest):
-
-            '''# Calculate velocity
-            vel_ax1 = float(self.factorSpeedAx1.text())/120 #convert from mm/min to mm/sec and divide by 2 as one axis pulls sample from 2 sites
-            vel_ax2 = float(self.factorSpeedAx2.text())/120
-            length1 = float(self.factorLength1.text())/2
-            length2 = float(self.factorLength2.text())/2
-            cycl_num = int(self.factorCyclNumD.text())
-
-            self._mec_test.update_parameters(self._work_folder, self._sam_name, vel_ax1, vel_ax2, length1, length2, cycl_num)'''
-
-            self.upperLabel_1.setText("Warning!")
-            self.upperLabel_2.setText("Displacement control test")
-
-        self._fl_executing = True
-        self._mec_test.start()
-
-
-            
-        
-            
-
-    def __create_mec_test(self):
-        '''
-        Created an instance of appropriate test based on the tab in the tabWidget
-        
-        tabWidget:
-        0 - load control
-        1 - strain control
-        2 - displacement control
-        '''
-
-        '''#If there is an old object -stop it
-        if hasattr(self, '_mec_test') and isinstance(self._mec_test, LoadControlTest):
-            self._mec_test.stop_measurement()'''
+        self.read_ui_into_config(self._config)
+        self.save_config(self._config)
 
         try:
-
-            #workfolder is checked when button pressed
-            self._sam_name = self.factorSampleName.text()
-            #Check if folder with sample name already exist
-            #If yes ask user if he wants to add data there
-            sam_folder = os.path.join(self._work_folder, self._sam_name)
-            if os.path.exists(sam_folder):
-                reply = QMessageBox.question(self, 'Message',
-                                        f"Do you want to add data to {self._sam_name}?",
-                                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                                        QMessageBox.StandardButton.No)
-
+            result = self._session_controller.start_test(self._config, self.tabWidget.currentIndex())
+            if result == "sample_exists":
+                reply = QMessageBox.question(
+                    self,
+                    "Message",
+                    f"Do you want to add data to {self._config.runtime.sample_name}?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No,
+                )
                 if reply == QMessageBox.StandardButton.No:
-                    return False
-            
+                    self._set_test_running_ui(False)
+                    return
+                result = self._session_controller.start_test(
+                    self._config,
+                    self.tabWidget.currentIndex(),
+                    allow_existing_sample=True,
+                )
+            self.save_config(self._config, save_sample_copy=True)
+        except Exception as exc:
+            self._set_test_running_ui(False)
+            self._show_warning(str(exc))
+            return
 
-            #Load control test
-            if 0 == self.tabWidget.currentIndex():
-                
-                
-                # Get test parameters
-                end_force1 = float(self.factorLoadTest1.text())
-                end_force2 = float(self.factorLoadTest2.text())
-                tare_load1 = float(self.factorTareLoad1.text())
-                tare_load2 = float(self.factorTareLoad2.text())
-                disp_guess1 = float(self.factorDispGuess1.text())/2
-                disp_guess2 = float(self.factorDispGuess2.text())/2
-                test_duration = float(self.factorTimeAx.text())
-                cycl_num_precond = int(self.factorCyclNumPrecond.text())
-                cycl_num_test = int(self.factorCyclNumTest.text())
-                fl_autoloading = self.factor_check_box_autoloading.isChecked()
-                
-                if hasattr(self, '_mec_test') and isinstance(self._mec_test, LoadControlTest):
-                    #If object of load control test exists just update test parameters
-                    self._mec_test.update_parameters(self._work_folder, self._sam_name, fl_autoloading, end_force1, end_force2, tare_load1, tare_load2, disp_guess1, disp_guess2, test_duration, cycl_num_precond, cycl_num_test)
+        if result is not None and result != "sample_exists":
+            self._fl_executing = True
 
-                else:
-                    self._mec_test = LoadControlTest(self._mot_daq, self._work_folder, self._sam_name, fl_autoloading, end_force1, end_force2, tare_load1, tare_load2, disp_guess1, disp_guess2, test_duration, cycl_num_precond, cycl_num_test)
-                    self.signal_stop.connect(self._mec_test.stop)
-                    self._mec_test.signal_update_charts.connect(self.__update_charts)
-                    self._mec_test.signal_precond_finished.connect(self.reset)
-                    self._mec_test.signal_test_finished.connect(self._save_charts)
-        
-            #Displacement control test
-            elif 2 == self.tabWidget.currentIndex():
-                
-                
-                # Calculate velocity
-                vel_ax1 = float(self.factorSpeedAx1.text())/120 #convert from mm/min to mm/sec and divide by 2 as one axis pulls sample from 2 sites
-                vel_ax2 = float(self.factorSpeedAx2.text())/120
-                length1 = float(self.factorLength1.text())/2
-                length2 = float(self.factorLength2.text())/2
-                cycl_num = int(self.factorCyclNumD.text())
+    def _handle_test_created(self, test):
+        if self._mec_test is not None:
+            try:
+                self._mec_test.signal_update_charts.disconnect(self.__update_charts)
+            except Exception:
+                pass
+        self._mec_test = test
+        self._mec_test.signal_update_charts.connect(self.__update_charts)
+        self._attach_video_to_test(test)
 
-                if hasattr(self, '_mec_test') and isinstance(self._mec_test, DisplacementControlTest):
-                    #If object of load control test exists just update test parameters
-                    self._mec_test.update_parameters(self._work_folder, self._sam_name, vel_ax1, vel_ax2, length1, length2, cycl_num)
-                else:
-                
-                    self._mec_test = DisplacementControlTest(self._mot_daq, self._work_folder, self._sam_name, vel_ax1, vel_ax2, length1, length2, cycl_num)
-                    self.signal_stop.connect(self._mec_test.stop)
-                    self._mec_test.signal_update_charts.connect(self.__update_charts)
-                    self._mec_test.signal_precond_finished.connect(self.reset)
-                #self._mec_test.signal_test_finished.connect(self.reset)
-                
-                
-                # Update UI labels
-                self.upperLabel_1.setText("Warning!")
-                self.upperLabel_2.setText("Displacement control test")
+    def _attach_video_to_test(self, test):
+        if not hasattr(self, "_video_thread"):
+            return
 
-        except Exception as e:
-            warning_box = QMessageBox()
-            warning_box.setIcon(QMessageBox.Icon.Warning)
-            warning_box.setWindowTitle("Warning")
-            warning_box.setText(e.__str__())
-            warning_box.exec()  
+        if self._video_connected_test is not None:
+            try:
+                self._video_thread.signal_markers_recorded.disconnect(self._video_connected_test.init_markers)
+                self._video_thread.signal_markers_coordinates.disconnect(self._video_connected_test.update_markers)
+                self._video_connected_test.signal_start_stop_tracking.disconnect(self._video_thread.start_stop_tracking)
+                self._video_connected_test.signal_save_image.disconnect(self._video_thread.save_image)
+            except Exception:
+                pass
+
+        self._video_thread.signal_markers_recorded.connect(test.init_markers)
+        self._video_thread.signal_markers_coordinates.connect(test.update_markers)
+        test.signal_start_stop_tracking.connect(self._video_thread.start_stop_tracking)
+        test.signal_save_image.connect(self._video_thread.save_image)
+        self._video_connected_test = test
 
     def __startCamera(self):
-        """
-        Method to start the camera. If the '_mec_test' attribute is present, initializes a 
-        VideoThread and VideoWindow, connects the start_stop_tracking_signal to 
-        _video_window.startStopTracking, and shows the video window. If the '_mec_test' 
-        attribute is not present, displays a warning message. 
-        """
-        
-        if hasattr(self, '_mot_daq'):
+        self.read_ui_into_config(self._config)
+        try:
+            result = self._session_controller.prepare_test(self._config, self.tabWidget.currentIndex())
+            if result == "sample_exists":
+                reply = QMessageBox.question(
+                    self,
+                    "Message",
+                    f"Do you want to add data to {self._config.runtime.sample_name}?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No,
+                )
+                if reply == QMessageBox.StandardButton.No:
+                    return
+                self._session_controller.prepare_test(
+                    self._config,
+                    self.tabWidget.currentIndex(),
+                    allow_existing_sample=True,
+                )
+        except Exception as exc:
+            self._show_warning(str(exc))
+            return
 
-            #Creating an instance of mechanical test
-            response = self.__create_mec_test() #Will return 0 if user will reject creating that test
+        if not hasattr(self, "_video_thread"):
+            self._video_thread = VideoThread()
+            self.signal_stop.connect(self._video_thread.stop)
+            self._video_window = VideoWindow(self._video_thread)
+            self.signal_stop.connect(self._video_window.stop)
+            self._video_thread.signal_change_pixmap.connect(self._video_window.update_image)
+            self._video_window.show()
+            self._video_thread.start()
 
-            if response != 0:
-                self._video_thread = VideoThread()
-                self.signal_stop.connect(self._video_thread.stop)
-                self._video_window = VideoWindow(self._video_thread)
-                self.signal_stop.connect(self._video_window.stop)
-
-                self._video_thread.signal_markers_recorded.connect(self._mec_test.init_markers)
-                self._video_thread.signal_markers_coordinates.connect(self._mec_test.update_markers)
-                self._video_thread.signal_change_pixmap.connect(self._video_window.update_image)
-                
-                self._mec_test.signal_start_stop_tracking.connect(self._video_thread.start_stop_tracking)
-                self._mec_test.signal_save_image.connect(self._video_thread.save_image)
-
-
-                
-                self._video_window.show()
-                self._video_thread.start()  
-        else:
-            warning_box = QMessageBox()
-            warning_box.setIcon(QMessageBox.Icon.Warning)
-            warning_box.setWindowTitle("Warning")
-            warning_box.setText("Connect to motors and DAQ first!")
-            warning_box.exec()         
+        if self._mec_test is not None:
+            self._attach_video_to_test(self._mec_test)
 
     def __connect(self):
-        
+        self.read_ui_into_config(self._config)
         try:
-            self._mot_daq = MotorDAQInterface(
-                self._units,
-                ip_motor=self._ip_motor,
-                ip_daq=self._ip_daq
-            )
-            self.signal_stop.connect(self._mot_daq.stop)
-            self.signal_stop_test.connect(self._mot_daq.stop_test)
-    
-        except Exception as e:
-            warning_box = QMessageBox()
-            warning_box.setIcon(QMessageBox.Icon.Warning)
-            warning_box.setWindowTitle("Warning")
-            warning_box.setText(e.__str__())
-            warning_box.exec()
-            print("Error")
-        else:
-            self._liveforce_timer = QTimer(self)
-            self._liveforce_timer.timeout.connect(self.__updateLabelForce)
-            self._liveforce_timer.start(self._liveforce_update_time)
+            self._mot_daq = self._session_controller.connect_hardware(self._config)
+        except Exception as exc:
+            self._show_warning(str(exc))
 
     def __stop_movement(self):
-        
-        
-        if hasattr(self, '_mot_daq'):
-            self._mot_daq.stop_motors()
-        else:
-            warning_box = QMessageBox()
-            warning_box.setIcon(QMessageBox.Icon.Warning)
-            warning_box.setWindowTitle("Warning")
-            warning_box.setText("Connect to motors and DAQ first!")
-            warning_box.exec()
+        try:
+            self._session_controller.stop_motors()
+        except Exception as exc:
+            self._show_warning(str(exc))
 
     def __stop_test(self):
-        if hasattr(self, '_mot_daq'):
-            self._mot_daq.stop_motors()
-        else:
-            warning_box = QMessageBox()
-            warning_box.setIcon(QMessageBox.Icon.Warning)
-            warning_box.setWindowTitle("Warning")
-            warning_box.setText("Connect to motors and DAQ first!")
-            warning_box.exec()
-
-        if hasattr(self, '_mec_test'):
-            self._mec_test.stop_measurement()
-
-        if hasattr(self, '_label_timer'):
-            self._label_timer.stop()
-
-        if hasattr(self, '_liveforce_timer'):
-            self._liveforce_timer.start(self._liveforce_update_time)
-
-        self._fl_executing = False
-        self.signal_stop_test.emit()
+        self._session_controller.stop_test()
         self._ringbuffer1.reset()
         self._ringbuffer2.reset()
-        self.unblock_gui()
-            
-        
-            
+        self._fl_executing = False
+        self._reset_status_labels()
+
     def __changeLabelColor(self):
-        '''
-        Function to change color of the upper label during test execution
+        if not self._warning_blink_enabled:
+            self._set_force_label_color("black")
+            return
 
-        Returns
-        -------
-        None.
+        self._warning_color_is_red = not self._warning_color_is_red
+        self._set_force_label_color("red" if self._warning_color_is_red else "black")
 
-        '''
-        
-        if hasattr(self, '_fl_label_color'):
-            if self._fl_label_color:
-                self.upperLabel_1.setStyleSheet("color: red; font-size: 14px;")
-                self.upperLabel_2.setStyleSheet("color: red; font-size: 14px;")
-            else:
-                self.upperLabel_1.setStyleSheet("color: black; font-size: 14px;")
-                self.upperLabel_2.setStyleSheet("color: black; font-size: 14px;")
-                
-            self._fl_label_color = not self._fl_label_color
-        else:
-            self._fl_label_color = True
-        
     def __zeroForce(self):
-        if hasattr(self, '_mot_daq'):
-            self._mot_daq.zeroForce()
+        try:
+            self._session_controller.zero_force()
             self._ringbuffer1.reset()
             self._ringbuffer2.reset()
-        else:
-            warning_box = QMessageBox()
-            warning_box.setIcon(QMessageBox.Icon.Warning)
-            warning_box.setWindowTitle("Warning")
-            warning_box.setText("Connect to motors and DAQ first!")
-            warning_box.exec()
-        
+        except Exception as exc:
+            self._show_warning(str(exc))
+
     def __zeroPosition(self):
-        if hasattr(self, '_mot_daq'):
-            self._mot_daq.zeroPosition()
-        else:
-            warning_box = QMessageBox()
-            warning_box.setIcon(QMessageBox.Icon.Warning)
-            warning_box.setWindowTitle("Warning")
-            warning_box.setText("Connect to motors and DAQ first!")
-            warning_box.exec()
-       
+        try:
+            self._session_controller.zero_position()
+        except Exception as exc:
+            self._show_warning(str(exc))
+
     def __moveSamplePosition(self):
-        # MOve to position for sample attachment
-        if hasattr(self, '_mot_daq'):
-            self._mot_daq.moveSamplePosition()
-        else:
-            warning_box = QMessageBox()
-            warning_box.setIcon(QMessageBox.Icon.Warning)
-            warning_box.setWindowTitle("Warning")
-            warning_box.setText("Connect to motors and DAQ first!")
-            warning_box.exec()
-            
+        try:
+            self._session_controller.move_sample_position()
+        except Exception as exc:
+            self._show_warning(str(exc))
+
     def __initializeMotors(self):
+        if self._mot_daq is None:
+            self._show_warning("Connect to motors and DAQ first!")
+            return
+        reply = QMessageBox.question(
+            self,
+            "Message",
+            "Is the sample unmounted?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                self._session_controller.initialize_motors()
+            except Exception as exc:
+                self._show_warning(str(exc))
 
-        if hasattr(self, '_mot_daq'):
-            # Show a message box with Yes/No buttons
-            reply = QMessageBox.question(self, 'Message',
-                                        "Is the sample unmounted?",
-                                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                                        QMessageBox.StandardButton.No)
+    def __moveAxis(self, axis, speed):
+        try:
+            if axis == 1:
+                self._session_controller.move_velocity_ax1(speed)
+            else:
+                self._session_controller.move_velocity_ax2(speed)
+        except Exception as exc:
+            self._show_warning(str(exc))
 
-            # Check if 'Yes' was clicked
-            if reply == QMessageBox.StandardButton.Yes:
-                #Initialize Zero position of the motors
-                self._mot_daq.initMotZeroPos()
-        else:
-            warning_box = QMessageBox()
-            warning_box.setIcon(QMessageBox.Icon.Warning)
-            warning_box.setWindowTitle("Warning")
-            warning_box.setText("Connect to motors and DAQ first!")
-            warning_box.exec()
-    
-    def __moveForwardAxis1(self):
-        if hasattr(self, '_mot_daq'):
-            self._mot_daq.move_velocity_ax1(1)
-        else:
-            warning_box = QMessageBox()
-            warning_box.setIcon(QMessageBox.Icon.Warning)
-            warning_box.setWindowTitle("Warning")
-            warning_box.setText("Connect to motors and DAQ first!")
-            warning_box.exec()
-    
-    def __moveBackwardAxis1(self):
-        if hasattr(self, '_mot_daq'):
-            self._mot_daq.move_velocity_ax1(-1)
-        else:
-            warning_box = QMessageBox()
-            warning_box.setIcon(QMessageBox.Icon.Warning)
-            warning_box.setWindowTitle("Warning")
-            warning_box.setText("Connect to motors and DAQ first!")
-            warning_box.exec()
-    
-    def __moveForwardAxis2(self):
-        if hasattr(self, '_mot_daq'):
-            self._mot_daq.move_velocity_ax2(1)
-        else:
-            warning_box = QMessageBox()
-            warning_box.setIcon(QMessageBox.Icon.Warning)
-            warning_box.setWindowTitle("Warning")
-            warning_box.setText("Connect to motors and DAQ first!")
-            warning_box.exec()
-    
-    def __moveBackwardAxis2(self):
-        if hasattr(self, '_mot_daq'):
-            self._mot_daq.move_velocity_ax2(-1)
-        else:
-            warning_box = QMessageBox()
-            warning_box.setIcon(QMessageBox.Icon.Warning)
-            warning_box.setWindowTitle("Warning")
-            warning_box.setText("Connect to motors and DAQ first!")
-            warning_box.exec()
-    
-    #Other Functions
-            
-    def __calculate_loads (self):
-
+    def __calculate_loads(self):
         self._fl_sample_initialized = True
-        self._calc_loads_window = LoadCalculatorWindow(self._thickness, self._len1, self._len2, self._max_stress1, self._max_stress2, self._units)
+        self._calc_loads_window = LoadCalculatorWindow(
+            self._thickness,
+            self._len1,
+            self._len2,
+            self._max_stress1,
+            self._max_stress2,
+            self._units,
+        )
         self._calc_loads_window.signal_loads_calculated.connect(self.__set_sample_params)
-
         self._calc_loads_window.show()
-        
 
-    
-    @pyqtSlot(float,float,float,float,float,float,float)
+    @pyqtSlot(float, float, float, float, float, float, float)
     def __set_sample_params(self, load1, load2, stress1, stress2, len1, len2, thickness):
-        self.end_force1 = load1
-        self.end_force2 = load2
-        self._max_stress1 = stress1
-        self._max_stress2 = stress2
-
         self.factorLoadTest1.setText(str(load1))
         self.factorLoadTest2.setText(str(load2))
-
+        self._max_stress1 = stress1
+        self._max_stress2 = stress2
         self._len1 = len1
         self._len2 = len2
         self._thickness = thickness
-
-        self._area1 = len1 * thickness #in mm2
-        self._area2 = len2 * thickness #in mm2
+        self._area1 = len1 * thickness
+        self._area2 = len2 * thickness
 
     def __autoload(self):
-        if hasattr(self, '_mot_daq'):
+        self.read_ui_into_config(self._config)
+        try:
+            self._session_controller.perform_autoload(self._config)
+        except Exception as exc:
+            self._show_warning(str(exc))
 
-            tare_load1 = float(self.factorTareLoad1.text())
-            tare_load2 = float(self.factorTareLoad2.text())
-
-            self._mot_daq.perform_autoload(tare_load1, tare_load2)
-
-
-
-        else:
-            warning_box = QMessageBox()
-            warning_box.setIcon(QMessageBox.Icon.Warning)
-            warning_box.setWindowTitle("Warning")
-            warning_box.setText("Connect to motors and DAQ first!")
-            warning_box.exec()
-    
-    
-
-    
-        
     @pyqtSlot(list)
     def __update_charts(self, array):
-        """
-        Updates charts on matplotlib widgets
-        This function is connected to MechanicalTest classes with signal/slot mechanism
-        Order:
-        self._time, self._load1[-1], self._load2[-1], self._disp1[-1], self._disp2[-1], self._E11[-1], self._E22[-1], self._vel_1[-1],self._vel_2[-1]
-        """
-
+        self._update_cycle_label()
         self._t.append(array[0])
-        self._load1.append(array[1]) 
+        self._load1.append(array[1])
         self._load2.append(array[2])
-        self._disp1.append(array[3]) 
-        self._disp2.append(array[4]) 
+        self._disp1.append(array[3])
+        self._disp2.append(array[4])
 
-        #print(array)
-
-        #Stress calculation depends on force units used
         if Unit.Newton == self._units:
-            self._stress1.append(array[1]*1000/self._area1)  #kPa
-            self._stress2.append(array[2]*1000/self._area2)   
+            stress1 = array[1] * 1000 / self._area1
+            stress2 = array[2] * 1000 / self._area2
         else:
-            self._stress1.append(array[1]*9.8/self._area1)  #kPa
-            self._stress2.append(array[2]*9.8/self._area2)  #kPa
+            stress1 = array[1] * 9.8 / self._area1
+            stress2 = array[2] * 9.8 / self._area2
 
-        if 9 == len(array):
-            self._E11.append(array[5]) 
-            self._E22.append(array[6]) 
-            self._v1.append(array[7]) 
-            self._v2.append(array[8])
-        else:
-            self._strain_disp1.append(array[3]/self._len1)
-            self._strain_disp2.append(array[4]/self._len2)
-        #t_s = [0, self.test_duration]
-        #f_s = [0, self.end_force1]
-    
+        self._stress1.append(stress1)
+        self._stress2.append(stress2)
+        self._E11.append(array[5])
+        self._E22.append(array[6])
+        self._v1.append(array[7])
+        self._v2.append(array[8])
+        self._strain_disp1.append(array[3] / self._len1)
+        self._strain_disp2.append(array[4] / self._len2)
+
         try:
-            if (abs(self._stress1[-1] - 400) < 5 and abs(self._stress2[-1] - 400) < 10):
-                AR = self._E11[-1] / self._E22[-1] if self._E11[-1] > self._E22[-1] else self._E22[-1] / self._E11[-1]
-                print (f"Anisotropy ratio at 400 kPa: {AR}")
-        except Exception as e:
-            print(f"An error occurred: {e}")
-        
-
+            if (
+                self._E11[-1] is not None
+                and self._E22[-1] is not None
+                and abs(self._stress1[-1] - 400) < 5
+                and abs(self._stress2[-1] - 400) < 10
+            ):
+                ar = self._E11[-1] / self._E22[-1] if self._E11[-1] > self._E22[-1] else self._E22[-1] / self._E11[-1]
+                print(f"Anisotropy ratio at 400 kPa: {ar}")
+        except Exception as exc:
+            print(f"An error occurred: {exc}")
 
         self.ChartWidget_1.clear()
-        self.ChartWidget_1.plot(self._t, self._load1, pen=pg.mkPen(color='b', width=2), name = "Channel 1")  
-        self.ChartWidget_1.plot(self._t, self._load2, pen=pg.mkPen(color='r', width=2), name = "Channel 2")  
-        #if 0 == self.tabWidget.currentIndex():
-        #    self.ChartWidget_1.plot(t_s, f_s)
+        self.ChartWidget_1.plot(self._t, self._load1, pen=pg.mkPen(color="b", width=2), name="Channel 1")
+        self.ChartWidget_1.plot(self._t, self._load2, pen=pg.mkPen(color="r", width=2), name="Channel 2")
 
-        
         self.ChartWidget_2.clear()
-        self.ChartWidget_2.plot(self._t, self._disp1, pen=pg.mkPen(color='b', width=2))  
-        self.ChartWidget_2.plot(self._t, self._disp2, pen=pg.mkPen(color='r', width=2))  
+        self.ChartWidget_2.plot(self._t, self._disp1, pen=pg.mkPen(color="b", width=2))
+        self.ChartWidget_2.plot(self._t, self._disp2, pen=pg.mkPen(color="r", width=2))
 
+        self._plot_strain_chart()
+
+    def _plot_strain_chart(self):
         self.ChartWidget_3.clear()
-        if 9 == len(array):
-            #print(self._E11)
-            self.ChartWidget_3.plot(self._E11, self._stress1, pen=pg.mkPen(color='b', width=2)) 
-            self.ChartWidget_3.plot(self._E22, self._stress2, pen=pg.mkPen(color='r', width=2)) 
+
+        if self._has_video_strain_samples():
+            self.ChartWidget_3.setLabel("bottom", "Strain", **{"color": "#000", "font-size": "14pt", "font-family": "Arial"})
+            self._plot_valid_pairs(self._E11, self._stress1, "b")
+            self._plot_valid_pairs(self._E22, self._stress2, "r")
+            return
+
+        self.ChartWidget_3.setLabel("bottom", "Strain (displacement)", **{"color": "#000", "font-size": "14pt", "font-family": "Arial"})
+        self._plot_valid_pairs(self._strain_disp1, self._stress1, "b")
+        self._plot_valid_pairs(self._strain_disp2, self._stress2, "r")
+
+    def _has_video_strain_samples(self):
+        return any(value is not None for value in self._E11) or any(value is not None for value in self._E22)
+
+    def _plot_valid_pairs(self, x_values, y_values, color):
+        pairs = [(x, y) for x, y in zip(x_values, y_values) if x is not None and y is not None]
+        if not pairs:
+            return
+        x_plot, y_plot = zip(*pairs)
+        self.ChartWidget_3.plot(x_plot, y_plot, pen=pg.mkPen(color=color, width=2))
+
+    @pyqtSlot(float, float)
+    def __update_live_forces(self, force1, force2):
+        if Unit.Gram == self._units:
+            self.upperLabel_2.setText(
+                "Force 1: {} g | Force 2: {} g".format(round(force1, 2), round(force2, 2))
+            )
         else:
-            self.ChartWidget_3.setLabel('bottom', 'Strain (displacement)', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
-            self.ChartWidget_3.plot(self._strain_disp1, self._stress1, pen=pg.mkPen(color='b', width=2)) 
-            self.ChartWidget_3.plot(self._strain_disp2, self._stress2, pen=pg.mkPen(color='r', width=2)) 
-        
+            self.upperLabel_2.setText(
+                "Force 1: {} N | Force 2: {} N".format(round(force1, 4), round(force2, 4))
+            )
 
-    def __updateLabelForce(self):
-        if self._mot_daq is not None:
-            force1, force2 = self._mot_daq.get_av_forces()
+        self._set_force_label_color("red" if self._warning_blink_enabled and self._warning_color_is_red else "black")
 
-            if Unit.Gram == self._units:
-                #update label with current forces
-                self.upperLabel_1.setStyleSheet("color: black; font-size: 14px;")
-                self.upperLabel_1.setText("Force 1: {} g".format(round(force1,2)))
-                self.upperLabel_2.setStyleSheet("color: black; font-size: 14px;")
-                self.upperLabel_2.setText("Force 2: {} g".format(round(force2,2)))
-            else:
-                #update label with current forces
-                self.upperLabel_1.setStyleSheet("color: black; font-size: 14px;")
-                self.upperLabel_1.setText("Force 1: {} N".format(round(force1,4)))
-                self.upperLabel_2.setStyleSheet("color: black; font-size: 14px;")
-                self.upperLabel_2.setText("Force 2: {} N".format(round(force2,4)))
-
-            #add forces to the ring buffer
-            self._ringbuffer1.append(force1)
-            self._ringbuffer2.append(force2)
-
-            #draw them in the chart
-            self.ChartWidget_1.clear()
-            self.ChartWidget_1.plot(self._t_label, self._ringbuffer1.get_buffer(), pen=pg.mkPen(color='b', width=2), name = "Channel 1")  
-            self.ChartWidget_1.plot(self._t_label, self._ringbuffer2.get_buffer(), pen=pg.mkPen(color='r', width=2), name = "Channel 2")  
-
+        self._ringbuffer1.append(force1)
+        self._ringbuffer2.append(force2)
+        if not self._live_monitor_enabled:
+            return
+        self.ChartWidget_1.clear()
+        self.ChartWidget_1.plot(self._t_label, self._ringbuffer1.get_buffer(), pen=pg.mkPen(color="b", width=2), name="Channel 1")
+        self.ChartWidget_1.plot(self._t_label, self._ringbuffer2.get_buffer(), pen=pg.mkPen(color="r", width=2), name="Channel 2")
 
     @pyqtSlot()
     def _save_charts(self):
-
         folder = os.path.join(self._work_folder, self._sam_name)
-        pixmap_path = os.path.join(folder, 'test_charts.png')
-
+        pixmap_path = os.path.join(folder, "test_charts.png")
         pixmap = self.grab()
         pixmap.save(pixmap_path)
-    
-    
-    
+
     def __openFolderDialog(self):
-        self._work_folder = QFileDialog.getExistingDirectory(self, "Select Folder")
-        if self._work_folder:  # check if a folder is selected
-            print("Selected folder: ", self._work_folder)
-            self.labelFolder.setText(self._work_folder)
-            
-        if hasattr(self, '_mec_test'):
-            self._mec_test.changeFolder(self._work_folder, self.factorSampleName.text())
+        folder = QFileDialog.getExistingDirectory(self, "Select Folder")
+        if folder:
+            self._work_folder = folder
+            self.labelFolder.setText(folder)
+            self._config.runtime.folder = folder
 
     def __change_units(self):
-            
-
         if self.buttonGrams.isChecked():
             self._units = Unit.Gram
-            self.ChartWidget_1.setLabel('left', 'Load, g', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
-            self.label_17.setText("g")
-            self.label_18.setText("g")
-            self.label_26.setText("g")
-            self.label_29.setText("g")
             self._ringbuffer1.reset()
             self._ringbuffer2.reset()
-
-            self.factorTareLoad1.setText(f"{round(float(self.factorTareLoad1.text())*1000/9.8, 0)}")
-            self.factorTareLoad2.setText(f"{round(float(self.factorTareLoad2.text())*1000/9.8, 0)}")
-            self.factorLoadTest1.setText(f"{round(float(self.factorLoadTest1.text())*1000/9.8, 0)}")
-            self.factorLoadTest2.setText(f"{round(float(self.factorLoadTest2.text())*1000/9.8, 0)}")
-            
+            self.factorTareLoad1.setText(f"{round(self._read_float(self.factorTareLoad1.text()) * 1000 / 9.8, 0)}")
+            self.factorTareLoad2.setText(f"{round(self._read_float(self.factorTareLoad2.text()) * 1000 / 9.8, 0)}")
+            self.factorLoadTest1.setText(f"{round(self._read_float(self.factorLoadTest1.text()) * 1000 / 9.8, 0)}")
+            self.factorLoadTest2.setText(f"{round(self._read_float(self.factorLoadTest2.text()) * 1000 / 9.8, 0)}")
         else:
             self._units = Unit.Newton
-            self.ChartWidget_1.setLabel('left', 'Load, N', **{'color': '#000', 'font-size': '14pt', 'font-family': 'Arial'})
-            self.label_17.setText("N")
-            self.label_18.setText("N")
-            self.label_26.setText("N")
-            self.label_29.setText("N")
             self._ringbuffer1.reset()
             self._ringbuffer2.reset()
+            self.factorTareLoad1.setText(f"{round(self._read_float(self.factorTareLoad1.text()) * 9.8 / 1000, 2)}")
+            self.factorTareLoad2.setText(f"{round(self._read_float(self.factorTareLoad2.text()) * 9.8 / 1000, 2)}")
+            self.factorLoadTest1.setText(f"{round(self._read_float(self.factorLoadTest1.text()) * 9.8 / 1000, 2)}")
+            self.factorLoadTest2.setText(f"{round(self._read_float(self.factorLoadTest2.text()) * 9.8 / 1000, 2)}")
 
-            self.factorTareLoad1.setText(f"{round(float(self.factorTareLoad1.text())*9.8/1000, 2)}")
-            self.factorTareLoad2.setText(f"{round(float(self.factorTareLoad2.text())*9.8/1000, 2)}")
-            self.factorLoadTest1.setText(f"{round(float(self.factorLoadTest1.text())*9.8/1000, 2)}")
-            self.factorLoadTest2.setText(f"{round(float(self.factorLoadTest2.text())*9.8/1000, 2)}")
+        self._update_units_labels(self._units)
+        self._config.runtime.unit = "gram" if self._units == Unit.Gram else "newton"
+        self._session_controller.update_units(self._config)
 
-        #Update the units in a class responsible for communicaiton with DAQ
-        if hasattr(self, '_mot_daq'):
-            self._mot_daq.change_units(self._units)
+    def _update_units_labels(self, units: Unit):
+        if units == Unit.Gram:
+            self.ChartWidget_1.setLabel("left", "Load, g", **{"color": "#000", "font-size": "14pt", "font-family": "Arial"})
+            unit_text = "g"
+        else:
+            self.ChartWidget_1.setLabel("left", "Load, N", **{"color": "#000", "font-size": "14pt", "font-family": "Arial"})
+            unit_text = "N"
+        self.ChartWidget_1.setLabel("bottom", "Time, s", **{"color": "#000", "font-size": "14pt", "font-family": "Arial"})
+        self.label_17.setText(unit_text)
+        self.label_18.setText(unit_text)
+        self.label_26.setText(unit_text)
+        self.label_29.setText(unit_text)
 
+    @pyqtSlot(bool)
+    def _set_test_running_ui(self, blocked):
+        self._fl_executing = blocked
+        self._live_monitor_enabled = not blocked
+        self._warning_blink_enabled = blocked
+        if blocked:
+            self.block_gui()
+            self._update_cycle_label()
+            self._warning_color_is_red = False
+            self._set_force_label_color("black")
+            if hasattr(self, "_label_timer"):
+                self._label_timer.stop()
+            else:
+                self._label_timer = QTimer(self)
+                self._label_timer.timeout.connect(self.__changeLabelColor)
+            self._label_timer.start(1000)
+        else:
+            self.unblock_gui()
+            self._warning_color_is_red = False
+            self._set_force_label_color("black")
+            if hasattr(self, "_label_timer"):
+                self._label_timer.stop()
+            self._reset_status_labels()
+
+    def _set_force_label_color(self, color):
+        style = f"color: {color}; font-size: 14px;"
+        self.upperLabel_1.setStyleSheet(style)
+        self.upperLabel_2.setStyleSheet(style)
+
+    def _reset_status_labels(self):
+        self.upperLabel_1.setText("Cycle -/-")
+        if self._units == Unit.Gram:
+            self.upperLabel_2.setText("Force 1: 0 g | Force 2: 0 g")
+        else:
+            self.upperLabel_2.setText("Force 1: 0 N | Force 2: 0 N")
+
+    def _update_cycle_label(self):
+        label = self._build_cycle_label()
+        if label is not None:
+            self.upperLabel_1.setText(label)
+
+    def _build_cycle_label(self):
+        test = self._mec_test
+        if test is None:
+            return "Cycle -/-"
+
+        if isinstance(test, LoadControlTest):
+            total_cycles = test._num_cycles_precond + test._num_cycles_test
+            if total_cycles <= 0:
+                return "Cycle 0/0"
+
+            state = getattr(test, "_state", None)
+            if state == State.PRECONDITIONING:
+                remaining_half_cycles = getattr(test, "_remaining_precond_half_cycles", 2 * test._num_cycles_precond)
+                completed_half_cycles = 2 * test._num_cycles_precond - remaining_half_cycles
+                current_cycle = completed_half_cycles // 2 + 1
+            elif state == State.TEST:
+                remaining_half_cycles = getattr(test, "_remaining_test_half_cycles", 2 * test._num_cycles_test)
+                completed_half_cycles = 2 * test._num_cycles_test - remaining_half_cycles
+                current_cycle = test._num_cycles_precond + completed_half_cycles // 2 + 1
+            else:
+                current_cycle = 1
+
+            current_cycle = max(1, min(current_cycle, total_cycles))
+            return f"Cycle {current_cycle}/{total_cycles}"
+
+        if isinstance(test, DisplacementControlTest):
+            total_cycles = test._num_cycles
+            if total_cycles <= 0:
+                return "Cycle 0/0"
+
+            completed_half_cycles = getattr(test, "_completed_half_cycles", 0)
+            current_cycle = completed_half_cycles // 2 + 1
+            current_cycle = max(1, min(current_cycle, total_cycles))
+            return f"Cycle {current_cycle}/{total_cycles}"
+
+        return "Cycle -/-"
+
+    def _show_warning(self, message):
+        warning_box = QMessageBox()
+        warning_box.setIcon(QMessageBox.Icon.Warning)
+        warning_box.setWindowTitle("Warning")
+        warning_box.setText(message)
+        warning_box.exec()
+
+    def _read_float(self, value):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
 
     def block_gui(self):
         self.buttonStart.setDisabled(True)
@@ -987,11 +736,9 @@ class BiaxMainWindow(QMainWindow):
         self.buttonCamera.setDisabled(False)
 
 
-
-if __name__ == '__main__':
-    #start of the application
+if __name__ == "__main__":
     app = QApplication([])
-    app.setStyle('Fusion')
+    app.setStyle("Fusion")
     window = BiaxMainWindow()
     window.show()
     app.exec()

@@ -5,7 +5,7 @@
 
 """
 
-from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot, QTimer
+from PyQt6.QtCore import QMetaObject, QThread, QTimer, Qt, pyqtSignal, pyqtSlot
 import numpy as np
 import time
 import os
@@ -105,12 +105,12 @@ class MechanicalTest (QThread):
         Stops movemets, connections and  the execution of the current QThread
         """
         self._execute = False
-
-        if hasattr(self, "_test_timer") and isinstance(self._test_timer, QTimer):
-            self._test_timer.stop()
+        self.stop_measurement()
+        self._dispose_test_timer()
 
         self.quit()
-        self.wait()
+        if QThread.currentThread() is not self:
+            self.wait()
     
     def stop_measurement(self):
         """
@@ -119,6 +119,21 @@ class MechanicalTest (QThread):
         self._execute = False
         self.signal_start_stop_tracking.emit(False)
         self._mot_daq.stop_motors()
+
+    def _dispose_test_timer(self):
+        timer = getattr(self, "_test_timer", None)
+        if not isinstance(timer, QTimer):
+            return
+
+        if timer.thread() is QThread.currentThread():
+            if timer.isActive():
+                timer.stop()
+            timer.deleteLater()
+        elif self.isRunning():
+            QMetaObject.invokeMethod(timer, "stop", Qt.ConnectionType.BlockingQueuedConnection)
+            QMetaObject.invokeMethod(timer, "deleteLater", Qt.ConnectionType.QueuedConnection)
+
+        self._test_timer = None
         
     
     
@@ -171,7 +186,7 @@ class MechanicalTest (QThread):
     
  
     
-    def _update_arrays_emit_data(self):
+    def _update_arrays_emit_data(self, include_video_strain=None):
 
         """
         Edge and node arrangement for central quad
@@ -199,20 +214,50 @@ class MechanicalTest (QThread):
         self._vel_2.append(self._vel_ax2)
         
 
-        if not self._use_video:
-            self.signal_update_charts.emit([self._time_abs[-1], self._load1[-1], self._load2[-1], self._disp1[-1], self._disp2[-1]])
+        if include_video_strain is None:
+            include_video_strain = self._use_video
+
+        if self._use_video and all(
+            hasattr(self, attr)
+            for attr in ("_temp_p1", "_temp_p2", "_temp_p3", "_temp_p4")
+        ):
+            self._point1.append(self._temp_p1)
+            self._point2.append(self._temp_p2)
+            self._point3.append(self._temp_p3)
+            self._point4.append(self._temp_p4)
+        elif self._use_video:
+            self._point1.append((None, None))
+            self._point2.append((None, None))
+            self._point3.append((None, None))
+            self._point4.append((None, None))
+
+        if not include_video_strain:
+            if self._use_video:
+                self._E11.append(None)
+                self._E12.append(None)
+                self._E22.append(None)
+                self._F11.append(None)
+                self._F12.append(None)
+                self._F21.append(None)
+                self._F22.append(None)
+            self.signal_update_charts.emit(
+                [
+                    self._time_abs[-1],
+                    self._load1[-1],
+                    self._load2[-1],
+                    self._disp1[-1],
+                    self._disp2[-1],
+                    None,
+                    None,
+                    self._vel_1[-1],
+                    self._vel_2[-1],
+                ]
+            )
         else:
             #calculate strain
             #along horizontal axis - upper and lower groups]
             #the algorithm find contours arranges points along y axis of an image
 
-            #Append points from a temporary buffer that is updated though signal/slot mechanism
-            self._point1.append(self._temp_p1)
-            self._point2.append(self._temp_p2)
-            self._point3.append(self._temp_p3)
-            self._point4.append(self._temp_p4)
-
-            
             #Coordinates of initial and final points
             p1 = self._point1[-1]
             p2 = self._point2[-1]
@@ -221,11 +266,16 @@ class MechanicalTest (QThread):
 
             
 
+            ref_p1 = getattr(self, "_ref_p1", self._p1_0)
+            ref_p2 = getattr(self, "_ref_p2", self._p2_0)
+            ref_p3 = getattr(self, "_ref_p3", self._p3_0)
+            ref_p4 = getattr(self, "_ref_p4", self._p4_0)
+
             #decomposed initial coordinates for each node by axis
-            X11 = self._p1_0[0]; X21 = self._p1_0[1]
-            X12 = self._p2_0[0]; X22 = self._p2_0[1]
-            X13 = self._p3_0[0]; X23 = self._p3_0[1]
-            X14 = self._p4_0[0]; X24 = self._p4_0[1]
+            X11 = ref_p1[0]; X21 = ref_p1[1]
+            X12 = ref_p2[0]; X22 = ref_p2[1]
+            X13 = ref_p3[0]; X23 = ref_p3[1]
+            X14 = ref_p4[0]; X24 = ref_p4[1]
 
             # component X of displacement on isoparametric coordinates
             dX1_dS1 = 0.25*(X11-X12-X13+X14)
@@ -237,10 +287,10 @@ class MechanicalTest (QThread):
             J = dX1_dS1*dX2_dS2 - dX1_dS2*dX2_dS1
 
             #displacement for each node
-            u1 = tuple(a - b for a, b in zip(p1, self._p1_0))
-            u2 = tuple(a - b for a, b in zip(p2, self._p2_0))
-            u3 = tuple(a - b for a, b in zip(p3, self._p3_0))
-            u4 = tuple(a - b for a, b in zip(p4, self._p4_0))
+            u1 = tuple(a - b for a, b in zip(p1, ref_p1))
+            u2 = tuple(a - b for a, b in zip(p2, ref_p2))
+            u3 = tuple(a - b for a, b in zip(p3, ref_p3))
+            u4 = tuple(a - b for a, b in zip(p4, ref_p4))
 
             #decomposed displacement for each node by axis
             u11 = u1[0]; u21 = u1[1]
@@ -286,7 +336,19 @@ class MechanicalTest (QThread):
             self._F21.append(round(F21,roundDecimals))
             self._F22.append(round(F22,roundDecimals))
 
-            self.signal_update_charts.emit([self._time_abs[-1], self._load1[-1], self._load2[-1], self._disp1[-1], self._disp2[-1], self._E11[-1], self._E22[-1], self._vel_1[-1],self._vel_2[-1]])
+            self.signal_update_charts.emit(
+                [
+                    self._time_abs[-1],
+                    self._load1[-1],
+                    self._load2[-1],
+                    self._disp1[-1],
+                    self._disp2[-1],
+                    self._E11[-1],
+                    self._E22[-1],
+                    self._vel_1[-1],
+                    self._vel_2[-1],
+                ]
+            )
 
     
     def _finish_test(self):

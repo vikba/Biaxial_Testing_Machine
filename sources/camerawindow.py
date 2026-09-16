@@ -21,7 +21,8 @@ import time
 
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QPushButton, QVBoxLayout, QLabel,
-    QHBoxLayout, QSlider, QGroupBox, QRadioButton, QCheckBox, QButtonGroup
+    QHBoxLayout, QSlider, QGroupBox, QRadioButton, QCheckBox, QButtonGroup,
+    QSpinBox
 )
 from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot, Qt
 from PyQt6.QtGui import QImage, QPixmap
@@ -42,6 +43,11 @@ class VideoThread(QThread):
 
     RES_X_FULL = 1024
     RES_Y_FULL = 768
+    FRAME_GRAB_DELAY_MS = 100
+    CAMERA_RECONNECT_DELAY_MS = 500
+    MAX_CONSECUTIVE_TIMEOUTS = 5
+    DISPLAY_MODE_OVERLAY = "overlay"
+    DISPLAY_MODE_BINARIZED = "binarized"
 
     def __init__(self):
         super().__init__()
@@ -62,15 +68,20 @@ class VideoThread(QThread):
 
         # Initialize gain and exposure values
         self._gain_value = 15
-        self._exposure_value = 2000
+        self._exposure_value = 5000
         self._threshold_value = 70  # Default threshold
 
         self._apply_bg_correction = True
         self._use_simple_thresh = True
+        self._invert_signal = False
+        self._display_mode = VideoThread.DISPLAY_MODE_OVERLAY
+        self._min_marker_area = 150
+        self._max_marker_area = 10000
         self._center_method = 'bounding_box'
 
 
         self._cam = None  # Camera object
+        self._consecutive_timeouts = 0
 
     def _initVariables(self):
         """
@@ -236,6 +247,22 @@ class VideoThread(QThread):
     def set_use_simple_thresh(self, value):
         self._use_simple_thresh = value
 
+    @pyqtSlot(bool)
+    def set_invert_signal(self, value):
+        self._invert_signal = value
+
+    @pyqtSlot(str)
+    def set_display_mode(self, mode):
+        self._display_mode = mode
+
+    @pyqtSlot(int)
+    def set_min_marker_area(self, value):
+        self._min_marker_area = min(value, self._max_marker_area)
+
+    @pyqtSlot(int)
+    def set_max_marker_area(self, value):
+        self._max_marker_area = max(value, self._min_marker_area)
+
     @pyqtSlot(str)
     def set_center_method(self, method):
         self._center_method = method
@@ -254,31 +281,87 @@ class VideoThread(QThread):
         self._time = []
 
         with Vimba.get_instance() as vimba:
-            cams = vimba.get_all_cameras()
-            if len(cams) > 0:
-                self._cam = cams[0]
-                with self._cam:
-                    self._cam.Gain.set(self._gain_value)
-                    self._cam.ExposureTime.set(self._exposure_value)
+            while self._execute:
+                cams = vimba.get_all_cameras()
 
-                    while self._execute:
-                        self._grab_frame()
-                        QThread.msleep(100)
-            else:
-                print("No camera detected")
-                self._execute = False
+                if not cams:
+                    print("No camera detected")
+                    self._execute = False
+                    break
+
+                self._cam = self._select_camera(cams)
+                if self._cam is None:
+                    print("FireWire camera not found")
+                    self._execute = False
+                    break
+
+                try:
+                    with self._cam:
+                        self._cam.Gain.set(self._gain_value)
+                        self._cam.ExposureTime.set(self._exposure_value)
+                        self._consecutive_timeouts = 0
+
+                        while self._execute:
+                            self._grab_frame()
+                            QThread.msleep(VideoThread.FRAME_GRAB_DELAY_MS)
+
+                except Exception as e:
+                    print("Camera error:", e)
+                    if not self._execute:
+                        break
+                    QThread.msleep(VideoThread.CAMERA_RECONNECT_DELAY_MS)
+
+                finally:
+                    self._cam = None
+
+    def _select_camera(self, cams):
+        print("Detected Cameras:")
+        for cam in cams:
+            print(cam.get_id(), cam.get_interface_id())
+
+        for cam in cams:
+            interface = cam.get_interface_id()
+            if interface.startswith("Vimba1394"):
+                return cam
+
+        return None
+
+    def _is_timeout_error(self, exc):
+        message = str(exc).lower()
+        exc_name = type(exc).__name__.lower()
+        return "timeout" in message or "timeout" in exc_name
 
     def _grab_frame(self):
         if self._cam is not None and self._execute:
-            frame = self._cam.get_frame()
+            try:
+                frame = self._cam.get_frame()
+                self._consecutive_timeouts = 0
+            except Exception as exc:
+                if not self._is_timeout_error(exc):
+                    raise
+
+                self._consecutive_timeouts += 1
+                print(
+                    "Camera frame timeout "
+                    f"({self._consecutive_timeouts}/{VideoThread.MAX_CONSECUTIVE_TIMEOUTS})"
+                )
+
+                if self._consecutive_timeouts >= VideoThread.MAX_CONSECUTIVE_TIMEOUTS:
+                    raise RuntimeError(
+                        "Too many consecutive camera frame timeouts. Reopening camera."
+                    ) from exc
+
+                return
+
             if frame:
                 img_cv = frame.as_opencv_image()
 
                 # Detect markers with current parameters
-                processed_img, coord_temp = self._detectMarkers(
+                processed_img, binary_img, coord_temp = self._detectMarkers(
                     img_cv,
                     apply_bg_correction=self._apply_bg_correction,
                     use_simple_thresh=self._use_simple_thresh,
+                    invert_signal=self._invert_signal,
                     center_method=self._center_method,
                     thresh_val=self._threshold_value
                 )
@@ -306,11 +389,14 @@ class VideoThread(QThread):
 
                 # Store images for display
                 self._img = combined_img
-                #self._thresh_img = thresh_img
+                self._binary_img = binary_img
 
-                # Emit both images for display
-                img_resized = cv2.resize(combined_img, (VideoWindow.RES_X, VideoWindow.RES_Y))
-                #thresh_resized = cv2.resize(thresh_img, (VideoWindow.RES_X, VideoWindow.RES_Y))
+                if self._display_mode == VideoThread.DISPLAY_MODE_BINARIZED:
+                    display_img = self._binary_img
+                else:
+                    display_img = combined_img
+
+                img_resized = cv2.resize(display_img, (VideoWindow.RES_X, VideoWindow.RES_Y))
                 self.signal_change_pixmap.emit(img_resized)
 
                 # Handle marker initialization
@@ -483,6 +569,7 @@ class VideoThread(QThread):
         image, 
         apply_bg_correction=True, 
         use_simple_thresh=True, 
+        invert_signal=False,
         thresh_val=100, 
         center_method='bounding_box'
     ):
@@ -493,6 +580,8 @@ class VideoThread(QThread):
             image (np.ndarray): Input grayscale image.
             apply_bg_correction (bool): Whether to perform background correction.
             use_simple_thresh (bool): If True, use fixed thresholding; otherwise, use DoG approach.
+            invert_signal (bool): Whether to invert the image before detection so bright
+                markers on a dark background match the default detection polarity.
             thresh_val (int): Fixed threshold value used if use_simple_thresh is True.
             center_method (str): Method to compute marker center. Options: 'moments' (contour moments) 
                 or 'bounding_box' (bounding box center). Defaults to 'moments'.
@@ -500,14 +589,17 @@ class VideoThread(QThread):
         Returns:
             tuple:
                 - res_img (np.ndarray): Image with markers drawn.
+                - cleaned (np.ndarray): Cleaned binary image used for contour detection.
                 - marks_groups (list): List of (x, y) coordinates for detected markers.
         """
+        detection_input = cv2.bitwise_not(image) if invert_signal else image
+
         # Optional background correction
         if apply_bg_correction:
-            bg = cv2.GaussianBlur(image, (0, 0), sigmaX=50, sigmaY=50)
-            corrected = cv2.bitwise_not(cv2.subtract(bg, image))
+            bg = cv2.GaussianBlur(detection_input, (0, 0), sigmaX=50, sigmaY=50)
+            corrected = cv2.bitwise_not(cv2.subtract(bg, detection_input))
         else:
-            corrected = image.copy()
+            corrected = detection_input.copy()
         
         # Choose between two thresholding approaches
         if use_simple_thresh:
@@ -537,7 +629,7 @@ class VideoThread(QThread):
         
         for c in cnts:
             area = cv2.contourArea(c)
-            if area < 150 or area > 10000:
+            if area < self._min_marker_area or area > self._max_marker_area:
                 continue
             perimeter = cv2.arcLength(c, True)
             if perimeter == 0:
@@ -569,7 +661,7 @@ class VideoThread(QThread):
             cv2.circle(res_img, (int(cx), int(cy)), 3, (0, 0, 255), -1)
             marks_groups.append((cx, cy))
         
-        return res_img, marks_groups
+        return res_img, cleaned, marks_groups
 
 
 
@@ -584,6 +676,9 @@ class VideoWindow(QWidget):
     signal_gain_changed = pyqtSignal(int)
     signal_exposure_changed = pyqtSignal(int)
     signal_threshold_changed = pyqtSignal(int)
+    signal_display_mode_changed = pyqtSignal(str)
+    signal_min_marker_area_changed = pyqtSignal(int)
+    signal_max_marker_area_changed = pyqtSignal(int)
     signal_init_points = pyqtSignal(list)
 
     RES_X = 640  # Width of the display window
@@ -617,8 +712,13 @@ class VideoWindow(QWidget):
         self._start_point = self._end_point = None
         self._draw_rectangle = False
 
+        gain = 15
+        exposure = 5000
+        thread.set_gain(gain)
+        thread.set_exposure(exposure)
+
         # Initialize sliders and their labels
-        self._init_sliders()
+        self._init_sliders(gain, exposure)
 
         # Connect signals
         self.thread = thread
@@ -627,6 +727,9 @@ class VideoWindow(QWidget):
         self.signal_gain_changed.connect(self.thread.set_gain)
         self.signal_exposure_changed.connect(self.thread.set_exposure)
         self.signal_threshold_changed.connect(self.thread.set_threshold)
+        self.signal_display_mode_changed.connect(self.thread.set_display_mode)
+        self.signal_min_marker_area_changed.connect(self.thread.set_min_marker_area)
+        self.signal_max_marker_area_changed.connect(self.thread.set_max_marker_area)
         self.signal_init_points.connect(self.thread.set_init_points)
 
         
@@ -636,7 +739,7 @@ class VideoWindow(QWidget):
         self.clicked_points = []
         
 
-    def _init_sliders(self):
+    def _init_sliders(self, gain, exposure):
         """
         Initializes the gain and exposure sliders along with their value labels.
         """
@@ -645,7 +748,7 @@ class VideoWindow(QWidget):
         self._gain_slider = QSlider(Qt.Orientation.Horizontal, self)
         self._gain_slider.setMinimum(0)
         self._gain_slider.setMaximum(24)
-        self._gain_slider.setValue(15)
+        self._gain_slider.setValue(gain)
         self._gain_slider.valueChanged.connect(self.change_gain)
 
         self._gain_value_label = QLabel(str(self._gain_slider.value()), self)
@@ -655,7 +758,7 @@ class VideoWindow(QWidget):
         self._exposure_slider = QSlider(Qt.Orientation.Horizontal, self)
         self._exposure_slider.setMinimum(100)
         self._exposure_slider.setMaximum(20000)
-        self._exposure_slider.setValue(700)
+        self._exposure_slider.setValue(exposure)
         self._exposure_slider.valueChanged.connect(self.change_exposure)
 
         self._exposure_value_label = QLabel(str(self._exposure_slider.value()), self)
@@ -702,19 +805,40 @@ class VideoWindow(QWidget):
         self.detect_params_group = QGroupBox("Detection Parameters")
         self.bg_correction_check = QCheckBox("Apply BG Correction")
         self.simple_thresh_check = QCheckBox("Use Simple Threshold")
+        self.invert_signal_check = QCheckBox("Invert Signal (White on Dark)")
+        self.show_binarized_check = QCheckBox("Show Binarized Image")
+        self.min_marker_area_spin = QSpinBox()
+        self.max_marker_area_spin = QSpinBox()
         self.center_method_group = QButtonGroup()
         self.bbox_radio = QRadioButton("Bounding Box Center")
         self.moments_radio = QRadioButton("Contour Moments")
+
+        self.center_method_group.addButton(self.bbox_radio)
+        self.center_method_group.addButton(self.moments_radio)
 
         # Set defaults
         self.bg_correction_check.setChecked(True)
         self.simple_thresh_check.setChecked(True)
         self.bbox_radio.setChecked(True)
+        self.min_marker_area_spin.setRange(1, 200000)
+        self.max_marker_area_spin.setRange(1, 200000)
+        self.min_marker_area_spin.setValue(150)
+        self.max_marker_area_spin.setValue(10000)
+
+        marker_area_layout = QHBoxLayout()
+        marker_area_layout.addWidget(QLabel("Marker Area:"))
+        marker_area_layout.addWidget(QLabel("Min"))
+        marker_area_layout.addWidget(self.min_marker_area_spin)
+        marker_area_layout.addWidget(QLabel("Max"))
+        marker_area_layout.addWidget(self.max_marker_area_spin)
 
         # Layout
         params_layout = QVBoxLayout()
         params_layout.addWidget(self.bg_correction_check)
         params_layout.addWidget(self.simple_thresh_check)
+        params_layout.addWidget(self.invert_signal_check)
+        params_layout.addWidget(self.show_binarized_check)
+        params_layout.addLayout(marker_area_layout)
         params_layout.addWidget(QLabel("Center Calculation:"))
         params_layout.addWidget(self.bbox_radio)
         params_layout.addWidget(self.moments_radio)
@@ -724,6 +848,10 @@ class VideoWindow(QWidget):
         # Connect signals
         self.bg_correction_check.toggled.connect(lambda v: self.thread.set_apply_bg_correction(v))
         self.simple_thresh_check.toggled.connect(lambda v: self.thread.set_use_simple_thresh(v))
+        self.invert_signal_check.toggled.connect(lambda v: self.thread.set_invert_signal(v))
+        self.show_binarized_check.toggled.connect(self._on_show_binarized_toggled)
+        self.min_marker_area_spin.valueChanged.connect(self._on_min_marker_area_changed)
+        self.max_marker_area_spin.valueChanged.connect(self._on_max_marker_area_changed)
         self.bbox_radio.toggled.connect(lambda: self.thread.set_center_method('bounding_box'))
         self.moments_radio.toggled.connect(lambda: self.thread.set_center_method('moments'))
 
@@ -831,6 +959,26 @@ class VideoWindow(QWidget):
         """
         self._threshold_value_label.setText(str(value))
         self.signal_threshold_changed.emit(value)
+
+    @pyqtSlot(bool)
+    def _on_show_binarized_toggled(self, checked):
+        mode = (
+            VideoThread.DISPLAY_MODE_BINARIZED
+            if checked else VideoThread.DISPLAY_MODE_OVERLAY
+        )
+        self.signal_display_mode_changed.emit(mode)
+
+    @pyqtSlot(int)
+    def _on_min_marker_area_changed(self, value):
+        if value > self.max_marker_area_spin.value():
+            self.max_marker_area_spin.setValue(value)
+        self.signal_min_marker_area_changed.emit(value)
+
+    @pyqtSlot(int)
+    def _on_max_marker_area_changed(self, value):
+        if value < self.min_marker_area_spin.value():
+            self.min_marker_area_spin.setValue(value)
+        self.signal_max_marker_area_changed.emit(value)
 
     @pyqtSlot(np.ndarray)
     def update_image(self, cv_img):

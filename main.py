@@ -1,6 +1,4 @@
-  
-#load IP address from json config file
-#add anisotropy ratio calculation 
+#add graphical anisotropy ratio calculation 
 #Check if markers are choosen before starting the test
 #Check what happens at the end of test
 #Reset video classes after the test
