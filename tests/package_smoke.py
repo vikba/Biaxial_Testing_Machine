@@ -18,7 +18,7 @@ from PyQt6.QtWidgets import QApplication
 
 project = distribution("biaxial-testing-machine")
 assert Path(biaxial_testing_machine.__file__).resolve() == Path(project.locate_file("biaxial_testing_machine/__init__.py")).resolve()
-for name in ("biax_ui.ui", "load_calculator.ui", "config.example.json"):
+for name in ("biax_ui.ui", "load_calculator.ui", "config.example.json", "icon.ico"):
     assert files("biaxial_testing_machine.resources").joinpath(name).is_file()
 
 original_exec = QApplication.exec
@@ -26,6 +26,7 @@ original_exec = QApplication.exec
 
 def smoke_exec():
     window = next(widget for widget in QApplication.topLevelWidgets() if isinstance(widget, BiaxMainWindow))
+    assert not window.windowIcon().isNull()
     assert window._config_path == os.environ["BIAXIAL_CONFIG"]
     window.save_config(window._config)
     assert Path(window._config_path).is_file()

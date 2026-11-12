@@ -32,4 +32,4 @@ include = ["biaxial_testing_machine", "biaxial_testing_machine.resources"]
 namespaces = false
 
 [tool.setuptools.package-data]
-biaxial_testing_machine = ["resources/*.ui", "resources/config.example.json"]
+biaxial_testing_machine = ["resources/*.ui", "resources/*.ico", "resources/config.example.json"]
