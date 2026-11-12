@@ -253,10 +253,12 @@ class BiaxMainWindow(QMainWindow):
                 hardware._thread.finished.connect(self.close)
             if test is not None:
                 test.finished.connect(self.close)
+            if hasattr(self, "_video_thread"):
+                self._video_thread.finished.connect(self.close)
             self.__terminate_application()
         hardware = self._session_controller.hardware
         test = self._session_controller.active_test
-        if (hardware is not None and hardware._thread.isRunning()) or (test is not None and test.isRunning()):
+        if (hardware is not None and hardware._thread.isRunning()) or (test is not None and test.isRunning()) or (hasattr(self, "_video_thread") and self._video_thread.isRunning()):
             event.ignore()
         else:
             event.accept()
@@ -354,16 +356,29 @@ class BiaxMainWindow(QMainWindow):
             return
 
         if not hasattr(self, "_video_thread"):
-            self._video_thread = VideoThread()
+            self._video_thread = VideoThread(self._config.runtime.camera_id)
+            self._video_thread.signal_error.connect(self._handle_camera_error)
             self.signal_stop.connect(self._video_thread.stop)
             self._video_window = VideoWindow(self._video_thread)
             self.signal_stop.connect(self._video_window.stop)
-            self._video_thread.signal_change_pixmap.connect(self._video_window.update_image)
-            self._video_window.show()
+        self._video_window.show()
+        if not self._video_thread.isRunning():
+            self._video_thread._camera_id = self._config.runtime.camera_id or self._video_thread._camera_id
+            self._video_thread.reset_flags()
             self._video_thread.start()
 
         if self._mec_test is not None:
             self._attach_video_to_test(self._mec_test)
+
+    @pyqtSlot(str)
+    def _handle_camera_error(self, message):
+        test = self._mec_test
+        if test is not None and test._use_video and test.isRunning():
+            test._fail(RuntimeError("Camera: " + message))
+        else:
+            if test is not None:
+                test._use_video = False
+            self._show_warning(message)
 
     def __connect(self):
         self.read_ui_into_config(self._config)

@@ -10,7 +10,7 @@ This project provides the GUI and control logic for a biaxial mechanical testing
 - motor and DAQ coordination
 - displacement-control and load-control test workflows
 - live charting with `pyqtgraph`
-- camera acquisition through Allied Vision Vimba
+- camera acquisition through Allied Vision Vimba X / VmbPy
 - result export to Excel workbooks
 
 The codebase is hardware-oriented and depends on vendor SDKs in addition to standard Python packages.
@@ -38,9 +38,9 @@ The codebase is hardware-oriented and depends on vendor SDKs in addition to stan
 
 - Zaber Motion SDK: `zaber-motion`
 - DSCUSB USB/virtual COM drivers
-- Allied Vision Vimba SDK / Python bindings
+- Allied Vision Vimba X SDK and its matching VmbPy Python package (optional unless using a camera)
 
-These hardware dependencies must be installed and accessible on the target machine before the full application can run.
+Install the motor and force-sensor dependencies on the lab workstation. Camera support is optional: a missing Vimba X installation produces a camera-specific error when acquisition is requested.
 
 ## Installation
 
@@ -61,7 +61,7 @@ pip install -r requirements.txt
 
 Install the remaining vendor-specific packages and SDKs separately:
 
-- Allied Vision Vimba runtime and Python bindings
+- Allied Vision Vimba X runtime, GigE transport layer/driver, and matching VmbPy wheel
 
 ## Running the Application
 
@@ -77,6 +77,55 @@ the ignored local file; sample exports still include their own configuration.
 Copy the example to the local filename to configure a fresh checkout. Set the
 motor IP, both sensor serials, and output folder for your workstation.
 Older flat configuration files remain readable; new saves use structured sections.
+
+## Vimba X camera
+
+This application targets Vimba X (`vmbpy`); the old Vimba/FireWire Python API is
+no longer used. Follow Allied Vision's [Python installation instructions](https://docs.alliedvision.com/vimba_x/pythonAPIManual.html)
+to install the VmbPy wheel matching your SDK into the same virtual environment
+as the application. Updating the SDK does not update that Python package automatically.
+
+First confirm continuous acquisition in **Vimba X Viewer**. Configure the GigE
+camera and its Ethernet adapter on compatible subnets, and check the GigE filter
+driver and packet size in Viewer. The application does not modify network settings.
+See the [Viewer guide](https://docs.alliedvision.com/vimba_x/viewerGuide.html).
+
+Set `runtime.camera_id` in your existing `resources/config.local.json` to the ID
+shown in Viewer, for example `"DEV_000A47000000"`. An empty ID automatically
+selects the only discovered camera. With multiple cameras, acquisition reports
+their IDs and requires explicit configuration. Reconnection retains the selected
+identity and never silently switches to another camera.
+
+Images are processed in native camera pixels and displayed with preserved aspect
+ratio. Click **Initialize Markers**, then select four distinct markers in the image;
+clicks in the surrounding margins are ignored. Initialize markers for each new
+test. Pixel thresholds, marker area limits, and maximum tracking movement are
+measured in native pixels and may need adjustment for a different resolution or lens.
+
+The app prefers `Mono8`; other formats are converted to `Mono8`, or through `Bgr8`
+to grayscale if supported by the SDK. Gain and exposure controls use camera-reported
+ranges and increments, with SDK writes performed only in the acquisition thread.
+Exposure is capped at 400,000 microseconds to leave margin within the 500 ms frame
+acquisition timeout. Preview acquisition is limited to approximately 10 frames/s
+before image-processing time; this is not synchronized to force acquisition.
+
+Stopping returns immediately while the worker releases its camera context. The
+window remains alive until that worker exits. A vendor operation that stalls
+outside frame acquisition can still delay final shutdown. Camera errors invalidate
+marker references; an active test using camera strain is failed through the
+existing motor-stop path. Preview can reconnect, but markers must be initialized
+again. Tests that do not use camera strain are not canceled by camera faults.
+
+Hardware-free checks use simulated VmbPy objects with real Qt/OpenCV. No physical
+camera, SDK runtime version, or camera model has been validated in this environment.
+Before lab use, verify these on the target workstation:
+
+1. Record camera model, firmware, Vimba X, VmbPy, and Python versions.
+2. Check live preview, gain/exposure, image saving, ROI, and marker selection.
+3. Verify a known displacement and compare image-based strain with expectations.
+4. Repeat camera start/stop and disconnect/reconnect the Ethernet cable.
+5. During a low-load camera-based test, remove the cable and confirm test failure
+   and both motor-stop attempts; reinitialize markers after reconnection.
 
 ## DSCUSB force acquisition
 

@@ -42,6 +42,7 @@ class RuntimeConfig:
     folder: str = ""
     sample_name: str = ""
     ip_motor: str = "172.31.100.108"
+    camera_id: str = ""
 
 
 @dataclass
@@ -168,6 +169,7 @@ class ConfigRepository:
             folder=str(runtime_data.get("folder", data.get("folder", ""))),
             sample_name=str(runtime_data.get("sample_name", data.get("name", ""))),
             ip_motor=str(runtime_data.get("ip_motor", data.get("ip_motor", RuntimeConfig.ip_motor))),
+            camera_id=str(runtime_data.get("camera_id", data.get("camera_id", ""))).strip(),
         )
         sample = SampleConfig(
             thickness=float(sample_data.get("thickness", data.get("thickness", SampleConfig.thickness))),

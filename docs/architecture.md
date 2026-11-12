@@ -42,3 +42,17 @@ are assumed. Both test types report unexpected startup and timer errors through
 `MechanicalTest._fail()`, latch a hardware fault, attempt both motor stops, and
 finish without reporting a successful run. Disconnect attempts every resource
 cleanup even when an earlier action fails.
+
+Camera acquisition uses the existing `VideoThread` with Vimba X / VmbPy loaded
+inside `run()`. Camera contexts, frame acquisition, and feature writes belong to
+that worker. Frames are copied before their SDK context closes. Configuration
+stores an optional `runtime.camera_id`; singleton discovery selects and retains
+one identity, and ambiguous discovery reports the available IDs.
+
+Tracking runs on native-resolution grayscale images. The view scales images with
+letterboxing and maps clicks back to their native coordinates. ROI updates use
+native pixels and are applied by the camera thread. Camera reconnection or a
+resolution change clears tracking references. Camera faults cancel a test only
+when it uses video strain; the existing test failure path requests motor stops.
+Gain/exposure requests are read under a lock and clamped to feature limits and
+increments. UI controls receive only metadata and copied image arrays.

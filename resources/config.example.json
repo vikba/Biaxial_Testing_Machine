@@ -11,7 +11,8 @@
         "unit": "gram",
         "folder": "",
         "sample_name": "",
-        "ip_motor": "172.31.100.108"
+        "ip_motor": "172.31.100.108",
+        "camera_id": ""
     },
     "sample": {
         "thickness": 0.382,

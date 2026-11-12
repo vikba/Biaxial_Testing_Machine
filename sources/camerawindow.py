@@ -5,7 +5,7 @@ Created on Sun Jan  7 09:03:14 2024
 Updated on Oct 23, 2024
 
 @description:
-A PyQt6 application that captures video from a web camera using Vimba and OpenCV.
+A PyQt6 application that captures video from a web camera using Vimba X and OpenCV.
 It allows users to define a region of interest (ROI), track markers within the ROI,
 and adjust camera settings such as gain and exposure via sliders. The interface also
 displays coordinate axes to indicate the origin of the coordinate plane.
@@ -18,16 +18,15 @@ import cv2
 import math
 import numpy as np
 import time
+from threading import Event, Lock
 
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QPushButton, QVBoxLayout, QLabel,
     QHBoxLayout, QSlider, QGroupBox, QRadioButton, QCheckBox, QButtonGroup,
-    QSpinBox
+    QSpinBox, QDoubleSpinBox
 )
 from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot, Qt
 from PyQt6.QtGui import QImage, QPixmap
-
-from vimba import *
 
 
 class VideoThread(QThread):
@@ -40,17 +39,26 @@ class VideoThread(QThread):
     signal_change_pixmap = pyqtSignal(np.ndarray)
     signal_markers_recorded = pyqtSignal(list)
     signal_markers_coordinates = pyqtSignal(list)
+    signal_error = pyqtSignal(str)
+    signal_camera_settings = pyqtSignal(dict)
 
-    RES_X_FULL = 1024
-    RES_Y_FULL = 768
+    FRAME_TIMEOUT_MS = 500
     FRAME_GRAB_DELAY_MS = 100
     CAMERA_RECONNECT_DELAY_MS = 500
     MAX_CONSECUTIVE_TIMEOUTS = 5
     DISPLAY_MODE_OVERLAY = "overlay"
     DISPLAY_MODE_BINARIZED = "binarized"
 
-    def __init__(self):
+    def __init__(self, camera_id=""):
         super().__init__()
+        self._camera_id = camera_id.strip()
+        self._stop = Event()
+        self._settings_lock = Lock()
+        self._frame_shape = None
+        self._camera_settings = {}
+        self._applied_settings = {}
+        self._pending_roi = None
+        self._img = None
 
         self._init_marks = False  # Initialize first set of marks
         self._track_marks = False  # Continuously track marks
@@ -61,8 +69,7 @@ class VideoThread(QThread):
 
         self._roi_x1 = 0
         self._roi_y1 = 0
-        self._roi_x2 = VideoThread.RES_X_FULL
-        self._roi_y2 = VideoThread.RES_Y_FULL
+        self._roi_x2 = self._roi_y2 = 0
 
         self._initVariables()
 
@@ -113,65 +120,53 @@ class VideoThread(QThread):
         Stops the video thread and releases resources.
         """
         self._execute = False
-        self.quit()
-        self.wait()
-        self._cam = None
+        self._stop.set()
 
     @pyqtSlot()
     def reset_flags(self):
         """
         Resets flags for initializing and tracking marks.
         """
+        if self.isRunning():
+            return
+        self._stop.clear()
+        self._frame_shape = None
+        self._img = None
+        self._init_points = self._pending_roi = None
+        self._initVariables()
         self._execute = True
         self._init_marks = False  # Initialize first set of marks
         self._track_marks = False  # Continuously track marks
 
     @pyqtSlot(list)
     def set_init_points(self, points):
-        self._init_points = points
-        self._init_marks = True
+        if self._frame_shape is None:
+            return
+        if len(points) != 4 or len(set(map(tuple, points))) != 4:
+            self.signal_error.emit("Select four distinct marker positions.")
+            return
+        with self._settings_lock:
+            self._init_points = tuple(map(tuple, points))
+            self._init_marks = True
 
     def reset_countours(self):
         """
         Resets the contour image used for tracking markers.
         """
-        self._img_track = np.zeros(
-            (VideoThread.RES_Y_FULL, VideoThread.RES_X_FULL, 1), dtype=np.uint8
-        )
-        self._img_track.fill(0)
+        if self._frame_shape is not None:
+            self._img_track = np.zeros(self._frame_shape, dtype=np.uint8)
 
     @pyqtSlot(int, int, int, int)
     def update_roi(self, x1, y1, x2, y2):
-        """
-        Update the region of interest (ROI) with the given coordinates.
-
-        Args:
-            x1 (int): The x-coordinate of the top-left corner of the ROI.
-            y1 (int): The y-coordinate of the top-left corner of the ROI.
-            x2 (int): The x-coordinate of the bottom-right corner of the ROI.
-            y2 (int): The y-coordinate of the bottom-right corner of the ROI.
-        """
-        # Adjust to difference between VideoThread and VideoWindow resolution
-        x1 = int(x1 * VideoThread.RES_X_FULL / VideoWindow.RES_X)
-        y1 = int(y1 * VideoThread.RES_Y_FULL / VideoWindow.RES_Y)
-        x2 = int(x2 * VideoThread.RES_X_FULL / VideoWindow.RES_X)
-        y2 = int(y2 * VideoThread.RES_Y_FULL / VideoWindow.RES_Y)
-
-        # The roi should have the same orientation independent of how user indicated it on the screen
-        if x2 < x1:
-            x1, x2 = x2, x1
-
-        if y2 < y1:
-            y1, y2 = y2, y1
-
-        self._roi_x1 = x1
-        self._roi_y1 = y1
-
-        self._roi_x2 = x2
-        self._roi_y2 = y2
-
-        self._init_marks = True
-        self._initVariables()
+        """Queue a native-pixel ROI; all tracking resets happen in the camera thread."""
+        if self._frame_shape is None:
+            return
+        height, width = self._frame_shape
+        x1, x2 = sorted((max(0, min(width, x1)), max(0, min(width, x2))))
+        y1, y2 = sorted((max(0, min(height, y1)), max(0, min(height, y2))))
+        if x1 < x2 and y1 < y2:
+            with self._settings_lock:
+                self._pending_roi = (x1, y1, x2, y2)
 
     def _if_within_roi(self, p):
         """
@@ -194,15 +189,15 @@ class VideoThread(QThread):
             flag (bool): Indicates whether to start or stop tracking.
         """
         if flag:
+            if not all(self._marks_groups):
+                self.signal_error.emit("Initialize four camera markers before tracking.")
+                return
             print("Start tracking")
             self._track_marks = True  # Change the flag
             self._start_time = time.perf_counter()
             self._current_time = 0
         else:
-            self._execute = False
             self._track_marks = False
-            self._init_marks = False
-            self.stop()
 
     @pyqtSlot(str)
     def save_image(self, address):
@@ -212,10 +207,14 @@ class VideoThread(QThread):
         Args:
             address (str): The file path to save the image.
         """
-        print(f"Saving image with an address {address}")
-        cv2.imwrite(address, self._img)
+        image = self._img
+        try:
+            if image is None or not cv2.imwrite(address, image):
+                raise OSError("No current image or image writer returned failure")
+        except (cv2.error, OSError) as exc:
+            self.signal_error.emit(f"Could not save camera image {address}: {exc}")
 
-    @pyqtSlot(int)
+    @pyqtSlot(float)
     def set_gain(self, value):
         """
         Sets the camera gain to the specified value.
@@ -223,11 +222,10 @@ class VideoThread(QThread):
         Args:
             value (int): The gain value to set.
         """
-        self._gain_value = value
-        if self._cam is not None:
-            self._cam.Gain.set(value)
+        with self._settings_lock:
+            self._gain_value = value
 
-    @pyqtSlot(int)
+    @pyqtSlot(float)
     def set_exposure(self, value):
         """
         Sets the camera exposure time to the specified value.
@@ -235,9 +233,8 @@ class VideoThread(QThread):
         Args:
             value (int): The exposure time value to set.
         """
-        self._exposure_value = value
-        if self._cam is not None:
-            self._cam.ExposureTime.set(value)
+        with self._settings_lock:
+            self._exposure_value = value
 
     @pyqtSlot(bool)
     def set_apply_bg_correction(self, value):
@@ -268,214 +265,268 @@ class VideoThread(QThread):
         self._center_method = method
 
     def run(self):
-        """
-        The run function controls the execution of the main camera loop.
-        It initializes the camera and sets its parameters, then enters a loop where it
-        continuously captures frames from the camera.
-        It processes each frame to detect markers and record their positions.
-        """
-        self._img_track = np.zeros(
-            (VideoThread.RES_Y_FULL, VideoThread.RES_X_FULL, 1), dtype=np.uint8
-        )
-        self._img_track.fill(0)
-        self._time = []
-
-        with Vimba.get_instance() as vimba:
-            while self._execute:
-                cams = vimba.get_all_cameras()
-
-                if not cams:
-                    print("No camera detected")
-                    self._execute = False
-                    break
-
-                self._cam = self._select_camera(cams)
-                if self._cam is None:
-                    print("FireWire camera not found")
-                    self._execute = False
-                    break
-
-                try:
-                    with self._cam:
-                        self._cam.Gain.set(self._gain_value)
-                        self._cam.ExposureTime.set(self._exposure_value)
-                        self._consecutive_timeouts = 0
-
-                        while self._execute:
-                            self._grab_frame()
-                            QThread.msleep(VideoThread.FRAME_GRAB_DELAY_MS)
-
-                except Exception as e:
-                    print("Camera error:", e)
-                    if not self._execute:
-                        break
-                    QThread.msleep(VideoThread.CAMERA_RECONNECT_DELAY_MS)
-
-                finally:
-                    self._cam = None
+        """Own the SDK, camera and feature access entirely in this thread."""
+        try:
+            from vmbpy import VmbSystem, PixelFormat, VmbFeatureError
+            with VmbSystem.get_instance() as vmb:
+                last_error = None
+                while not self._stop.is_set():
+                    try:
+                        self._cam = self._select_camera(vmb.get_all_cameras())
+                        with self._cam:
+                            for name, value in (("TriggerMode", "Off"), ("ExposureAuto", "Off"), ("GainAuto", "Off")):
+                                try:
+                                    feature = self._cam.get_feature_by_name(name)
+                                except VmbFeatureError:
+                                    continue
+                                if feature.is_writeable():
+                                    feature.set(value)
+                            if PixelFormat.Mono8 in self._cam.get_pixel_formats():
+                                self._cam.set_pixel_format(PixelFormat.Mono8)
+                            self._applied_settings.clear()
+                            self._camera_settings.clear()
+                            self._consecutive_timeouts = 0
+                            while not self._stop.is_set():
+                                self._apply_camera_settings()
+                                if self._grab_frame():
+                                    last_error = None
+                                self._stop.wait(self.FRAME_GRAB_DELAY_MS / 1000)
+                    except Exception as exc:
+                        if not self._stop.is_set() and str(exc) != last_error:
+                            last_error = str(exc)
+                            self.signal_error.emit(last_error)
+                    finally:
+                        self._cam = None
+                        self._frame_shape = None
+                        self._init_marks = self._track_marks = False
+                        self._init_points = self._pending_roi = None
+                        self._img = None
+                        self._initVariables()
+                        self.signal_camera_settings.emit({})
+                    self._stop.wait(self.CAMERA_RECONNECT_DELAY_MS / 1000)
+        except Exception as exc:
+            self.signal_error.emit(f"Vimba X camera unavailable: {exc}. Install Vimba X and its matching VmbPy package.")
+        finally:
+            self._execute = False
 
     def _select_camera(self, cams):
-        print("Detected Cameras:")
-        for cam in cams:
-            print(cam.get_id(), cam.get_interface_id())
+        if self._camera_id:
+            for camera in cams:
+                if camera.get_id() == self._camera_id:
+                    return camera
+            raise RuntimeError(f"Camera {self._camera_id!r} was not discovered. Check Vimba X Viewer and network settings.")
+        if len(cams) == 1:
+            self._camera_id = cams[0].get_id()  # Keep this identity across reconnects.
+            return cams[0]
+        ids = ", ".join(camera.get_id() for camera in cams)
+        raise RuntimeError(f"Configure runtime.camera_id; discovered cameras: {ids or 'none'}.")
 
-        for cam in cams:
-            interface = cam.get_interface_id()
-            if interface.startswith("Vimba1394"):
-                return cam
-
-        return None
-
-    def _is_timeout_error(self, exc):
-        message = str(exc).lower()
-        exc_name = type(exc).__name__.lower()
-        return "timeout" in message or "timeout" in exc_name
+    def _apply_camera_settings(self):
+        from vmbpy import VmbFeatureError
+        with self._settings_lock:
+            requested = {"Gain": self._gain_value, "ExposureTime": self._exposure_value}
+        changed = False
+        for name, value in requested.items():
+            if self._applied_settings.get(name) == value:
+                continue
+            if not math.isfinite(value):
+                raise ValueError(f"{name} must be finite.")
+            try:
+                feature = self._cam.get_feature_by_name(name)
+            except VmbFeatureError:
+                self._applied_settings[name] = value
+                continue
+            if not feature.is_readable() or not feature.is_writeable():
+                self._applied_settings[name] = value
+                continue
+            low, high = feature.get_range()
+            if name == "ExposureTime":
+                high = min(high, (self.FRAME_TIMEOUT_MS - 100) * 1000)
+            if high < low:
+                raise ValueError("Minimum camera exposure exceeds the acquisition timeout budget.")
+            step = feature.get_increment()
+            actual = min(high, max(low, value))
+            if step:
+                actual = low + math.floor((actual - low) / step) * step
+            feature.set(actual)
+            self._applied_settings[name] = value
+            self._camera_settings[name] = (low, high, step or 1.0, feature.get())
+            changed = True
+        if changed:
+            self.signal_camera_settings.emit(dict(self._camera_settings, ready=self._frame_shape is not None))
 
     def _grab_frame(self):
-        if self._cam is not None and self._execute:
-            try:
-                frame = self._cam.get_frame()
-                self._consecutive_timeouts = 0
-            except Exception as exc:
-                if not self._is_timeout_error(exc):
-                    raise
-
-                self._consecutive_timeouts += 1
-                print(
-                    "Camera frame timeout "
-                    f"({self._consecutive_timeouts}/{VideoThread.MAX_CONSECUTIVE_TIMEOUTS})"
-                )
-
-                if self._consecutive_timeouts >= VideoThread.MAX_CONSECUTIVE_TIMEOUTS:
-                    raise RuntimeError(
-                        "Too many consecutive camera frame timeouts. Reopening camera."
-                    ) from exc
-
-                return
-
-            if frame:
-                img_cv = frame.as_opencv_image()
-
-                # Detect markers with current parameters
-                processed_img, binary_img, coord_temp = self._detectMarkers(
-                    img_cv,
-                    apply_bg_correction=self._apply_bg_correction,
-                    use_simple_thresh=self._use_simple_thresh,
-                    invert_signal=self._invert_signal,
-                    center_method=self._center_method,
-                    thresh_val=self._threshold_value
-                )
-
-                # Combine tracking visualization
-                combined_img = cv2.addWeighted(self._img_track, 1, processed_img, 1, 0)
-                
-                # Draw marker numbers if available
-                if len(self._point1) > 0:
-                    font = cv2.FONT_HERSHEY_SIMPLEX
-                    points = [
-                        self._point1[-1] if self._point1 else (0,0),
-                        self._point2[-1] if self._point2 else (0,0),
-                        self._point3[-1] if self._point3 else (0,0),
-                        self._point4[-1] if self._point4 else (0,0)
-                    ]
-                    for i, p in enumerate(points, 1):
-                        if p != (0,0):
-                            cv2.putText(combined_img, str(i), 
-                                    (int(p[0])+10, int(p[1])+10), 
-                                    font, 1, 155, 2)
-
-                # Draw coordinate system
-                self._draw_coordinate_system(combined_img)
-
-                # Store images for display
-                self._img = combined_img
-                self._binary_img = binary_img
-
-                if self._display_mode == VideoThread.DISPLAY_MODE_BINARIZED:
-                    display_img = self._binary_img
+        from vmbpy import FrameStatus, PixelFormat, VmbTimeout
+        if self._cam is None or self._stop.is_set():
+            return False
+        try:
+            with self._cam.get_frame_with_context(timeout_ms=self.FRAME_TIMEOUT_MS) as frame:
+                if frame.get_status() != FrameStatus.Complete:
+                    raise RuntimeError("Incomplete camera frame. Check GigE packet size and bandwidth in Vimba X Viewer.")
+                pixel_format = frame.get_pixel_format()
+                if pixel_format == PixelFormat.Mono8:
+                    img_cv = frame.as_opencv_image().copy()
+                elif PixelFormat.Mono8 in pixel_format.get_convertible_formats():
+                    img_cv = frame.convert_pixel_format(PixelFormat.Mono8).as_opencv_image().copy()
+                elif pixel_format == PixelFormat.Bgr8 or PixelFormat.Bgr8 in pixel_format.get_convertible_formats():
+                    converted = frame if pixel_format == PixelFormat.Bgr8 else frame.convert_pixel_format(PixelFormat.Bgr8)
+                    img_cv = cv2.cvtColor(converted.as_opencv_image(), cv2.COLOR_BGR2GRAY)
                 else:
-                    display_img = combined_img
+                    raise ValueError(f"Unsupported camera pixel format: {pixel_format}.")
+            img_cv = img_cv.reshape(img_cv.shape[:2])
+            self._consecutive_timeouts = 0
+        except VmbTimeout as exc:
+            self._consecutive_timeouts += 1
+            if self._track_marks or any(self._marks_groups) or self._consecutive_timeouts >= self.MAX_CONSECUTIVE_TIMEOUTS:
+                raise RuntimeError("Camera acquisition timed out; reconnecting and clearing marker references.") from exc
+            return False
+        if self._stop.is_set():
+            return False
+        if img_cv.shape != self._frame_shape:
+            tracking = self._track_marks or any(self._marks_groups)
+            self._frame_shape = img_cv.shape
+            self._roi_x1 = self._roi_y1 = 0
+            self._roi_y2, self._roi_x2 = img_cv.shape
+            self._init_marks = self._track_marks = False
+            self._init_points = self._pending_roi = None
+            self._initVariables()
+            self.reset_countours()
+            self.signal_camera_settings.emit(dict(self._camera_settings, ready=True))
+            if tracking:
+                raise RuntimeError("Camera resolution changed; initialize markers again.")
+        with self._settings_lock:
+            roi, self._pending_roi = self._pending_roi, None
+            init_points, self._init_points = self._init_points, None
+            self._init_marks = False
+        if roi is not None:
+            self._roi_x1, self._roi_y1, self._roi_x2, self._roi_y2 = roi
+            self._init_marks = self._track_marks = False
+            self._init_points = None
+            self._initVariables()
+            self.reset_countours()
+            self.signal_error.emit("Camera ROI changed; initialize markers again.")
+        # Detect markers with current parameters
+        processed_img, binary_img, coord_temp = self._detectMarkers(
+            img_cv,
+            apply_bg_correction=self._apply_bg_correction,
+            use_simple_thresh=self._use_simple_thresh,
+            invert_signal=self._invert_signal,
+            center_method=self._center_method,
+            thresh_val=self._threshold_value
+        )
 
-                img_resized = cv2.resize(display_img, (VideoWindow.RES_X, VideoWindow.RES_Y))
-                self.signal_change_pixmap.emit(img_resized)
+        # Combine tracking visualization
+        combined_img = cv2.addWeighted(self._img_track, 1, processed_img, 1, 0)
 
-                # Handle marker initialization
-                if self._init_marks and self._init_points:
-                    sorted_coord = []
-                    for target_point in self._init_points:
-                        
-                        # Find closest detected marker
-                        min_dist = float('inf')
-                        closest = None
-                        for detected in coord_temp:
-                            dist = math.dist(target_point, detected)
-                            
-                            if dist < min_dist and dist < 40:  # 100px max distance
-                                min_dist = dist
-                                closest = detected
-                        if closest:
-                            sorted_coord.append(closest)
+        # Draw marker numbers if available
+        if len(self._point1) > 0:
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            points = [
+                self._point1[-1] if self._point1 else (0,0),
+                self._point2[-1] if self._point2 else (0,0),
+                self._point3[-1] if self._point3 else (0,0),
+                self._point4[-1] if self._point4 else (0,0)
+            ]
+            for i, p in enumerate(points, 1):
+                if p != (0,0):
+                    cv2.putText(combined_img, str(i),
+                            (int(p[0])+10, int(p[1])+10),
+                            font, 1, 155, 2)
 
-                    print(self._init_points)
-                    print(sorted_coord)
+        # Draw coordinate system
+        self._draw_coordinate_system(combined_img)
 
-                    if (len(sorted_coord) == 4):
-                        # Assign to groups
-                        for i in range(4):
-                            self._marks_groups[i].append(sorted_coord[i])
-                        
-                        # Emit initial positions
-                        self.signal_markers_recorded.emit([
-                            self._point1[-1],
-                            self._point2[-1],
-                            self._point3[-1],
-                            self._point4[-1]
-                        ])
-                        
-                    else:
-                        print("Could not find all the markers")
+        # Store images for display
+        self._img = combined_img
+        self._binary_img = binary_img
 
-                    self._init_marks = False
-                    self._init_points = None
-                    
+        if self._display_mode == VideoThread.DISPLAY_MODE_BINARIZED:
+            display_img = self._binary_img
+        else:
+            display_img = combined_img
 
-                elif self._track_marks:
-                    # Distribute marks in the groups
-                    # Go by all points and find the closest marker to it
-                    for group in self._marks_groups:
-                        if len(group) > 0:
-                            min_dist = 2000
-                            el = None
-                            # element - pair of (x,y) coordinates of a mark
-                            for element in coord_temp:
-                                # last = gr[len(gr) - 1]
-                                dist = math.dist(element, group[-1])
-                                if dist < min_dist and dist < 10:
-                                    el = element
-                                    min_dist = dist
-                            if el is not None:
-                                group.append(el)
+        self.signal_change_pixmap.emit(display_img.copy())
 
-                    self.signal_markers_coordinates.emit(
-                        [
-                            self._point1[-1],
-                            self._point2[-1],
-                            self._point3[-1],
-                            self._point4[-1]
-                        ]
-                    )
+        # Handle marker initialization
+        if init_points and roi is None:
+            self._initVariables()
+            self.reset_countours()
+            sorted_coord = []
+            for target_point in init_points:
 
-                # Draw track of the markers
-                for group in self._marks_groups:
-                    lg = len(group)
-                    if lg > 1:
-                        cv2.line(
-                            self._img_track,
-                            tuple(int(x) for x in group[lg - 2]),
-                            tuple(int(x) for x in group[lg - 1]),
-                            150,
-                            1
-                        )
+                # Find closest detected marker
+                min_dist = float('inf')
+                closest = None
+                for detected in coord_temp:
+                    dist = math.dist(target_point, detected)
+
+                    if dist < min_dist and dist < 40:  # 100px max distance
+                        min_dist = dist
+                        closest = detected
+                if closest and closest not in sorted_coord:
+                    sorted_coord.append(closest)
+
+            print(init_points)
+            print(sorted_coord)
+
+            if (len(sorted_coord) == 4):
+                # Assign to groups
+                for i in range(4):
+                    self._marks_groups[i].append(sorted_coord[i])
+
+                # Emit initial positions
+                self.signal_markers_recorded.emit([
+                    self._point1[-1],
+                    self._point2[-1],
+                    self._point3[-1],
+                    self._point4[-1]
+                ])
+
+            else:
+                self.signal_error.emit("Could not find four distinct markers; initialize them again.")
+
+        elif self._track_marks:
+            if not all(self._marks_groups):
+                raise RuntimeError("Camera markers were invalidated; initialize all four again.")
+            # Distribute marks in the groups
+            # Go by all points and find the closest marker to it
+            for group in self._marks_groups:
+                if len(group) > 0:
+                    min_dist = 2000
+                    el = None
+                    # element - pair of (x,y) coordinates of a mark
+                    for element in coord_temp:
+                        # last = gr[len(gr) - 1]
+                        dist = math.dist(element, group[-1])
+                        if dist < min_dist and dist < 10:
+                            el = element
+                            min_dist = dist
+                    if el is None:
+                        raise RuntimeError("Camera marker lost; initialize all four again.")
+                    group.append(el)
+
+            self.signal_markers_coordinates.emit(
+                [
+                    self._point1[-1],
+                    self._point2[-1],
+                    self._point3[-1],
+                    self._point4[-1]
+                ]
+            )
+
+        # Draw track of the markers
+        for group in self._marks_groups:
+            lg = len(group)
+            if lg > 1:
+                cv2.line(
+                    self._img_track,
+                    tuple(int(x) for x in group[lg - 2]),
+                    tuple(int(x) for x in group[lg - 1]),
+                    150,
+                    1
+                )
+
+        return True
 
     def _draw_coordinate_system(self, img):
         """
@@ -488,7 +539,7 @@ class VideoThread(QThread):
         # Coordinate system parameters
         arrow_length = 50  # Length of axis arrows in pixels
         origin_x = 50       # X position of origin (left padding)
-        origin_y = self.RES_Y_FULL - 50  # Y position of origin (from bottom)
+        origin_y = img.shape[0] - 50  # Y position of origin (from bottom)
         color = 255         # White color (8-bit grayscale)
         thickness = 2       # Line thickness
         font_scale = 0.7    # Text size
@@ -631,6 +682,9 @@ class VideoThread(QThread):
             area = cv2.contourArea(c)
             if area < self._min_marker_area or area > self._max_marker_area:
                 continue
+            x, y, w, h = cv2.boundingRect(c)
+            if not self._if_within_roi((x + w / 2, y + h / 2)):
+                continue
             perimeter = cv2.arcLength(c, True)
             if perimeter == 0:
                 continue
@@ -673,8 +727,8 @@ class VideoWindow(QWidget):
     """
 
     signal_update_roi = pyqtSignal(int, int, int, int)
-    signal_gain_changed = pyqtSignal(int)
-    signal_exposure_changed = pyqtSignal(int)
+    signal_gain_changed = pyqtSignal(float)
+    signal_exposure_changed = pyqtSignal(float)
     signal_threshold_changed = pyqtSignal(int)
     signal_display_mode_changed = pyqtSignal(str)
     signal_min_marker_area_changed = pyqtSignal(int)
@@ -695,7 +749,9 @@ class VideoWindow(QWidget):
         super().__init__()
         self.setWindowTitle("Video Stream")
         self._image_label = QLabel(self)
-        self._image_label.resize(VideoWindow.RES_X, VideoWindow.RES_Y)
+        self._image_label.setFixedSize(VideoWindow.RES_X, VideoWindow.RES_Y)
+        self._image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._frame_shape = None
         self._layout = QVBoxLayout()
         self._layout.addWidget(self._image_label)
         self.setLayout(self._layout)
@@ -707,6 +763,7 @@ class VideoWindow(QWidget):
 
         self.init_button = QPushButton("Initialize Markers")
         self.init_button.clicked.connect(self.start_point_collection)
+        self.init_button.setEnabled(False)
         self._layout.addWidget(self.init_button)
 
         self._start_point = self._end_point = None
@@ -723,6 +780,8 @@ class VideoWindow(QWidget):
         # Connect signals
         self.thread = thread
         self.thread.signal_change_pixmap.connect(self.update_image)
+        self.thread.signal_camera_settings.connect(self._update_camera_controls)
+        self.thread.finished.connect(self.close)
         self.signal_update_roi.connect(self.thread.update_roi)
         self.signal_gain_changed.connect(self.thread.set_gain)
         self.signal_exposure_changed.connect(self.thread.set_exposure)
@@ -745,34 +804,38 @@ class VideoWindow(QWidget):
         """
         # Gain Controls
         self._gain_label = QLabel('Gain:', self)
-        self._gain_slider = QSlider(Qt.Orientation.Horizontal, self)
-        self._gain_slider.setMinimum(0)
-        self._gain_slider.setMaximum(24)
-        self._gain_slider.setValue(gain)
-        self._gain_slider.valueChanged.connect(self.change_gain)
+        self._gain_control = QDoubleSpinBox(self)
+        self._gain_control.setDecimals(3)
+        self._gain_control.setEnabled(False)
+        self._gain_control.setMinimum(0)
+        self._gain_control.setMaximum(24)
+        self._gain_control.setValue(gain)
+        self._gain_control.valueChanged.connect(self.change_gain)
 
-        self._gain_value_label = QLabel(str(self._gain_slider.value()), self)
+        self._gain_value_label = QLabel(str(self._gain_control.value()), self)
 
         # Exposure Controls
-        self._exposure_label = QLabel('Exposure:', self)
-        self._exposure_slider = QSlider(Qt.Orientation.Horizontal, self)
-        self._exposure_slider.setMinimum(100)
-        self._exposure_slider.setMaximum(20000)
-        self._exposure_slider.setValue(exposure)
-        self._exposure_slider.valueChanged.connect(self.change_exposure)
+        self._exposure_label = QLabel('Exposure (us):', self)
+        self._exposure_control = QDoubleSpinBox(self)
+        self._exposure_control.setDecimals(3)
+        self._exposure_control.setEnabled(False)
+        self._exposure_control.setMinimum(100)
+        self._exposure_control.setMaximum(20000)
+        self._exposure_control.setValue(exposure)
+        self._exposure_control.valueChanged.connect(self.change_exposure)
 
-        self._exposure_value_label = QLabel(str(self._exposure_slider.value()), self)
+        self._exposure_value_label = QLabel(str(self._exposure_control.value()), self)
 
         # Layout for Gain Slider
         gain_layout = QHBoxLayout()
         gain_layout.addWidget(self._gain_label)
-        gain_layout.addWidget(self._gain_slider)
+        gain_layout.addWidget(self._gain_control)
         gain_layout.addWidget(self._gain_value_label)
 
         # Layout for Exposure Slider
         exposure_layout = QHBoxLayout()
         exposure_layout.addWidget(self._exposure_label)
-        exposure_layout.addWidget(self._exposure_slider)
+        exposure_layout.addWidget(self._exposure_control)
         exposure_layout.addWidget(self._exposure_value_label)
 
         # Combine both layouts into a vertical layout
@@ -787,7 +850,7 @@ class VideoWindow(QWidget):
         self._threshold_slider = QSlider(Qt.Orientation.Horizontal, self)
         self._threshold_slider.setMinimum(0)
         self._threshold_slider.setMaximum(255)
-        self._threshold_slider.setValue(30)  # Default value
+        self._threshold_slider.setValue(70)  # Matches VideoThread default
         self._threshold_slider.valueChanged.connect(self.change_threshold)
 
         self._threshold_value_label = QLabel(str(self._threshold_slider.value()), self)
@@ -859,19 +922,25 @@ class VideoWindow(QWidget):
     def start_point_collection(self):
         self.point_collection_mode = True
         self.clicked_points = []
-        self._image_label.setText("Click four points in any order")
+        self.init_button.setText("Click four markers in the image")
 
     def mouseReleaseEvent(self, event):
-        if self.point_collection_mode:
-            x = event.pos().x() * (VideoThread.RES_X_FULL / VideoWindow.RES_X)
-            y = event.pos().y() * (VideoThread.RES_Y_FULL / VideoWindow.RES_Y)
-            self.clicked_points.append((x, y))
-            
-            if len(self.clicked_points) == 4:
-                self.point_collection_mode = False
-                sorted_points = self.sort_points(self.clicked_points)
-                self.signal_init_points.emit(sorted_points)
-                print("4 clicks made")
+        if not self.point_collection_mode or self._frame_shape is None:
+            return
+        pixmap = self._image_label.pixmap()
+        if pixmap is None or pixmap.isNull():
+            return
+        point = self._image_label.mapFrom(self, event.position().toPoint())
+        x = point.x() - (self._image_label.width() - pixmap.width()) / 2
+        y = point.y() - (self._image_label.height() - pixmap.height()) / 2
+        if not (0 <= x < pixmap.width() and 0 <= y < pixmap.height()):
+            return  # Ignore clicks in the margins around a non-4:3 camera image.
+        height, width = self._frame_shape
+        self.clicked_points.append((x * width / pixmap.width(), y * height / pixmap.height()))
+        if len(self.clicked_points) == 4:
+            self.point_collection_mode = False
+            self.init_button.setText("Initialize Markers")
+            self.signal_init_points.emit(self.sort_points(self.clicked_points))
 
     def sort_points(self, points):
         # Sort by descending y (bottom points first)
@@ -887,50 +956,32 @@ class VideoWindow(QWidget):
         """
         self.close()
 
-    '''def mousePressEvent(self, event):
-        """
-        Handle the mouse press event and update the start point.
+    @pyqtSlot(dict)
+    def _update_camera_controls(self, settings):
+        ready = settings.get("ready", False)
+        self.init_button.setEnabled(ready)
+        if not ready:
+            self.init_button.setText("Initialize Markers")
+            self.point_collection_mode = False
+            self.clicked_points = []
+            self._frame_shape = None
+            self._image_label.clear()
+        for name, control, label in (("Gain", self._gain_control, self._gain_value_label),
+                                     ("ExposureTime", self._exposure_control, self._exposure_value_label)):
+            control.setEnabled(name in settings)
+            if name in settings:
+                low, high, step, value = settings[name]
+                control.blockSignals(True)
+                control.setRange(low, high)
+                control.setSingleStep(step)
+                control.setValue(value)
+                label.setText(f"{value:g}")
+                control.blockSignals(False)
 
-        Args:
-            event (QMouseEvent): The mouse event.
-        """
-        self._start_point = event.pos()
-        self._end_point = None
-        self.update()
-
-    def mouseMoveEvent(self, event):
-        """
-        Handle the mouse move event and update the end point.
-
-        Args:
-            event (QMouseEvent): The mouse event.
-        """
-        self._end_point = event.pos()
-        self._draw_rectangle = True
-        self.update()
-
-    def mouseReleaseEvent(self, event):
-        """
-        Handle the mouse release event, update the end point, and emit the ROI signal.
-
-        Args:
-            event (QMouseEvent): The mouse event.
-        """
-        self._end_point = event.pos()
-        print("Start point: {}".format(self._start_point))
-        print("End point: {}".format(self._end_point))
-        self.signal_update_roi.emit(
-            self._start_point.x(),
-            self._start_point.y(),
-            self._end_point.x(),
-            self._end_point.y()
-        )
-        self._draw_rectangle = False'''
-
-    @pyqtSlot(int)
+    @pyqtSlot(float)
     def change_gain(self, value):
         """
-        Slot to handle gain slider value change.
+        Slot to handle gain control changes.
 
         Args:
             value (int): The new gain value.
@@ -938,10 +989,10 @@ class VideoWindow(QWidget):
         self._gain_value_label.setText(str(value))
         self.signal_gain_changed.emit(value)
 
-    @pyqtSlot(int)
+    @pyqtSlot(float)
     def change_exposure(self, value):
         """
-        Slot to handle exposure slider value change.
+        Slot to handle exposure control changes.
 
         Args:
             value (int): The new exposure value.
@@ -988,19 +1039,21 @@ class VideoWindow(QWidget):
         Args:
             cv_img (np.ndarray): The OpenCV image to update the display with.
         """
+        if self._frame_shape != cv_img.shape[:2]:
+            self.point_collection_mode = False
+            self.clicked_points = []
+        self._frame_shape = cv_img.shape[:2]
         if self._start_point and self._end_point and self._draw_rectangle:
             start_p = (self._start_point.x(), self._start_point.y())
             end_p = (self._end_point.x(), self._end_point.y())
             cv2.rectangle(cv_img, start_p, end_p, 170, 3)
-
-        ch = 1
 
         if len(cv_img.shape) == 2:
             h, w = cv_img.shape
         else:
             h, w, _ = cv_img.shape
 
-        bytes_per_line = ch * w
+        bytes_per_line = cv_img.strides[0]
         convert_to_Qt_format = QImage(
             cv_img.data,
             w,
@@ -1021,7 +1074,6 @@ class VideoWindow(QWidget):
         """
         Stops the webcam and closes the window.
         """
-        self.thread.stop()
         self.close()
 
     def closeEvent(self, event):
@@ -1031,7 +1083,11 @@ class VideoWindow(QWidget):
         Args:
             event (QCloseEvent): The close event.
         """
-        self.stop_webcam()
+        self.thread.stop()
+        if self.thread.isRunning():
+            event.ignore()
+        else:
+            event.accept()
 
 
 if __name__ == '__main__':
