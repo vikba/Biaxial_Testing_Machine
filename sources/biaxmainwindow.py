@@ -126,6 +126,8 @@ class BiaxMainWindow(QMainWindow):
             chart.getAxis("left").setTickFont(font)
             chart.getAxis("bottom").setTickFont(font)
 
+        self.ChartWidget_2.setLimits(minYRange=1.0)
+        self.ChartWidget_3.setLimits(minXRange=0.02, minYRange=2.0)
         self.ChartWidget_2.setLabel("left", "Displacement, mm", **{"color": "#000", "font-size": "14pt", "font-family": "Arial"})
         self.ChartWidget_2.setLabel("bottom", "Time, s", **{"color": "#000", "font-size": "14pt", "font-family": "Arial"})
         self.ChartWidget_3.setLabel("left", "Stress, kPa", **{"color": "#000", "font-size": "14pt", "font-family": "Arial"})
@@ -597,6 +599,10 @@ class BiaxMainWindow(QMainWindow):
         self._session_controller.update_units(self._config)
 
     def _update_units_labels(self, units: Unit):
+        load_span = 4.0 if units == Unit.Gram else 4.0 * 9.80665 / 1000
+        self.ChartWidget_1.setLimits(minYRange=load_span)
+        self.ChartWidget_1.setYRange(-load_span / 2, load_span / 2, padding=0)
+        self.ChartWidget_1.enableAutoRange(axis="y")
         if units == Unit.Gram:
             self.ChartWidget_1.setLabel("left", "Load, g", **{"color": "#000", "font-size": "14pt", "font-family": "Arial"})
             unit_text = "g"
