@@ -101,6 +101,8 @@ ratio. Click **Initialize Markers**, then select four distinct markers in the im
 clicks in the surrounding margins are ignored. Initialize markers for each new
 test. Pixel thresholds, marker area limits, and maximum tracking movement are
 measured in native pixels and may need adjustment for a different resolution or lens.
+ROI can be configured programmatically through `VideoThread.update_roi()` with
+native-pixel coordinates. The camera window currently has no ROI selection control.
 
 The app prefers `Mono8`; other formats are converted to `Mono8`, or through `Bgr8`
 to grayscale if supported by the SDK. Gain and exposure controls use camera-reported
@@ -121,7 +123,8 @@ camera, SDK runtime version, or camera model has been validated in this environm
 Before lab use, verify these on the target workstation:
 
 1. Record camera model, firmware, Vimba X, VmbPy, and Python versions.
-2. Check live preview, gain/exposure, image saving, ROI, and marker selection.
+2. Check live preview, gain/exposure, image saving, and marker selection.
+   If using a programmatic ROI, check its bounds against the native image.
 3. Verify a known displacement and compare image-based strain with expectations.
 4. Repeat camera start/stop and disconnect/reconnect the Ethernet cable.
 5. During a low-load camera-based test, remove the cable and confirm test failure
@@ -164,7 +167,8 @@ Smoke test (start with motors stationary and a low test load):
    Repeat for the other sensor and manual autoload; measure the stop latency.
 5. Stop/disconnect normally and confirm the ports can reopen without restarting.
 
-Run simulated protocol/cache/stop checks with `python -m unittest discover -s tests`.
+Run hardware-free checks with `python -m unittest discover -s tests`.
+CI runs these checks on Windows and Linux with Qt in offscreen mode.
 Protocol checks mock Qt and vendor dependencies. Lifecycle checks use real Qt
 threads with simulated hardware to verify responsive commands, cancellation,
 timeouts, and failure cleanup. Install the Python dependencies above to run those
@@ -177,6 +181,8 @@ Protocol reference: [Mantracourt DSCUSB Advanced Manual](https://us.mantracourt.
 - This project is intended for a configured lab workstation, not a generic desktop environment.
 - Camera and motion-control features will not work unless the corresponding hardware SDKs are installed and connected.
 - Test results are exported through `openpyxl`.
+- Application diagnostics are logged to the console at INFO level. Set the logging
+  level in `main.py` to DEBUG when detailed position and motion diagnostics are needed.
 
 ## License
 

@@ -5,6 +5,7 @@
 
 """
 
+import logging
 from enum import Enum, auto
 from PyQt6.QtCore import QTimer, Qt, pyqtSignal
 import numpy as np
@@ -15,6 +16,9 @@ import os
 from .mechanicaltest import MechanicalTest
 from .state import State
 from .unit import Unit
+
+
+logger = logging.getLogger(__name__)
 
 
 class LoadTestPhase(Enum):
@@ -71,7 +75,6 @@ class LoadControlTest(MechanicalTest):
         self._num_cycles_test = num_cycles_test
         self._disp_guess1 = disp1
         self._disp_guess2 = disp2
-        print("Load Control Test created.")
 
     @property
     def phase(self):
@@ -104,7 +107,6 @@ class LoadControlTest(MechanicalTest):
         self._test_duration = test_duration
         self._num_cycles_precond = num_cycles_precond
         self._num_cycles_test = num_cycles_test
-        print("Load Control Test updated.")
 
     def run(self):
         try:
@@ -113,7 +115,7 @@ class LoadControlTest(MechanicalTest):
             self._fail(exc)
 
     def _run_test(self):
-        print("LoadControlTest: Started")
+        logger.info("Load-control test started")
         if not self._execute:
             return
         self._state = State.PRECONDITIONING
@@ -130,7 +132,6 @@ class LoadControlTest(MechanicalTest):
         self._last_sample_has_video_strain = False
 
         if self._use_video:
-            print(f"Use video. Point1: {self._point1}")
             self.signal_start_stop_tracking.emit(True)
             self.signal_save_image.emit(self._build_image_path("first_frame"))
 
@@ -156,7 +157,6 @@ class LoadControlTest(MechanicalTest):
         self._test_timer = QTimer()
         self._test_timer.timeout.connect(self._tick, Qt.ConnectionType.DirectConnection)
         self._test_timer.start(self._sample_time)
-        print("Timer started")
         self.exec()
 
     def _tick(self):
@@ -311,7 +311,7 @@ class LoadControlTest(MechanicalTest):
         self._test_video_reference_ready = False
         self._autoload_started_at = None
         self._autoload_settled_since = None
-        print("LoadControlTest: Preconditioning finished. Main test started.")
+        logger.info("Preconditioning finished; main load test started")
         self.signal_precond_finished.emit()
         return self._initial_test_phase()
 
@@ -418,9 +418,9 @@ class LoadControlTest(MechanicalTest):
             slope1, _ = np.polyfit(self._E11[-required_points:], self._load1[-required_points:], 1)
             slope2, _ = np.polyfit(self._E22[-required_points:], self._load2[-required_points:], 1)
             ar = slope1 / slope2 if slope1 > slope2 else slope2 / slope1
-            print(f"Anisotropy ratio as slope ratio: {ar}")
-        except Exception as exc:
-            print(f"An error occurred: {exc}")
+            logger.info("Anisotropy ratio as slope ratio: %s", ar)
+        except Exception:
+            logger.warning("Could not calculate anisotropy ratio", exc_info=True)
 
     def _finish_test(self):
         if getattr(self, "_phase", None) == LoadTestPhase.FINISHED and not self._execute:
@@ -429,7 +429,7 @@ class LoadControlTest(MechanicalTest):
         self._execute = False
         self._dispose_test_timer()
         self.stop_measurement()
-        print("LoadControlTest: Test finished")
+        logger.info("Load-control test finished")
         self.signal_phase_changed.emit(LoadTestPhase.FINISHED)
         self.signal_test_finished.emit()
         self.quit()

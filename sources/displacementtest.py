@@ -5,6 +5,7 @@
 
 """
 
+import logging
 from enum import Enum, auto
 from PyQt6.QtCore import QTimer, Qt, pyqtSignal
 import time
@@ -13,6 +14,9 @@ import os
 
 from .mechanicaltest import MechanicalTest
 from .configuration import AXIS_TRAVEL_MM
+
+
+logger = logging.getLogger(__name__)
 
 
 class DisplacementTestPhase(Enum):
@@ -40,8 +44,6 @@ class DisplacementControlTest(MechanicalTest):
         self._num_cycles = num_cycles
         self._execute = True
 
-        print("Displacement Control Test created.")
-
     def update_parameters(self, folder, sam_name, vel1, vel2, len1, len2, num_cycles):
         self._workfolder = folder
         self._sam_name = sam_name
@@ -50,8 +52,6 @@ class DisplacementControlTest(MechanicalTest):
         self._max_disp1 = len1
         self._max_disp2 = len2
         self._num_cycles = num_cycles
-
-        print("Displacement Control Test updated.")
 
     def run(self):
         try:
@@ -79,7 +79,6 @@ class DisplacementControlTest(MechanicalTest):
         self._current_cycle_time = 0.0
 
         if self._use_video:
-            print("Start of Displacement control test with video")
             self.signal_start_stop_tracking.emit(True)
             self.signal_save_image.emit(self._build_image_path("first_frame"))
 
@@ -100,7 +99,6 @@ class DisplacementControlTest(MechanicalTest):
         self._test_timer = QTimer()
         self._test_timer.timeout.connect(self._tick, Qt.ConnectionType.DirectConnection)
         self._test_timer.start(self._sample_time)
-        print("Timer started")
         self.exec()
 
     def _tick(self):
@@ -167,11 +165,11 @@ class DisplacementControlTest(MechanicalTest):
             return
 
         if phase == DisplacementTestPhase.STRETCH:
-            print("DisplacementControlTest: Start stretching the sample")
+            logger.debug("Displacement test: stretching sample")
             self._mot_daq.move_position_ax1(self._stretch_target_pos1, self._vel_ax1)
             self._mot_daq.move_position_ax2(self._stretch_target_pos2, self._vel_ax2)
         elif phase == DisplacementTestPhase.RETURN:
-            print("DisplacementControlTest: Start compressing the sample")
+            logger.debug("Displacement test: returning sample")
             if self._use_video and self._remaining_half_cycles == 1:
                 self.signal_save_image.emit(self._build_image_path("last_frame"))
             self._mot_daq.move_position_ax1(self._return_target_pos1, self._vel_ax1)
@@ -189,7 +187,7 @@ class DisplacementControlTest(MechanicalTest):
         self._phase = DisplacementTestPhase.FINISHED
         self._execute = False
         self._dispose_test_timer()
-        print("DisplacementControlTest: Test finished")
+        logger.info("Displacement-control test finished")
         self.stop_measurement()
         self.signal_phase_changed.emit(DisplacementTestPhase.FINISHED)
         self.signal_test_finished.emit()

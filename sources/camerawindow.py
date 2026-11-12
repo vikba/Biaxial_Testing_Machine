@@ -6,13 +6,14 @@ Updated on Oct 23, 2024
 
 @description:
 A PyQt6 application that captures video from a web camera using Vimba X and OpenCV.
-It allows users to define a region of interest (ROI), track markers within the ROI,
-and adjust camera settings such as gain and exposure via sliders. The interface also
+It tracks markers within a programmatically configured region of interest (ROI),
+and adjusts camera settings such as gain and exposure through numeric controls. The interface also
 displays coordinate axes to indicate the origin of the coordinate plane.
 
 @author: V
 """
 
+import logging
 import sys
 import cv2
 import math
@@ -27,6 +28,9 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot, Qt
 from PyQt6.QtGui import QImage, QPixmap
+
+
+logger = logging.getLogger(__name__)
 
 
 class VideoThread(QThread):
@@ -192,7 +196,6 @@ class VideoThread(QThread):
             if not all(self._marks_groups):
                 self.signal_error.emit("Initialize four camera markers before tracking.")
                 return
-            print("Start tracking")
             self._track_marks = True  # Change the flag
             self._start_time = time.perf_counter()
             self._current_time = 0
@@ -274,6 +277,7 @@ class VideoThread(QThread):
                     try:
                         self._cam = self._select_camera(vmb.get_all_cameras())
                         with self._cam:
+                            logger.info("Camera connected: %s", self._cam.get_id())
                             for name, value in (("TriggerMode", "Off"), ("ExposureAuto", "Off"), ("GainAuto", "Off")):
                                 try:
                                     feature = self._cam.get_feature_by_name(name)
@@ -294,6 +298,7 @@ class VideoThread(QThread):
                     except Exception as exc:
                         if not self._stop.is_set() and str(exc) != last_error:
                             last_error = str(exc)
+                            logger.warning("Camera acquisition failed: %s", exc)
                             self.signal_error.emit(last_error)
                     finally:
                         self._cam = None
@@ -460,14 +465,11 @@ class VideoThread(QThread):
                 for detected in coord_temp:
                     dist = math.dist(target_point, detected)
 
-                    if dist < min_dist and dist < 40:  # 100px max distance
+                    if dist < min_dist and dist < 40:  # Maximum initialization distance in native pixels
                         min_dist = dist
                         closest = detected
                 if closest and closest not in sorted_coord:
                     sorted_coord.append(closest)
-
-            print(init_points)
-            print(sorted_coord)
 
             if (len(sorted_coord) == 4):
                 # Assign to groups
@@ -496,7 +498,6 @@ class VideoThread(QThread):
                     el = None
                     # element - pair of (x,y) coordinates of a mark
                     for element in coord_temp:
-                        # last = gr[len(gr) - 1]
                         dist = math.dist(element, group[-1])
                         if dist < min_dist and dist < 10:
                             el = element
@@ -588,21 +589,6 @@ class VideoThread(QThread):
             color, 
             thickness
         )
-
-    def calculate_time(func):
-        """
-        Decorator to calculate and print the execution time of a function.
-        """
-        def inner1(*args, **kwargs):
-            begin = time.time()
-            func(*args, **kwargs)
-            end = time.time()
-            print(f"Total time taken in {func.__name__}: {end - begin:.4f} seconds")
-        return inner1
-
-    @calculate_time
-    def example_decorated_function():
-        pass  # Example usage
 
     @pyqtSlot(int)
     def set_threshold(self, value):
@@ -756,18 +742,10 @@ class VideoWindow(QWidget):
         self._layout.addWidget(self._image_label)
         self.setLayout(self._layout)
 
-        '''# Stop Webcam Button
-        self._button_stop = QPushButton('Stop Webcam', self)
-        self._button_stop.clicked.connect(self.stop_webcam)
-        self._layout.addWidget(self._button_stop)'''
-
         self.init_button = QPushButton("Initialize Markers")
         self.init_button.clicked.connect(self.start_point_collection)
         self.init_button.setEnabled(False)
         self._layout.addWidget(self.init_button)
-
-        self._start_point = self._end_point = None
-        self._draw_rectangle = False
 
         gain = 15
         exposure = 5000
@@ -1043,11 +1021,6 @@ class VideoWindow(QWidget):
             self.point_collection_mode = False
             self.clicked_points = []
         self._frame_shape = cv_img.shape[:2]
-        if self._start_point and self._end_point and self._draw_rectangle:
-            start_p = (self._start_point.x(), self._start_point.y())
-            end_p = (self._end_point.x(), self._end_point.y())
-            cv2.rectangle(cv_img, start_p, end_p, 170, 3)
-
         if len(cv_img.shape) == 2:
             h, w = cv_img.shape
         else:
@@ -1091,7 +1064,7 @@ class VideoWindow(QWidget):
 
 
 if __name__ == '__main__':
-    print("Started")
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s: %(message)s')
     app = QApplication(sys.argv)
     _video_thread = VideoThread()
     _video_window = VideoWindow(_video_thread)

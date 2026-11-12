@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 
@@ -27,6 +28,9 @@ from sources.unit import Unit
 from sources.camerawindow import VideoThread, VideoWindow
 from sources.loadtest import LoadControlTest
 from sources.displacementtest import DisplacementControlTest
+
+
+logger = logging.getLogger(__name__)
 
 
 class BiaxMainWindow(QMainWindow):
@@ -268,7 +272,7 @@ class BiaxMainWindow(QMainWindow):
             self._session_controller.shutdown()
         finally:
             self.signal_stop.emit()
-        print("Application shutdown requested")
+        logger.info("Application shutdown requested")
 
     def __start_test(self):
         try:
@@ -519,9 +523,9 @@ class BiaxMainWindow(QMainWindow):
                 and abs(self._stress2[-1] - 400) < 10
             ):
                 ar = self._E11[-1] / self._E22[-1] if self._E11[-1] > self._E22[-1] else self._E22[-1] / self._E11[-1]
-                print(f"Anisotropy ratio at 400 kPa: {ar}")
-        except Exception as exc:
-            print(f"An error occurred: {exc}")
+                logger.info("Anisotropy ratio at 400 kPa: %s", ar)
+        except Exception:
+            logger.warning("Could not calculate anisotropy ratio", exc_info=True)
 
         self.ChartWidget_1.clear()
         self.ChartWidget_1.plot(self._t, self._load1, pen=pg.mkPen(color="b", width=2), name="Channel 1")

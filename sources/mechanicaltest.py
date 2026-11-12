@@ -7,6 +7,8 @@
 
 from concurrent.futures import CancelledError
 
+import logging
+
 from PyQt6.QtCore import QMetaObject, QThread, QTimer, Qt, pyqtSignal, pyqtSlot
 import numpy as np
 import time
@@ -15,6 +17,9 @@ from openpyxl import Workbook, load_workbook
 from datetime import datetime
 
 from .state import State
+
+
+logger = logging.getLogger(__name__)
 
 
 class MechanicalTest (QThread):
@@ -156,7 +161,6 @@ class MechanicalTest (QThread):
     @pyqtSlot(list)
     def init_markers(self, array = None):
 
-        print("Markers initialized")
         self._use_video = True
 
         #datastructures to store tracks of marks
@@ -190,9 +194,6 @@ class MechanicalTest (QThread):
     
     @pyqtSlot(list)
     def update_markers(self, array):
-
-        #print("Markers updated")
-
         #Temporary coordinates 
         self._temp_p1 = array[0]
         self._temp_p2 = array[1]
@@ -440,19 +441,16 @@ class MechanicalTest (QThread):
                     # Write header
                     header_line = '\t'.join(header)
                     f.write(header_line + '\n')
-                    print(f"Written header to text file: {header_line}")
 
                     # Write data rows
-                    for idx, row in enumerate(combined_lists):
+                    for row in combined_lists:
                         # Ensure each element is a string and join with tabs
                         row_str = '\t'.join(map(str, row))
                         f.write(row_str + '\n')
-                        if idx <= 5:  # Print first 5 rows for debugging
-                            print(f"Written row {idx} to text file: {row_str}")
 
-                print(f"Data successfully written to text file: {txt_file_path}")
-            except Exception as e:
-                print(f"Error writing to text file: {e}")
+                logger.info("Text data saved to %s", txt_file_path)
+            except Exception:
+                logger.exception("Could not write text data to %s", txt_file_path)
 
 
     def _write_points_reference(self, folder):
@@ -463,7 +461,7 @@ class MechanicalTest (QThread):
 
             # Validate that temporary points have at least two coordinates
             if not all(len(p) >= 2 for p in [self._temp_p1, self._temp_p2, self._temp_p3, self._temp_p4]):
-                print("_write_points_reference: One or more temporary points do not contain enough coordinates.")
+                logger.warning("Cannot save marker reference: incomplete coordinates")
                 return
 
             # Extract X and Y coordinates
@@ -480,6 +478,6 @@ class MechanicalTest (QThread):
                     row_str = '\t'.join(map(str, combined_lists))
                     f.write(row_str + '\n')
 
-                print(f"Updating REFERENCE_LOG.txt\n{row_str}")
-            except Exception as e:
-                print(f"Error writing to text file: {e}")
+                logger.debug("Marker reference saved to %s", txt_file_path)
+            except Exception:
+                logger.exception("Could not write text data to %s", txt_file_path)

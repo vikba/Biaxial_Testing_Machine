@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from concurrent.futures import CancelledError
 from dataclasses import dataclass, field
 from math import isfinite
@@ -15,6 +16,9 @@ from .configuration import AXIS_TRAVEL_MM, ForceConfig
 from .dscusb import ForceAcquisition, ForceDataError
 
 from .unit import Unit
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -140,7 +144,7 @@ class HardwareWorker(QObject):
                 + " Please check the network connection and ensure that the specified IP address is correct."
             ) from exc
 
-        print("Motors were found")
+        logger.info("Motor connection established")
         self._connection_z.enable_alerts()
         device_list = self._connection_z.detect_devices()
         if not device_list:
@@ -243,7 +247,7 @@ class HardwareWorker(QObject):
     def zeroPosition(self):
         self._pos1_0 = self._axis1.get_position(Units.LENGTH_MILLIMETRES)
         self._pos2_0 = self._axis2.get_position(Units.LENGTH_MILLIMETRES)
-        print("Init pos 1: {}, pos2: {}".format(self._pos1_0, self._pos2_0))
+        logger.debug("Position zero: axis 1=%s, axis 2=%s", self._pos1_0, self._pos2_0)
         self._position_zeroed = True
         return self._pos1_0, self._pos2_0
 
@@ -353,7 +357,7 @@ class HardwareWorker(QObject):
         self._force1, self._force2 = self.get_forces()
         self._init_offset_1 = self._target_load1 - self._force1
         self._init_offset_2 = self._target_load2 - self._force2
-        print(f"Starting autoloading. Offset1: {self._init_offset_1}, Offset2: {self._init_offset_2}")
+        logger.info("Starting autoload: offsets=(%s, %s)", self._init_offset_1, self._init_offset_2)
 
         if self._can_start_autoload():
             self._start_time = round(time.perf_counter(), 5)
@@ -406,7 +410,6 @@ class HardwareWorker(QObject):
             v1 = min(max_velocity, max(-max_velocity, -kp * offset1))
             v2 = min(max_velocity, max(-max_velocity, -kp * offset2))
             self.signal_autoload_progress.emit(self._force1, self._force2, v1, v2)
-            print(f"force1: {self._force1}, force2: {self._force2}, vel1: {v1}, vel2: {v2}")
             self.move_velocity_ax1(v1)
             self.move_velocity_ax2(v2)
             return
