@@ -97,7 +97,7 @@ Newtons are grams times `9.80665 / 1000`. No calibration commands are sent.
 The obsolete `ip_daq` argument/key is accepted for compatibility and ignored.
 
 Acquisition runs separately from motor commands. Force getters read cached
-samples; unavailable/stale samples raise `ForceDataError`. During load control
+samples; unavailable/stale samples raise `ForceDataError`. During load or displacement control
 or autoload a 20 ms watchdog stops both motors when either channel exceeds the
 age limit. A force fault cancels the session and blocks further motion until
 hardware is disconnected and reconnected. Actual stop latency also includes
@@ -116,7 +116,11 @@ Smoke test (start with motors stationary and a low test load):
 5. Stop/disconnect normally and confirm the ports can reopen without restarting.
 
 Run simulated protocol/cache/stop checks with `python -m unittest discover -s tests`.
-These mock Qt, serial ports, and motor SDK calls; they do not validate the GUI event loop or replace hardware verification.
+Protocol checks mock Qt and vendor dependencies. Lifecycle checks use real Qt
+threads with simulated hardware to verify responsive commands, cancellation,
+timeouts, and failure cleanup. Install the Python dependencies above to run those
+checks; they are skipped if those dependencies are unavailable. These checks do
+not replace hardware verification.
 Protocol reference: [Mantracourt DSCUSB Advanced Manual](https://us.mantracourt.com/wp-content/uploads/2017/10/DSCUSB_Advanced_Manual.pdf).
 
 ## Notes

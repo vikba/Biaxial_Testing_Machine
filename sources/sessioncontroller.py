@@ -48,13 +48,14 @@ class TestSessionController(QObject):
         self.signal_state_changed.emit(state)
 
     def connect_hardware(self, config: MachineConfig):
-        if self._mot_daq is not None:
+        if self._mot_daq is not None and self._mot_daq._thread.isRunning():
             return self._mot_daq
         self._mot_daq = MotorDAQInterface(
             config.unit_enum,
             ip_motor=config.runtime.ip_motor,
             force_config=config.force,
         )
+        self._mot_daq.signal_command_finished.connect(self._handle_hardware_command)
         self._mot_daq.signal_live_forces.connect(self.signal_live_forces.emit)
         self._mot_daq.signal_error.connect(self.signal_error.emit)
         self._mot_daq.signal_force_fault.connect(self._handle_force_fault)
@@ -70,9 +71,8 @@ class TestSessionController(QObject):
     def disconnect_hardware(self):
         if self._mot_daq is None:
             return
+        self._set_state(SessionState.STOPPING)
         self._mot_daq.stop()
-        self._mot_daq = None
-        self._set_state(SessionState.DISCONNECTED)
 
     def update_units(self, config: MachineConfig):
         self._current_config = config
@@ -110,6 +110,7 @@ class TestSessionController(QObject):
             self._mot_daq.stop_motors()
 
     def perform_autoload(self, config: MachineConfig):
+        config.validate()
         self._require_hardware()
         if (self._active_test is not None and self._active_test.isRunning()) or self._state in (
             SessionState.RUNNING_PRECONDITION,
@@ -117,6 +118,7 @@ class TestSessionController(QObject):
             SessionState.STOPPING,
         ):
             raise RuntimeError("Stop the current test before starting manual autoload.")
+        self._set_state(SessionState.AUTOLOADING)
         result = self._mot_daq.perform_autoload(
             float(config.load_test.tareload1),
             float(config.load_test.tareload2),
@@ -124,6 +126,7 @@ class TestSessionController(QObject):
         return result
 
     def prepare_test(self, config: MachineConfig, tab_index: int, allow_existing_sample: bool = False):
+        config.validate(tab_index)
         self._require_hardware()
         sample_name = config.runtime.sample_name.strip()
         if not sample_name:
@@ -142,8 +145,9 @@ class TestSessionController(QObject):
     def start_test(self, config: MachineConfig, tab_index: int, allow_existing_sample: bool = False):
         if self._active_test is not None and self._active_test.isRunning():
             raise RuntimeError("A test is already running.")
-        if self._state == SessionState.AUTOLOADING:
-            raise RuntimeError("Manual autoload is active. Stop it before starting a test.")
+        if self._state in (SessionState.AUTOLOADING, SessionState.RUNNING_PRECONDITION,
+                            SessionState.RUNNING_TEST, SessionState.STOPPING, SessionState.ERROR):
+            raise RuntimeError("Hardware is busy or faulted. Stop or reconnect before starting a test.")
 
         result = self.prepare_test(config, tab_index, allow_existing_sample=allow_existing_sample)
         if result == "sample_exists":
@@ -152,42 +156,60 @@ class TestSessionController(QObject):
         if not self._mot_daq.is_initialized():
             raise RuntimeError("Motors and DAQ not connected or not initialized!")
 
-        if tab_index == 0:
-            self._mot_daq.arm_force_guard()
         self.signal_reset_charts.emit()
         self.signal_ui_block_requested.emit(True)
         self._set_state(SessionState.RUNNING_PRECONDITION if tab_index == 0 else SessionState.RUNNING_TEST)
-        self._mot_daq.zeroPosition()
-        result.start()
+        result._execute = True
+        try:
+            result.start()
+        except Exception:
+            self._active_test = None
+            self._active_tab_index = None
+            self.stop_test()
+            raise
         return result
 
     def stop_test(self):
         self._set_state(SessionState.STOPPING)
-        if self._active_test is not None:
-            self._active_test.stop()
-            self._active_test = None
-            self._active_tab_index = None
-        if self._mot_daq is not None:
-            self._mot_daq.stop_test()
-        self.signal_ui_block_requested.emit(False)
-        self._refresh_ready_state()
+        try:
+            if self._active_test is not None:
+                self._active_test.stop()
+        finally:
+            if self._mot_daq is not None and self._mot_daq._thread.isRunning():
+                self._mot_daq.stop_test()
+            else:
+                self.signal_ui_block_requested.emit(False)
+                self._set_state(SessionState.DISCONNECTED)
 
     def shutdown(self):
-        self.stop_test()
-        self.disconnect_hardware()
+        try:
+            self.stop_test()
+        finally:
+            self.disconnect_hardware()
 
     @pyqtSlot(str)
     def _handle_force_fault(self, message):
-        self.stop_test()
-        self.signal_error.emit(message + " Reconnect hardware to reset.")
+        self._set_state(SessionState.ERROR)
+        try:
+            if self._active_test is not None:
+                self._active_test.stop()
+        finally:
+            self.signal_ui_block_requested.emit(False)
+            self.signal_error.emit(message + " Reconnect hardware to reset.")
 
     def _require_hardware(self):
-        if self._mot_daq is None:
+        if self._mot_daq is None or not self._mot_daq._thread.isRunning() or self._mot_daq._closing or not self._mot_daq._worker._connected:
             raise RuntimeError("Connect to motors and DAQ first!")
+        if self._state in (SessionState.STOPPING, SessionState.ERROR):
+            raise RuntimeError("Hardware is stopping or faulted. Reconnect hardware to reset.")
 
     def _refresh_ready_state(self):
-        if self._mot_daq is None:
+        if self._mot_daq is None or not self._mot_daq._thread.isRunning():
             self._set_state(SessionState.DISCONNECTED)
+        elif self._mot_daq._closing:
+            self._set_state(SessionState.STOPPING)
+        elif self._mot_daq._worker._motion_blocked.is_set():
+            self._set_state(SessionState.ERROR)
         elif self._mot_daq.is_initialized():
             self._set_state(SessionState.READY)
         else:
@@ -225,7 +247,8 @@ class TestSessionController(QObject):
             raise ValueError("The selected tab is not supported.")
 
         test.signal_precond_finished.connect(self._handle_precond_finished)
-        test.signal_test_finished.connect(self._handle_test_finished)
+        test.finished.connect(self._handle_test_finished)
+        test.signal_error.connect(self._handle_force_fault)
         if hasattr(test, "signal_phase_changed"):
             test.signal_phase_changed.connect(self._handle_load_test_phase_changed)
         return test
@@ -272,11 +295,13 @@ class TestSessionController(QObject):
 
     @pyqtSlot()
     def _handle_test_finished(self):
+        failed = self._state == SessionState.ERROR or (self._active_test is not None and self._active_test._failure is not None)
         self._active_test = None
         self._active_tab_index = None
-        if self._mot_daq is not None:
+        if self._mot_daq is not None and self._mot_daq._thread.isRunning() and not self._mot_daq._closing:
             self._mot_daq.stop_test()
-        self.signal_save_charts.emit()
+        if not failed:
+            self.signal_save_charts.emit()
         self.signal_ui_block_requested.emit(False)
         self._refresh_ready_state()
 
@@ -313,6 +338,18 @@ class TestSessionController(QObject):
     def _handle_autoload_failed(self, message):
         self.signal_error.emit(message)
         self._refresh_ready_state()
+
+    @pyqtSlot(object)
+    def _handle_hardware_command(self, request):
+        if request.error is not None:
+            self._set_state(SessionState.ERROR)
+            if self._active_test is not None:
+                self._active_test.stop()
+            self.signal_ui_block_requested.emit(False)
+        elif request.method_name in ("zeroForce", "zeroPosition", "stop_test"):
+            if self._active_test is None or not self._active_test.isRunning():
+                self.signal_ui_block_requested.emit(False)
+                self._refresh_ready_state()
 
     @pyqtSlot()
     def _handle_hardware_connected(self):

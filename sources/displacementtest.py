@@ -6,13 +6,13 @@
 """
 
 from enum import Enum, auto
-from PyQt6.QtCore import QTimer, pyqtSignal
+from PyQt6.QtCore import QTimer, Qt, pyqtSignal
 import time
 from datetime import datetime
 import os
 
 from .mechanicaltest import MechanicalTest
-from .dscusb import ForceDataError
+from .configuration import AXIS_TRAVEL_MM
 
 
 class DisplacementTestPhase(Enum):
@@ -54,8 +54,23 @@ class DisplacementControlTest(MechanicalTest):
         print("Displacement Control Test updated.")
 
     def run(self):
+        try:
+            self._run_test()
+        except Exception as exc:
+            self._fail(exc)
+
+    def _run_test(self):
+        if not self._execute:
+            return
         self._init_variables()
-        self._execute = True
+        origins = self._mot_daq.zeroPosition()
+        if any(not 0 <= origin - length <= AXIS_TRAVEL_MM for origin, length in zip(origins, (self._max_disp1, self._max_disp2))):
+            raise ValueError("Requested displacement exceeds available axis travel.")
+        if not self._execute:
+            return
+        self._mot_daq.arm_force_guard()
+        if not self._execute:
+            return
         self._completed_half_cycles = 0
         self._remaining_half_cycles = 2 * self._num_cycles
         self._start_time = time.perf_counter()
@@ -83,29 +98,26 @@ class DisplacementControlTest(MechanicalTest):
         self._transition_to(DisplacementTestPhase.STRETCH)
 
         self._test_timer = QTimer()
-        self._test_timer.timeout.connect(self._tick)
+        self._test_timer.timeout.connect(self._tick, Qt.ConnectionType.DirectConnection)
         self._test_timer.start(self._sample_time)
         print("Timer started")
         self.exec()
 
     def _tick(self):
-        if not self._execute or self._phase == DisplacementTestPhase.FINISHED:
-            self._finish_test()
-            return
-
-        self._pos1, self._pos2 = self._mot_daq.get_positions()
         try:
+            if not self._execute or self._phase == DisplacementTestPhase.FINISHED:
+                self._finish_test()
+                return
+            self._pos1, self._pos2 = self._mot_daq.get_positions()
             self._force1, self._force2 = self._mot_daq.get_forces()
-        except ForceDataError:
-            self._finish_test()
-            return
-        self._current_time = time.perf_counter() - self._start_time
-        self._current_cycle_time = time.perf_counter() - self._phase_started_at
-
-        self._record_sample()
-        next_phase = self._next_phase_after_current_sample()
-        if next_phase is not None:
-            self._transition_to(next_phase)
+            self._current_time = time.perf_counter() - self._start_time
+            self._current_cycle_time = time.perf_counter() - self._phase_started_at
+            self._record_sample()
+            next_phase = self._next_phase_after_current_sample()
+            if next_phase is not None:
+                self._transition_to(next_phase)
+        except Exception as exc:
+            self._fail(exc)
 
     def _record_sample(self):
         self._update_arrays_emit_data()

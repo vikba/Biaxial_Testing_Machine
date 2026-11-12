@@ -6,7 +6,7 @@
 """
 
 from enum import Enum, auto
-from PyQt6.QtCore import QTimer, pyqtSignal
+from PyQt6.QtCore import QTimer, Qt, pyqtSignal
 import numpy as np
 import time
 from datetime import datetime
@@ -15,7 +15,6 @@ import os
 from .mechanicaltest import MechanicalTest
 from .state import State
 from .unit import Unit
-from .dscusb import ForceDataError
 
 
 class LoadTestPhase(Enum):
@@ -110,12 +109,13 @@ class LoadControlTest(MechanicalTest):
     def run(self):
         try:
             self._run_test()
-        except ForceDataError as exc:
-            self._mot_daq.force_fault(str(exc))
+        except Exception as exc:
+            self._fail(exc)
 
     def _run_test(self):
         print("LoadControlTest: Started")
-        self._execute = True
+        if not self._execute:
+            return
         self._state = State.PRECONDITIONING
         self._init_variables()
         self._start_time = time.perf_counter()
@@ -135,6 +135,11 @@ class LoadControlTest(MechanicalTest):
             self.signal_save_image.emit(self._build_image_path("first_frame"))
 
         self._mot_daq.zeroPosition()
+        if not self._execute:
+            return
+        self._mot_daq.arm_force_guard()
+        if not self._execute:
+            return
         self._write_points_reference(self._sample_folder())
         self._vel_ax1 = round(self._disp_guess1 / self._test_duration, 5)
         self._vel_ax2 = round(self._disp_guess2 / self._test_duration, 5)
@@ -149,7 +154,7 @@ class LoadControlTest(MechanicalTest):
         self._transition_to(first_phase)
 
         self._test_timer = QTimer()
-        self._test_timer.timeout.connect(self._tick)
+        self._test_timer.timeout.connect(self._tick, Qt.ConnectionType.DirectConnection)
         self._test_timer.start(self._sample_time)
         print("Timer started")
         self.exec()
@@ -157,9 +162,8 @@ class LoadControlTest(MechanicalTest):
     def _tick(self):
         try:
             self._control_tick()
-        except ForceDataError as exc:
-            self._execute = False
-            self._mot_daq.force_fault(str(exc))
+        except Exception as exc:
+            self._fail(exc)
 
     def _control_tick(self):
         if not self._execute or self._phase == LoadTestPhase.FINISHED:

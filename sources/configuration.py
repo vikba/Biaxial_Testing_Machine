@@ -9,6 +9,9 @@ from typing import Any
 from .unit import Unit
 
 
+AXIS_TRAVEL_MM = 83.0
+
+
 @dataclass
 class ForceConfig:
     axis1_serial: str = "0017835720"
@@ -90,6 +93,46 @@ class MachineConfig:
     load_test: LoadTestConfig = field(default_factory=LoadTestConfig)
     displacement_test: DisplacementTestConfig = field(default_factory=DisplacementTestConfig)
     force: ForceConfig = field(default_factory=ForceConfig)
+
+    def validate(self, tab_index: int | None = None) -> None:
+        """Validate user input before changing session state or issuing commands."""
+        if self.runtime.unit not in ("gram", "newton"):
+            raise ValueError("Unit must be gram or newton.")
+        sections = [(self.sample, tuple(vars(self.sample)))]
+        fields = ("tareload1", "tareload2")
+        if tab_index == 0:
+            fields += ("load_test1", "load_test2", "disp_guess1", "disp_guess2", "halfcycltime")
+        sections.append((self.load_test, fields))
+        if tab_index == 2:
+            sections.append((self.displacement_test, ("disptestspeed1", "disptestspeed2", "disptestlen1", "disptestlen2")))
+        elif tab_index not in (None, 0):
+            raise ValueError("The selected tab is not supported.")
+        for section, names in sections:
+            for name in names:
+                try:
+                    value = float(getattr(section, name))
+                except (TypeError, ValueError, OverflowError):
+                    raise ValueError(f"{name} must be a number.") from None
+                if not isfinite(value) or value < 0 or (value == 0 and not name.startswith("tareload")):
+                    raise ValueError(f"{name} must be finite and {'nonnegative' if name.startswith('tareload') else 'positive'}.")
+                # Each axis supplies half the configured displacement; travel is 83 mm.
+                if name.startswith(("disp_guess", "disptestlen")) and value > 2 * AXIS_TRAVEL_MM:
+                    raise ValueError(f"{name} exceeds the machine's {AXIS_TRAVEL_MM:g} mm per-axis travel.")
+        if tab_index is not None:
+            section = self.load_test if tab_index == 0 else self.displacement_test
+            names = ("cycleprecond", "cycletest") if tab_index == 0 else ("disptestcycle",)
+            for name in names:
+                try:
+                    value = int(str(getattr(section, name)))
+                except (TypeError, ValueError, OverflowError):
+                    raise ValueError(f"{name} must be a whole number.") from None
+                if value < 0 or (tab_index == 2 and value == 0):
+                    raise ValueError(f"{name} has an invalid cycle count.")
+            if tab_index == 0:
+                if int(section.cycleprecond) + int(section.cycletest) == 0:
+                    raise ValueError("At least one test or preconditioning cycle is required.")
+                if any(float(getattr(section, f"tareload{axis}")) >= float(getattr(section, f"load_test{axis}")) for axis in (1, 2)):
+                    raise ValueError("Target loads must exceed tare loads.")
 
     @property
     def unit_enum(self) -> Unit:

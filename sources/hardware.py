@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from concurrent.futures import CancelledError
 from dataclasses import dataclass, field
+from math import isfinite
 from threading import Event
 import time
 from typing import Any
@@ -9,7 +11,7 @@ from PyQt6.QtCore import QObject, QMetaObject, QThread, QTimer, Qt, pyqtSignal, 
 
 from zaber_motion.ascii import Connection
 from zaber_motion import Units
-from .configuration import ForceConfig
+from .configuration import AXIS_TRAVEL_MM, ForceConfig
 from .dscusb import ForceAcquisition, ForceDataError
 
 from .unit import Unit
@@ -23,11 +25,14 @@ class CommandRequest:
     event: Event = field(default_factory=Event)
     result: Any = None
     error: Exception | None = None
+    deadline: float = float("inf")
+    cancelled: Event = field(default_factory=Event)
 
 
 class HardwareWorker(QObject):
     FORCE_AVERAGE_WINDOW = 5
 
+    signal_command_finished = pyqtSignal(object)
     signal_live_forces = pyqtSignal(float, float)
     signal_hardware_connected = pyqtSignal()
     signal_hardware_disconnected = pyqtSignal()
@@ -45,6 +50,7 @@ class HardwareWorker(QObject):
         self._acquisition = None
         self._force_guard = False
         self._force_fault = None
+        self._motion_blocked = Event()
         self._units = Unit.Newton
         self._force1 = self._force2 = 0.0
         self._pos1_0 = self._pos2_0 = 0.0
@@ -68,13 +74,28 @@ class HardwareWorker(QObject):
     @pyqtSlot(object)
     def handle_command(self, request: CommandRequest):
         try:
+            if request.method_name not in ("stop_test", "stop_motors", "stop_motor1", "stop_motor2", "disconnect_hardware", "force_fault"):
+                if request.cancelled.is_set():
+                    raise CancelledError("Hardware command was cancelled.")
+                if time.monotonic() >= request.deadline:
+                    raise TimeoutError("Hardware command expired.")
             method = getattr(self, request.method_name)
             request.result = method(*request.args, **request.kwargs)
-        except Exception as exc:  # pragma: no cover - hardware path
+        except Exception as exc:
             request.error = exc
-            self.signal_error.emit(str(exc))
+            if self._connected and not request.cancelled.is_set():
+                self.force_fault(str(exc))
+            elif request.method_name == "connect_hardware":
+                try:
+                    self.disconnect_hardware()
+                except Exception as cleanup:
+                    request.error = RuntimeError(f"{exc}; disconnect failed: {cleanup}")
+                self.thread().quit()
         finally:
             request.event.set()
+            self.signal_command_finished.emit(request)
+            if request.method_name == "disconnect_hardware":
+                self.thread().quit()
 
     def connect_hardware(self, unit: Unit, ip_motor: str, ip_daq: str):
         self._units = unit
@@ -87,25 +108,21 @@ class HardwareWorker(QObject):
         self.signal_hardware_connected.emit()
 
     def disconnect_hardware(self):
-        self._execute_autoloading = False
-        self._stop_timer(self._autoload_timer)
-        self._stop_timer(self._telemetry_timer)
-        self._stop_timer(self._watchdog)
-        self._force_guard = False
-
-        try:
-            self.stop_motors()
-        finally:
-            if self._acquisition is not None:
-                self._acquisition.close()
-                self._acquisition = None
-            if hasattr(self, "_connection_z"):
-                self._connection_z.close()
-
-        self._connected = False
-        self._force_zeroed = False
-        self._position_zeroed = False
+        self._execute_autoloading = self._force_guard = False
+        actions = [self.stop_motors]
+        actions.extend(timer.stop for timer in (self._autoload_timer, self._telemetry_timer, self._watchdog))
+        actions.extend(resource.close for resource in (self._acquisition, getattr(self, "_connection_z", None)) if resource is not None)
+        errors = []
+        for action in actions:
+            try:
+                action()
+            except Exception as exc:
+                errors.append(str(exc))
+        self._acquisition = None
+        self._connected = self._force_zeroed = self._position_zeroed = False
         self.signal_hardware_disconnected.emit()
+        if errors:
+            raise RuntimeError("Disconnect failed: " + "; ".join(errors))
 
     def is_initialized(self):
         return self._force_zeroed and self._position_zeroed
@@ -146,13 +163,14 @@ class HardwareWorker(QObject):
             return
         try:
             self.get_forces()
-        except ForceDataError as exc:
+        except Exception as exc:
             self.force_fault(str(exc))
 
     def force_fault(self, message):
         if self._force_fault:
             return
         self._force_fault = message
+        self._motion_blocked.set()
         try:
             self.stop_test()
         except Exception as exc:
@@ -164,20 +182,28 @@ class HardwareWorker(QObject):
         self._check_force_guard()
         if self._force_fault:
             raise ForceDataError(self._force_fault + " Reconnect hardware to reset.")
+        if self._motion_blocked.is_set():
+            raise RuntimeError("Motion blocked after a hardware error. Reconnect hardware to reset.")
 
     def stop_test(self):
         self._force_guard = False
         self._execute_autoloading = False
-        self._stop_timer(self._autoload_timer)
-        self.stop_motors()
+        try:
+            self._stop_timer(self._autoload_timer)
+        finally:
+            self.stop_motors()
 
     def stop_motors(self):
-        try:
-            if hasattr(self, "_axis1"):
-                self._axis1.stop(wait_until_idle=False)
-        finally:
-            if hasattr(self, "_axis2"):
-                self._axis2.stop(wait_until_idle=False)
+        errors = []
+        for name in ("_axis1", "_axis2"):
+            try:
+                axis = getattr(self, name, None)
+                if axis is not None:
+                    axis.stop(wait_until_idle=False)
+            except Exception as exc:
+                errors.append(f"{name}: {exc}")
+        if errors:
+            raise RuntimeError("Motor stop failed: " + "; ".join(errors))
 
     def stop_motor1(self):
         self._axis1.stop()
@@ -277,7 +303,7 @@ class HardwareWorker(QObject):
         self._axis1.home(wait_until_idle=False)
         self._axis2.home(wait_until_idle=False)
         min_limit = 0
-        max_limit = 83
+        max_limit = AXIS_TRAVEL_MM
         self._axis1.settings.set("limit.min", min_limit, unit=Units.LENGTH_MILLIMETRES)
         self._axis1.settings.set("limit.max", max_limit, unit=Units.LENGTH_MILLIMETRES)
         self._axis2.settings.set("limit.min", min_limit, unit=Units.LENGTH_MILLIMETRES)
@@ -285,6 +311,8 @@ class HardwareWorker(QObject):
 
     def move_position_ax1(self, pos, vel):
         self._allow_motion()
+        if not isfinite(pos) or not 0 <= self._pos1_0 + pos <= AXIS_TRAVEL_MM or not isfinite(vel) or vel <= 0:
+            raise ValueError(f"Axis 1 target must be within 0?{AXIS_TRAVEL_MM:g} mm and speed must be finite and positive.")
         self._axis1.move_absolute(
             self._pos1_0 + pos,
             Units.LENGTH_MILLIMETRES,
@@ -295,6 +323,8 @@ class HardwareWorker(QObject):
 
     def move_position_ax2(self, pos, vel):
         self._allow_motion()
+        if not isfinite(pos) or not 0 <= self._pos2_0 + pos <= AXIS_TRAVEL_MM or not isfinite(vel) or vel <= 0:
+            raise ValueError(f"Axis 2 target must be within 0?{AXIS_TRAVEL_MM:g} mm and speed must be finite and positive.")
         self._axis2.move_absolute(
             self._pos2_0 + pos,
             Units.LENGTH_MILLIMETRES,
@@ -305,10 +335,14 @@ class HardwareWorker(QObject):
 
     def move_velocity_ax1(self, speed):
         self._allow_motion()
+        if not isfinite(speed):
+            raise ValueError("Axis 1 speed must be finite.")
         self._axis1.move_velocity(speed, Units.VELOCITY_MILLIMETRES_PER_SECOND)
 
     def move_velocity_ax2(self, speed):
         self._allow_motion()
+        if not isfinite(speed):
+            raise ValueError("Axis 2 speed must be finite.")
         self._axis2.move_velocity(speed, Units.VELOCITY_MILLIMETRES_PER_SECOND)
 
     def perform_autoload(self, target_load1, target_load2):
@@ -348,7 +382,7 @@ class HardwareWorker(QObject):
     def _autoload_step(self):
         try:
             self._run_autoload_step()
-        except ForceDataError as exc:
+        except Exception as exc:
             self.force_fault(str(exc))
 
     def _run_autoload_step(self):
@@ -398,11 +432,14 @@ class HardwareWorker(QObject):
 
 
 class MotorDAQInterface(QObject):
+    COMMAND_TIMEOUT = 5.0
+
     signal_autoload_started = pyqtSignal(float, float)
     signal_autoloading_finished = pyqtSignal()
     signal_autoloading_progress = pyqtSignal(float, float, float, float)
     signal_autoload_rejected = pyqtSignal(str)
     signal_autoload_failed = pyqtSignal(str)
+    signal_command_finished = pyqtSignal(object)
     signal_live_forces = pyqtSignal(float, float)
     signal_error = pyqtSignal(str)
     signal_force_fault = pyqtSignal(str)
@@ -416,9 +453,14 @@ class MotorDAQInterface(QObject):
         self._units = unit
         self._ip_motor = ip_motor
         self._thread = QThread()
+        self._pending = {}
+        self._motion_cancelled = Event()
+        self._closing = False
         self._worker = HardwareWorker(force_config or ForceConfig())
         self._worker.moveToThread(self._thread)
         self._command_requested.connect(self._worker.handle_command)
+        self._worker.signal_command_finished.connect(self._complete_command)
+        self._thread.finished.connect(self._worker.deleteLater)
         self._worker.signal_live_forces.connect(self.signal_live_forces.emit)
         self._worker.signal_hardware_connected.connect(self.signal_hardware_connected.emit)
         self._worker.signal_hardware_disconnected.connect(self.signal_hardware_disconnected.emit)
@@ -429,22 +471,65 @@ class MotorDAQInterface(QObject):
         self._worker.signal_autoloading_finished.connect(self.signal_autoloading_finished.emit)
         self._worker.signal_autoload_rejected.connect(self.signal_autoload_rejected.emit)
         self._worker.signal_autoload_failed.connect(self.signal_autoload_failed.emit)
+        self._deadline_timer = QTimer(self)
+        self._deadline_timer.timeout.connect(self._complete_command)
+        self._deadline_timer.start(50)
         self._thread.start()
-        try:
-            self._invoke("connect_hardware", unit, ip_motor, ip_daq)
-        except Exception:
-            self.stop()
-            raise
+        self._invoke("connect_hardware", unit, ip_motor, ip_daq, wait=False)
 
-    def _invoke(self, method_name, *args, wait=True, **kwargs):
-        request = CommandRequest(method_name=method_name, args=args, kwargs=kwargs)
+    def _invoke(self, method_name, *args, wait=None, **kwargs):
+        cleanup = method_name in ("stop_test", "stop_motors", "stop_motor1", "stop_motor2", "disconnect_hardware", "force_fault")
+        if not self._thread.isRunning() or (self._closing and not cleanup):
+            raise RuntimeError("Hardware worker is unavailable.")
+        if not cleanup and QThread.currentThread().isInterruptionRequested():
+            raise CancelledError("Test was stopped.")
+        if cleanup:
+            self._motion_cancelled.set()
+            self._motion_cancelled = Event()
+        elif self._worker._motion_blocked.is_set():
+            raise RuntimeError("Motion blocked after a hardware error. Reconnect hardware to reset.")
+        request = CommandRequest(method_name, args, kwargs,
+                                 deadline=time.monotonic() + self.COMMAND_TIMEOUT,
+                                 cancelled=self._motion_cancelled if not cleanup else Event())
+        if wait is None:
+            wait = QThread.currentThread() is not self.thread()
+        if not wait:
+            self._pending[id(request)] = request
         self._command_requested.emit(request)
         if not wait:
             return None
-        request.event.wait()
+        if not request.event.wait(self.COMMAND_TIMEOUT):
+            request.cancelled.set()
+            self._worker._motion_blocked.set()
+            message = f"Hardware command {method_name} timed out; motor stop is unconfirmed."
+            self._invoke("force_fault", message, wait=False)
+            raise TimeoutError(message)
         if request.error is not None:
             raise request.error
         return request.result
+
+    @pyqtSlot()
+    @pyqtSlot(object)
+    def _complete_command(self, request=None):
+        # Also called by the GUI timer, so stalled commands cannot hide indefinitely.
+        for pending in list(self._pending.values()):
+            if not pending.event.is_set():
+                if time.monotonic() < pending.deadline and self._thread.isRunning():
+                    continue
+                pending.cancelled.set()
+                self._worker._motion_blocked.set()
+                pending.error = TimeoutError(f"Hardware command {pending.method_name} timed out; motor stop is unconfirmed.")
+                if not self._closing and self._thread.isRunning():
+                    self.stop()
+            if self._pending.pop(id(pending), None) is None:
+                continue
+            if isinstance(pending.error, CancelledError):
+                continue
+            if pending.error is not None:
+                self.signal_error.emit(str(pending.error))
+            self.signal_command_finished.emit(pending)
+        if not self._thread.isRunning() and not self._pending:
+            self._deadline_timer.stop()
 
     def force_fault(self, message):
         self._invoke("force_fault", message)
@@ -453,18 +538,16 @@ class MotorDAQInterface(QObject):
         self._invoke("arm_force_guard")
 
     def is_initialized(self):
-        return self._invoke("is_initialized")
+        return self._thread.isRunning() and not self._closing and self._worker._connected and self._worker.is_initialized()
 
     def change_units(self, unit):
         self._units = unit
         self._invoke("change_units", unit)
 
     def stop(self):
-        try:
-            self._invoke("disconnect_hardware")
-        finally:
-            self._thread.quit()
-            self._thread.wait()
+        if not self._closing and self._thread.isRunning():
+            self._closing = True
+            self._invoke("disconnect_hardware", wait=False)
 
     def stop_test(self):
         self._invoke("stop_test")

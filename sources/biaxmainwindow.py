@@ -243,19 +243,34 @@ class BiaxMainWindow(QMainWindow):
         self._reset_status_labels()
 
     def closeEvent(self, event):
-        self.__terminate_application()
-        event.accept()
+        if not getattr(self, "_closing", False):
+            self._closing = True
+            hardware = self._session_controller.hardware
+            test = self._session_controller.active_test
+            if hardware is not None:
+                hardware._thread.finished.connect(self.close)
+            if test is not None:
+                test.finished.connect(self.close)
+            self.__terminate_application()
+        hardware = self._session_controller.hardware
+        test = self._session_controller.active_test
+        if (hardware is not None and hardware._thread.isRunning()) or (test is not None and test.isRunning()):
+            event.ignore()
+        else:
+            event.accept()
 
     def __terminate_application(self):
-        self.signal_stop.emit()
-        self._session_controller.shutdown()
-        print("Application terminated")
+        try:
+            self._session_controller.shutdown()
+        finally:
+            self.signal_stop.emit()
+        print("Application shutdown requested")
 
     def __start_test(self):
-        self.read_ui_into_config(self._config)
-        self.save_config(self._config)
-
         try:
+            self.read_ui_into_config(self._config)
+            self._config.validate(self.tabWidget.currentIndex())
+            self.save_config(self._config)
             result = self._session_controller.start_test(self._config, self.tabWidget.currentIndex())
             if result == "sample_exists":
                 reply = QMessageBox.question(
@@ -275,6 +290,8 @@ class BiaxMainWindow(QMainWindow):
                 )
             self.save_config(self._config, save_sample_copy=True)
         except Exception as exc:
+            if self._session_controller.active_test is not None and self._session_controller.active_test.isRunning():
+                self._session_controller.stop_test()
             self._set_test_running_ui(False)
             self._show_warning(str(exc))
             return

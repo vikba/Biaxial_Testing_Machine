@@ -31,6 +31,10 @@ with patch.dict(sys.modules, {
     from sources import dscusb as dsc
     from sources.hardware import HardwareWorker
 
+# Keep these mock-backed module references local; real Qt tests import fresh modules.
+sys.modules.pop("sources.hardware", None)
+sys.modules.pop("sources.dscusb", None)
+
 
 class ForceTests(unittest.TestCase):
     def cache(self):
@@ -118,6 +122,7 @@ class ForceTests(unittest.TestCase):
         worker._acquisition = self.cache()
         worker._units = unit.Unit.Newton
         worker._force_fault = None
+        worker._motion_blocked = Event()
         worker._axis1, worker._axis2 = Mock(), Mock()
         worker._autoload_timer = Mock()
         worker._stop_timer = Mock()

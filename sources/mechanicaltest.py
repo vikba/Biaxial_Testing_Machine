@@ -5,6 +5,8 @@
 
 """
 
+from concurrent.futures import CancelledError
+
 from PyQt6.QtCore import QMetaObject, QThread, QTimer, Qt, pyqtSignal, pyqtSlot
 import numpy as np
 import time
@@ -27,6 +29,7 @@ class MechanicalTest (QThread):
     signal_save_image = pyqtSignal(str)
     signal_precond_finished = pyqtSignal()
     signal_test_finished = pyqtSignal()
+    signal_error = pyqtSignal(str)
     
     
     _sample_time = 150  #milli seconds
@@ -38,6 +41,7 @@ class MechanicalTest (QThread):
         self._mot_daq = mot_daq
 
         self._use_video = False #Flag indicating whether marks are recorded
+        self._failure = None
         self._execute = False #Variable indicating if the test should continue running
         self._state = State.PRECONDITIONING
         
@@ -96,13 +100,34 @@ class MechanicalTest (QThread):
         Stops movemets, connections and  the execution of the current QThread
         """
         self._execute = False
-        self.stop_measurement()
-        self._dispose_test_timer()
-
-        self.quit()
-        if QThread.currentThread() is not self:
-            self.wait()
+        self.requestInterruption()
+        try:
+            self.stop_measurement()
+        except Exception as exc:
+            self._fail(exc)
+        finally:
+            self._dispose_test_timer()
+            self.quit()
     
+    def _fail(self, error):
+        if self._failure is not None:
+            return
+        if isinstance(error, CancelledError) and not self._execute:
+            self._dispose_test_timer()
+            self.quit()
+            return
+        self._failure = str(error)
+        self._execute = False
+        try:
+            self._mot_daq.force_fault(self._failure)
+        except Exception as stop_error:
+            self._failure += f"; motor stop is unconfirmed: {stop_error}"
+        finally:
+            self._dispose_test_timer()
+            self.quit()
+            self.signal_start_stop_tracking.emit(False)
+            self.signal_error.emit(self._failure)
+
     def stop_measurement(self):
         """
         Stop the measurement by setting the _execute flag to False and stopping axis1 and axis2.
@@ -121,7 +146,7 @@ class MechanicalTest (QThread):
                 timer.stop()
             timer.deleteLater()
         elif self.isRunning():
-            QMetaObject.invokeMethod(timer, "stop", Qt.ConnectionType.BlockingQueuedConnection)
+            QMetaObject.invokeMethod(timer, "stop", Qt.ConnectionType.QueuedConnection)
             QMetaObject.invokeMethod(timer, "deleteLater", Qt.ConnectionType.QueuedConnection)
 
         self._test_timer = None
