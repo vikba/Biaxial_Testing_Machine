@@ -5,7 +5,7 @@ from time import monotonic, sleep
 import unittest
 from unittest.mock import Mock, patch
 
-from sources.configuration import MachineConfig
+from biaxial_testing_machine.configuration import MachineConfig
 
 
 class ValidationTests(unittest.TestCase):
@@ -49,10 +49,10 @@ class ValidationTests(unittest.TestCase):
 RUNTIME_AVAILABLE = all(find_spec(name) is not None for name in ('PyQt6', 'numpy', 'openpyxl', 'serial', 'zaber_motion'))
 if RUNTIME_AVAILABLE:
     from PyQt6.QtCore import QCoreApplication, QTimer
-    from sources.hardware import HardwareWorker, MotorDAQInterface
-    from sources.sessioncontroller import TestSessionController
-    from sources.sessionstate import SessionState
-    from sources.unit import Unit
+    from biaxial_testing_machine.hardware import HardwareWorker, MotorDAQInterface
+    from biaxial_testing_machine.sessioncontroller import TestSessionController
+    from biaxial_testing_machine.sessionstate import SessionState
+    from biaxial_testing_machine.unit import Unit
 
 
 def pump(predicate, timeout=3):
@@ -231,8 +231,8 @@ class LifecycleTests(unittest.TestCase):
         self.axis1.move_velocity.assert_not_called()
 
     def test_timer_failures_stop_both_test_types(self):
-        from sources.loadtest import LoadControlTest
-        from sources.displacementtest import DisplacementControlTest
+        from biaxial_testing_machine.loadtest import LoadControlTest
+        from biaxial_testing_machine.displacementtest import DisplacementControlTest
         for tab, test_type in ((0, LoadControlTest), (2, DisplacementControlTest)):
             with self.subTest(tab=tab):
                 controller, config = self.session()
@@ -271,8 +271,8 @@ class LifecycleTests(unittest.TestCase):
         self.axis2.move_velocity.assert_not_called()
 
     def test_cycle_completion_and_export_failure(self):
-        from sources.loadtest import LoadControlTest
-        from sources.displacementtest import DisplacementControlTest
+        from biaxial_testing_machine.loadtest import LoadControlTest
+        from biaxial_testing_machine.displacementtest import DisplacementControlTest
         self.acquisition.read.return_value = (1e6, 1e6)
         for axis in (self.axis1, self.axis2):
             axis.move_absolute.side_effect = lambda target, *args, axis=axis, **kwargs: setattr(axis.get_position, 'return_value', target)

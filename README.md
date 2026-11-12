@@ -17,11 +17,12 @@ The codebase is hardware-oriented and depends on vendor SDKs in addition to stan
 
 ## Repository Layout
 
-- `main.py` - application entry point
-- `sources/` - GUI, hardware, session, and test-control modules
-- `resources/` - Qt `.ui` files and default configuration data
+- `main.py` - compatibility launcher for a source checkout
+- `biaxial_testing_machine/` - installed application package
+- `biaxial_testing_machine/resources/` - bundled Qt forms and default configuration
 - `tests/` - hardware-free checks
 - `docs/` - architecture notes
+- `pyproject.toml` - setuptools build configuration, dependencies, and launcher
 
 ## Requirements
 
@@ -51,13 +52,16 @@ git clone https://github.com/vikba/Biaxial_Testing_Machine.git
 cd Biaxial_Testing_Machine
 ```
 
-Create and activate a virtual environment, then install the Python dependencies you use in your environment:
+Create and activate a virtual environment, then install the application with all UI dependencies:
 
 ```bash
 python -m venv .venv
 .venv\Scripts\activate
-pip install -r requirements.txt
+python -m pip install .
 ```
+
+For editable development, use `python -m pip install -e .`. Dependencies are
+declared in `pyproject.toml`; `requirements.txt` delegates to the same project.
 
 Install the remaining vendor-specific packages and SDKs separately:
 
@@ -65,18 +69,49 @@ Install the remaining vendor-specific packages and SDKs separately:
 
 ## Running the Application
 
-Start the GUI with:
+Start the installed GUI from any directory:
 
-```bash
-python main.py
+```powershell
+biaxial-testing-machine
 ```
 
-Use Python 3.10 or newer. The application loads `resources/config.local.json` if
-present, otherwise `resources/config.example.json`. Saving settings writes only
-the ignored local file; sample exports still include their own configuration.
-Copy the example to the local filename to configure a fresh checkout. Set the
-motor IP, both sensor serials, and output folder for your workstation.
-Older flat configuration files remain readable; new saves use structured sections.
+Alternatively, use `python -m biaxial_testing_machine`. Running `python main.py`
+remains supported from a source checkout. Python 3.10 or newer is required.
+
+Qt forms and portable defaults are bundled in the package. Writable settings are
+loaded from `config.local.json` in the user's configuration directory:
+
+- Windows: `%LOCALAPPDATA%\biaxial-testing-machine\config.local.json`
+- Linux: `$XDG_CONFIG_HOME/biaxial-testing-machine/config.local.json`, defaulting
+  to `~/.config/biaxial-testing-machine/config.local.json`
+- macOS: `~/Library/Application Support/biaxial-testing-machine/config.local.json`
+
+When no settings file exists, the bundled example is loaded. Saving settings
+creates the configuration directory. Set the motor IP, sensor serials, camera ID,
+and output folder for your workstation. Flat legacy configuration files remain
+readable. Experimental output stays in the selected output folder.
+
+To keep an existing checkout configuration, copy `resources/config.local.json`
+to the user configuration location, or explicitly select it before launching:
+
+```powershell
+$env:BIAXIAL_CONFIG = "C:\path\to\resources\config.local.json"
+biaxial-testing-machine
+```
+
+The old local file is preserved; it is never included in the installed package.
+The `BIAXIAL_CONFIG` override can also select a shared lab configuration.
+
+## Building distributions
+
+```powershell
+python -m pip install build
+python -m build
+```
+
+This creates a wheel and source distribution in `dist/`. Both include the Qt
+forms, example configuration, and license. CI installs the built wheel and checks
+both launchers from outside the checkout on Windows and Linux.
 
 ## Vimba X camera
 
@@ -90,7 +125,7 @@ camera and its Ethernet adapter on compatible subnets, and check the GigE filter
 driver and packet size in Viewer. The application does not modify network settings.
 See the [Viewer guide](https://docs.alliedvision.com/vimba_x/viewerGuide.html).
 
-Set `runtime.camera_id` in your existing `resources/config.local.json` to the ID
+Set `runtime.camera_id` in your selected `config.local.json` to the ID
 shown in Viewer, for example `"DEV_000A47000000"`. An empty ID automatically
 selects the only discovered camera. With multiple cameras, acquisition reports
 their IDs and requires explicit configuration. Reconnection retains the selected
@@ -182,7 +217,7 @@ Protocol reference: [Mantracourt DSCUSB Advanced Manual](https://us.mantracourt.
 - Camera and motion-control features will not work unless the corresponding hardware SDKs are installed and connected.
 - Test results are exported through `openpyxl`.
 - Application diagnostics are logged to the console at INFO level. Set the logging
-  level in `main.py` to DEBUG when detailed position and motion diagnostics are needed.
+  level in `biaxial_testing_machine/__main__.py` to DEBUG when detailed position and motion diagnostics are needed.
 
 ## License
 

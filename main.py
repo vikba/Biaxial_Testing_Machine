@@ -1,13 +1,5 @@
-import logging
+"""Compatibility launcher for running from a source checkout."""
+from biaxial_testing_machine.__main__ import main
 
-from PyQt6.QtWidgets import QApplication 
-
-from sources.biaxmainwindow import BiaxMainWindow
-
-if __name__ == '__main__':  
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    app = QApplication([])
-    app.setStyle('Fusion')
-    window = BiaxMainWindow()
-    window.show()
-    app.exec()
+if __name__ == "__main__":
+    raise SystemExit(main())

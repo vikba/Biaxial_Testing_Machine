@@ -1,6 +1,7 @@
 # Application structure
 
-`main.py` creates the Qt main window. `TestSessionController` owns the hardware
+`biaxial_testing_machine.__main__.main()` creates the Qt main window.
+`main.py` delegates to it for source-checkout compatibility. `TestSessionController` owns the hardware
 interface and active test; load and displacement tests share `MechanicalTest`
 for recording, export, and stop behavior.
 
@@ -29,10 +30,13 @@ applies the configured mechanical transmission factor, and converts to Newtons
 only when requested. Internal DSCUSB calibration is never written.
 
 Configuration loading supports old flat keys. Saving uses nested sections.
-`resources/config.example.json` is portable; `config.local.json` contains the
-workstation's settings and is ignored by Git.
+The Qt forms and `resources/config.example.json` are bundled inside the package
+and accessed through `importlib.resources`. Writable `config.local.json` settings
+live in the platform's user configuration directory (`platformdirs`), or at the
+`BIAXIAL_CONFIG` override. Old checkout settings can be copied or selected through
+that override; installation does not overwrite them.
 
-The legacy `sources.motordaqinterface` import and constructor `ip_daq` argument
+The legacy `biaxial_testing_machine.motordaqinterface` import and constructor `ip_daq` argument
 remain accepted for compatibility. Gantner acquisition and calibration are gone.
 
 `MachineConfig.validate()` checks the selected test's numeric parameters before
@@ -58,5 +62,5 @@ when it uses video strain; the existing test failure path requests motor stops.
 Gain/exposure requests are read under a lock and clamped to feature limits and
 increments. UI controls receive only metadata and copied image arrays.
 
-Application diagnostics use module loggers. `main.py` configures console logging
+Application diagnostics use module loggers. `biaxial_testing_machine.__main__` configures console logging
 at INFO level; detailed position and motion messages are available at DEBUG level.

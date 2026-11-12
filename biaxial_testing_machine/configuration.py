@@ -210,5 +210,6 @@ class ConfigRepository:
 
     def save(self, config: MachineConfig, path: str | None = None) -> None:
         target = path or self._path
+        os.makedirs(os.path.dirname(os.path.abspath(target)), exist_ok=True)
         with open(target, "w", encoding="utf-8") as file:
             json.dump(config.to_dict(), file, indent=4)

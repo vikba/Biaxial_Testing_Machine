@@ -9,6 +9,9 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from importlib.resources import as_file, files
+
+from platformdirs import user_config_path
 
 from PyQt6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
 from PyQt6.uic import loadUi
@@ -16,18 +19,15 @@ from PyQt6.QtCore import QTimer, pyqtSlot, pyqtSignal
 from PyQt6.QtGui import QFont
 import pyqtgraph as pg
 
-if __package__ is None or __package__ == "":
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from sources.configuration import ConfigRepository, MachineConfig
-from sources.loadcalculator import LoadCalculatorWindow
-from sources.ringbuffer import RingBuffer
-from sources.sessioncontroller import TestSessionController
-from sources.state import State
-from sources.unit import Unit
-from sources.camerawindow import VideoThread, VideoWindow
-from sources.loadtest import LoadControlTest
-from sources.displacementtest import DisplacementControlTest
+from biaxial_testing_machine.configuration import ConfigRepository, MachineConfig
+from biaxial_testing_machine.loadcalculator import LoadCalculatorWindow
+from biaxial_testing_machine.ringbuffer import RingBuffer
+from biaxial_testing_machine.sessioncontroller import TestSessionController
+from biaxial_testing_machine.state import State
+from biaxial_testing_machine.unit import Unit
+from biaxial_testing_machine.camerawindow import VideoThread, VideoWindow
+from biaxial_testing_machine.loadtest import LoadControlTest
+from biaxial_testing_machine.displacementtest import DisplacementControlTest
 
 
 logger = logging.getLogger(__name__)
@@ -49,13 +49,12 @@ class BiaxMainWindow(QMainWindow):
         self._warning_blink_enabled = False
         self._warning_color_is_red = False
 
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        ui_file_path = os.path.join(script_dir, "..", "resources", "biax_ui.ui")
-        loadUi(ui_file_path, self)
+        with as_file(files(__package__).joinpath("resources/biax_ui.ui")) as ui_path:
+            loadUi(str(ui_path), self)
 
         self.__init_variables()
         self._init_buffers()
-        self._init_config_repository(script_dir)
+        self._init_config_repository()
         self._init_controller()
         self._bind_ui()
         self._configure_charts()
@@ -71,8 +70,8 @@ class BiaxMainWindow(QMainWindow):
         self._ringbuffer2 = RingBuffer(buffer_len)
         self._t_label = [i * self._liveforce_update_time / 1000 for i in range(buffer_len)]
 
-    def _init_config_repository(self, script_dir):
-        self._config_path = os.path.join(script_dir, "..", "resources", "config.local.json")
+    def _init_config_repository(self):
+        self._config_path = os.environ.get("BIAXIAL_CONFIG") or str(user_config_path("biaxial-testing-machine", appauthor=False) / "config.local.json")
         self._config_repository = ConfigRepository(self._config_path)
         self.load_config()
         if not self._config.runtime.folder:
@@ -153,8 +152,8 @@ class BiaxMainWindow(QMainWindow):
         if os.path.exists(self._config_path):
             self._config = self._config_repository.load()
         else:
-            example = os.path.join(os.path.dirname(self._config_path), "config.example.json")
-            self._config = ConfigRepository(example).load()
+            with as_file(files(__package__).joinpath("resources/config.example.json")) as example:
+                self._config = ConfigRepository(str(example)).load()
         self._apply_sample_config(self._config)
         return self._config
 

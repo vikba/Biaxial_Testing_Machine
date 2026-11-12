@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "biaxial-testing-machine"
+version = "0.1.0"
+description = "PyQt6 application for biaxial mechanical testing and data acquisition"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
+dependencies = [
+    "PyQt6",
+    "pyqtgraph",
+    "numpy",
+    "opencv-python",
+    "openpyxl",
+    "pyserial",
+    "zaber-motion",
+    "platformdirs",
+]
+
+[project.scripts]
+biaxial-testing-machine = "biaxial_testing_machine.__main__:main"
+
+[project.urls]
+Repository = "https://github.com/vikba/Biaxial_Testing_Machine"
+
+[tool.setuptools.packages.find]
+include = ["biaxial_testing_machine", "biaxial_testing_machine.resources"]
+namespaces = false
+
+[tool.setuptools.package-data]
+biaxial_testing_machine = ["resources/*.ui", "resources/config.example.json"]

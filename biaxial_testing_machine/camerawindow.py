@@ -121,7 +121,7 @@ class VideoThread(QThread):
     @pyqtSlot()
     def stop(self):
         """
-        Stops the video thread and releases resources.
+        Stops the video thread and releases rebiaxial_testing_machine.
         """
         self._execute = False
         self._stop.set()

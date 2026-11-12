@@ -1,7 +1,2 @@
-PyQt6
-pyqtgraph
-numpy
-opencv-python
-openpyxl
-pyserial
-zaber-motion
+# Dependencies are declared in pyproject.toml.
+.

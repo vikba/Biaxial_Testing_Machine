@@ -7,7 +7,7 @@ import sys
 import unittest
 from unittest.mock import Mock, patch, mock_open
 
-from sources import configuration as config, unit
+from biaxial_testing_machine import configuration as config, unit
 
 serial = ModuleType("serial")
 serial.SerialException = OSError
@@ -28,12 +28,12 @@ with patch.dict(sys.modules, {
     "PyQt6": ModuleType("PyQt6"), "PyQt6.QtCore": qt,
     "zaber_motion": zaber, "zaber_motion.ascii": ascii_module,
 }):
-    from sources import dscusb as dsc
-    from sources.hardware import HardwareWorker
+    from biaxial_testing_machine import dscusb as dsc
+    from biaxial_testing_machine.hardware import HardwareWorker
 
 # Keep these mock-backed module references local; real Qt tests import fresh modules.
-sys.modules.pop("sources.hardware", None)
-sys.modules.pop("sources.dscusb", None)
+sys.modules.pop("biaxial_testing_machine.hardware", None)
+sys.modules.pop("biaxial_testing_machine.dscusb", None)
 
 
 class ForceTests(unittest.TestCase):

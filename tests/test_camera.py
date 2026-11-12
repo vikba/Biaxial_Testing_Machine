@@ -16,7 +16,7 @@ if AVAILABLE:
     import numpy as np
     from PyQt6.QtCore import QPoint, QPointF
     from PyQt6.QtWidgets import QApplication
-    from sources.camerawindow import VideoThread, VideoWindow
+    from biaxial_testing_machine.camerawindow import VideoThread, VideoWindow
 
 
 def pump(predicate, timeout=3):
@@ -232,7 +232,7 @@ class CameraTests(unittest.TestCase):
             self.thread.run()
             self.assertTrue(any('matching VmbPy' in message for message in self.errors))
             if all(find_spec(name) is not None for name in ('pyqtgraph', 'openpyxl', 'serial', 'zaber_motion')):
-                from sources.biaxmainwindow import BiaxMainWindow
+                from biaxial_testing_machine.biaxmainwindow import BiaxMainWindow
                 window = BiaxMainWindow()
                 window.close()
 
@@ -286,9 +286,9 @@ class CameraTests(unittest.TestCase):
     def test_image_save_failures_are_reported(self):
         self.thread.save_image('unused.png')
         self.thread._img = np.zeros((10, 10), dtype=np.uint8)
-        with patch('sources.camerawindow.cv2.imwrite', return_value=False):
+        with patch('biaxial_testing_machine.camerawindow.cv2.imwrite', return_value=False):
             self.thread.save_image('unused.png')
-        with patch('sources.camerawindow.cv2.imwrite', side_effect=cv2.error('writer unavailable')):
+        with patch('biaxial_testing_machine.camerawindow.cv2.imwrite', side_effect=cv2.error('writer unavailable')):
             self.thread.save_image('unused.png')
         self.assertEqual(len(self.errors), 3)
         self.assertTrue(all('Could not save camera image' in error for error in self.errors))
@@ -296,7 +296,7 @@ class CameraTests(unittest.TestCase):
     def test_camera_fault_fails_only_a_video_dependent_test(self):
         if not all(find_spec(name) is not None for name in ('pyqtgraph', 'openpyxl', 'serial', 'zaber_motion')):
             self.skipTest('Full application dependencies are required')
-        from sources.biaxmainwindow import BiaxMainWindow
+        from biaxial_testing_machine.biaxmainwindow import BiaxMainWindow
         test = Mock()
         test._use_video = True
         test.isRunning.return_value = True
@@ -330,7 +330,7 @@ class CameraTests(unittest.TestCase):
         pump(lambda: not self.thread.isRunning() and not window.isVisible())
 
     def test_camera_id_config_roundtrip_and_legacy_default(self):
-        from sources.configuration import ConfigRepository
+        from biaxial_testing_machine.configuration import ConfigRepository
         repository = ConfigRepository('unused.json')
         with patch('builtins.open', mock_open(read_data='{"runtime":{"camera_id":" DEV_TEST "}}')), \
                 patch('os.path.exists', return_value=True):

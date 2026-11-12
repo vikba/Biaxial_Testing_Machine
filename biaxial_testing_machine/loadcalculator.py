@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import QApplication, QWidget
 from PyQt6.QtCore import pyqtSignal, pyqtSlot
 from PyQt6.uic import loadUi
 
-import os
+from importlib.resources import as_file, files
 
 from .unit import Unit
 
@@ -35,10 +35,8 @@ class LoadCalculatorWindow(QWidget):
         self.unit = unit
         
         # Load the UI file
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        ui_file_path = os.path.join(script_dir, '..', 'resources', 'load_calculator.ui')
-        
-        loadUi(ui_file_path, self)
+        with as_file(files(__package__).joinpath("resources/load_calculator.ui")) as ui_path:
+            loadUi(str(ui_path), self)
         
         # Connect the Calculate button to the calculation method
         self.buttonCalc.clicked.connect(self.calc_loads)
