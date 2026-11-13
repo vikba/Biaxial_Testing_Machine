@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 import json
 import os
+import tempfile
+from ipaddress import ip_address
 from math import isfinite
 from typing import Any
 
@@ -23,17 +25,25 @@ class ForceConfig:
     max_data_age: float = 0.25
 
     def __post_init__(self):
-        serials = (self.axis1_serial, self.axis2_serial)
-        if any(not isinstance(s, str) or len(s) != 10 or not s.isdecimal() for s in serials):
-            raise ValueError("DSCUSB serials must be ten-digit strings")
-        if serials[0] == serials[1]:
-            raise ValueError("Each axis requires a different DSCUSB serial")
-        for value in (self.axis1_transmission_factor, self.axis2_transmission_factor,
-                      self.timeout, self.max_data_age):
+        errors = self.validation_errors()
+        if errors:
+            raise ValueError(next(iter(errors.values())))
+
+    def validation_errors(self) -> dict[str, str]:
+        errors = {}
+        for name in ("axis1_serial", "axis2_serial"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or len(value) != 10 or not value.isascii() or not value.isdecimal():
+                errors[name] = "DSCUSB serials must be ten-digit strings."
+        if self.axis1_serial == self.axis2_serial:
+            errors["axis2_serial"] = "Each axis requires a different DSCUSB serial."
+        for name in ("axis1_transmission_factor", "axis2_transmission_factor", "timeout", "max_data_age"):
+            value = getattr(self, name)
             if not isfinite(value) or value <= 0:
-                raise ValueError("Force factors and timeouts must be finite and positive")
+                errors[name] = "Force factors and timeouts must be finite and positive."
         if 2 * self.timeout >= self.max_data_age:
-            raise ValueError("Maximum force age must exceed two serial timeouts")
+            errors["max_data_age"] = "Maximum force age must exceed two serial timeouts."
+        return errors
 
 
 @dataclass
@@ -94,6 +104,14 @@ class MachineConfig:
     load_test: LoadTestConfig = field(default_factory=LoadTestConfig)
     displacement_test: DisplacementTestConfig = field(default_factory=DisplacementTestConfig)
     force: ForceConfig = field(default_factory=ForceConfig)
+
+    def machine_settings_errors(self) -> dict[str, str]:
+        errors = self.force.validation_errors()
+        try:
+            ip_address(self.runtime.ip_motor)
+        except ValueError:
+            errors["ip_motor"] = "Enter a valid IPv4 or IPv6 address."
+        return errors
 
     def validate(self, tab_index: int | None = None) -> None:
         """Validate user input before changing session state or issuing commands."""
@@ -209,7 +227,20 @@ class ConfigRepository:
         )
 
     def save(self, config: MachineConfig, path: str | None = None) -> None:
-        target = path or self._path
-        os.makedirs(os.path.dirname(os.path.abspath(target)), exist_ok=True)
-        with open(target, "w", encoding="utf-8") as file:
-            json.dump(config.to_dict(), file, indent=4)
+        target = os.path.abspath(path or self._path)
+        directory = os.path.dirname(target)
+        os.makedirs(directory, exist_ok=True)
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", dir=directory, delete=False,
+                prefix=".config-", suffix=".tmp",
+            ) as file:
+                temporary = file.name
+                json.dump(config.to_dict(), file, indent=4, allow_nan=False)
+                file.flush()
+                os.fsync(file.fileno())
+            os.replace(temporary, target)
+        finally:
+            if temporary and os.path.exists(temporary):
+                os.unlink(temporary)

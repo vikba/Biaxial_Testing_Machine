@@ -76,7 +76,7 @@ class TestSessionController(QObject):
 
     def update_units(self, config: MachineConfig):
         self._current_config = config
-        if self._mot_daq is not None:
+        if self._mot_daq is not None and self._mot_daq._thread.isRunning() and not self._mot_daq._closing:
             self._mot_daq.change_units(config.unit_enum)
 
     def zero_force(self):

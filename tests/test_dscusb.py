@@ -3,7 +3,9 @@ from threading import Event, Lock
 from collections import deque
 from types import ModuleType, SimpleNamespace
 import json
+from pathlib import Path
 import sys
+import tempfile
 import unittest
 from unittest.mock import Mock, patch, mock_open
 
@@ -155,13 +157,11 @@ class ForceTests(unittest.TestCase):
             saved = repository.load()
         self.assertEqual(saved.force.axis2_serial, "0017835697")
         saved.force.axis2_transmission_factor = 1.0
-        output = mock_open()
-        with patch("builtins.open", output):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "config.json"
+            repository = config.ConfigRepository(str(path))
             repository.save(saved)
-        encoded = "".join(call.args[0] for call in output().write.call_args_list)
-        self.assertEqual(json.loads(encoded)["force"]["axis2_transmission_factor"], 1.0)
-        with patch("builtins.open", mock_open(read_data=encoded)), \
-                patch.object(config.os.path, "exists", return_value=True):
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["force"]["axis2_transmission_factor"], 1.0)
             self.assertEqual(repository.load().force.axis2_transmission_factor, 1.0)
 
     def test_duplicate_device_cleanup(self):

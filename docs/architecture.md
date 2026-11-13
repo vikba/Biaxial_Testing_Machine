@@ -42,6 +42,18 @@ installation does not overwrite workstation settings.
 Per-experiment `config_test.json` files are output snapshots and are not loaded
 as workstation settings.
 
+`MachineConfigDialog` edits a copy, reusing configuration validation for field
+errors. The main window captures unsaved experiment controls without applying
+them, then replaces the live config only after saving succeeds. The Settings
+menu checks session state and hardware, camera, and test threads; the save callback
+checks again. Disconnect requests asynchronous shutdown before allowing edits.
+The next connection uses the new settings; changing camera selection also clears
+the stopped video worker's retained identity.
+
+`ConfigRepository.save()` flushes a temporary file in the destination directory
+and atomically replaces the destination. Failed saves preserve the previous file
+and remove the temporary file. No AppData storage is used.
+
 The legacy `biaxial_testing_machine.motordaqinterface` import and constructor `ip_daq` argument
 remain accepted for compatibility. Gantner acquisition and calibration are gone.
 

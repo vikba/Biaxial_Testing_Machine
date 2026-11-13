@@ -94,6 +94,12 @@ class VideoThread(QThread):
         self._cam = None  # Camera object
         self._consecutive_timeouts = 0
 
+    def set_camera_id(self, camera_id):
+        """Change selection only after acquisition has fully stopped."""
+        if self.isRunning():
+            raise RuntimeError("Stop camera acquisition before changing camera selection.")
+        self._camera_id = camera_id.strip()
+
     def _initVariables(self):
         """
         Initialize variables to store tracks of marks and groups.

@@ -107,6 +107,18 @@ biaxial-testing-machine
 The local file is preserved; it is never included in the installed package.
 The `BIAXIAL_CONFIG` override can also select a shared lab configuration.
 
+Open **Settings → Machine configuration…** to edit motor IP, camera ID, and
+force-sensor serial numbers. **Auto-select single camera** requires exactly one
+discovered camera. **Show advanced force settings** exposes transmission factors
+and timing values in seconds. Factors scale measured forces without changing
+sensor calibration; maximum data age must exceed twice the serial timeout.
+
+Stop tests and autoload first, then use **Settings → Disconnect devices** and wait
+for shutdown to finish before editing. **Save** validates and atomically updates
+the displayed config file, preserving experiment controls. **Cancel** changes
+nothing. Reconnect with **Connect** or **Camera** to use the saved settings without
+restarting. The example template and previous test snapshots stay unchanged.
+
 ## Building distributions
 
 ```powershell

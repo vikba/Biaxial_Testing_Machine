@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from copy import deepcopy
 from importlib.resources import as_file, files
 from pathlib import Path
 
@@ -20,9 +21,11 @@ import pyqtgraph as pg
 
 from biaxial_testing_machine.configuration import ConfigRepository, MachineConfig
 from biaxial_testing_machine.loadcalculator import LoadCalculatorWindow
+from biaxial_testing_machine.machineconfigdialog import MachineConfigDialog
 from biaxial_testing_machine.ringbuffer import RingBuffer
 from biaxial_testing_machine.sessioncontroller import TestSessionController
 from biaxial_testing_machine.state import State
+from biaxial_testing_machine.sessionstate import SessionState
 from biaxial_testing_machine.unit import Unit
 from biaxial_testing_machine.camerawindow import VideoThread, VideoWindow
 from biaxial_testing_machine.loadtest import LoadControlTest
@@ -56,6 +59,7 @@ class BiaxMainWindow(QMainWindow):
         self._init_config_repository()
         self._init_controller()
         self._bind_ui()
+        self._init_settings_menu()
         self._configure_charts()
         self.populate_ui(self._config)
 
@@ -113,6 +117,68 @@ class BiaxMainWindow(QMainWindow):
         self.buttonMoveBackAx2.released.connect(self.__stop_movement)
 
         self.buttonGrams.toggled.connect(self.__change_units)
+
+    def _init_settings_menu(self):
+        menu = self.menuBar().addMenu("Settings")
+        self._machine_config_action = menu.addAction("Machine configuration…", self._open_machine_configuration)
+        self._disconnect_devices_action = menu.addAction("Disconnect devices", self._disconnect_devices)
+        menu.aboutToShow.connect(self._update_settings_actions)
+        self._settings_timer = QTimer(self)
+        self._settings_timer.timeout.connect(self._update_settings_actions)
+        self._settings_timer.start(200)
+        self._update_settings_actions()
+
+    def _machine_activity(self):
+        controller = self._session_controller
+        hardware, test = controller.hardware, controller.active_test
+        video = getattr(self, "_video_thread", None)
+        devices_running = ((hardware is not None and hardware._thread.isRunning())
+                           or (video is not None and video.isRunning()))
+        busy = (getattr(self, "_closing", False)
+                or controller.state in (SessionState.RUNNING_PRECONDITION, SessionState.RUNNING_TEST,
+                                        SessionState.AUTOLOADING, SessionState.STOPPING)
+                or (test is not None and test.isRunning()))
+        return devices_running, busy
+
+    def _can_edit_machine_configuration(self):
+        return not any(self._machine_activity())
+
+    def _update_settings_actions(self):
+        connected, busy = self._machine_activity()
+        self._machine_config_action.setEnabled(not connected and not busy)
+        self._machine_config_action.setToolTip("Stop tests and disconnect devices before editing machine settings.")
+        self._disconnect_devices_action.setEnabled(bool(connected and not busy))
+
+    def _disconnect_devices(self):
+        connected, busy = self._machine_activity()
+        if not connected or busy:
+            return
+        hardware = self._session_controller.hardware
+        if hardware is not None and hardware._thread.isRunning():
+            self._session_controller.disconnect_hardware()
+        if hasattr(self, "_video_thread"):
+            self._video_thread.stop()
+            self._video_window.close()
+        self._update_settings_actions()
+
+    def _open_machine_configuration(self):
+        if self._can_edit_machine_configuration():
+            candidate = self.read_ui_into_config(deepcopy(self._config), apply=False)
+            MachineConfigDialog(candidate, os.path.abspath(self._config_path), self._save_machine_configuration,
+                                self._can_edit_machine_configuration, self).exec()
+
+    def _save_machine_configuration(self, candidate):
+        if not self._can_edit_machine_configuration():
+            raise RuntimeError("Stop tests and disconnect devices before saving machine settings.")
+        errors = candidate.machine_settings_errors()
+        if errors:
+            raise ValueError(next(iter(errors.values())))
+        self._config_repository.save(candidate)
+        if candidate.runtime.camera_id != self._config.runtime.camera_id and hasattr(self, "_video_thread"):
+            self._video_thread.set_camera_id(candidate.runtime.camera_id)
+        self._config = candidate
+        self._apply_sample_config(candidate)
+        self.statusBar().showMessage("Machine settings saved; the next connection will use them.", 5000)
 
     def _configure_charts(self):
         self.ChartWidget_1.addLegend()
@@ -192,7 +258,7 @@ class BiaxMainWindow(QMainWindow):
         self.factorCyclNumD.setText(config.displacement_test.disptestcycle)
         self._update_units_labels(config.unit_enum)
 
-    def read_ui_into_config(self, config: MachineConfig | None = None) -> MachineConfig:
+    def read_ui_into_config(self, config: MachineConfig | None = None, *, apply: bool = True) -> MachineConfig:
         cfg = config or self._config
         cfg.runtime.unit = "gram" if self.buttonGrams.isChecked() else "newton"
         cfg.runtime.folder = self._work_folder
@@ -217,8 +283,9 @@ class BiaxMainWindow(QMainWindow):
         cfg.displacement_test.disptestlen1 = self.factorLength1.text()
         cfg.displacement_test.disptestlen2 = self.factorLength2.text()
         cfg.displacement_test.disptestcycle = self.factorCyclNumD.text()
-        self._config = cfg
-        self._apply_sample_config(cfg)
+        if apply:
+            self._config = cfg
+            self._apply_sample_config(cfg)
         return cfg
 
     def save_config(self, config: MachineConfig, save_sample_copy: bool = False):
