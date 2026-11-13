@@ -103,6 +103,7 @@ class DisplacementControlTest(MechanicalTest):
 
     def _tick(self):
         try:
+            self._snapshot_markers()
             if not self._execute or self._phase == DisplacementTestPhase.FINISHED:
                 self._finish_test()
                 return

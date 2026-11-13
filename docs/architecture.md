@@ -80,5 +80,20 @@ when it uses video strain; the existing test failure path requests motor stops.
 Gain/exposure requests are read under a lock and clamped to feature limits and
 increments. UI controls receive only metadata and copied image arrays.
 
+Camera slots post tracking, initialization, ROI, and save requests to a small
+mailbox; the acquisition loop applies them. Processing settings are exchanged
+under a lock. Test marker slots publish an immutable coordinate tuple under a
+lock; each control tick takes one snapshot before calculations. Marker history
+and reference initialization belong to the test thread, and reinitialization is
+rejected while a test is running.
+
+Image saves use owned frame copies and a single background writer. Completion
+emits `signal_image_saved`; missing frames and write failures emit `signal_error`.
+Stop rejects new saves, drains accepted requests, and waits for the writer inside
+the camera thread, so `finished` includes outstanding writes without blocking the
+GUI. `VideoTestLink` owns the four camera/test connections; repeated attachment
+is a no-op. Detachment disconnects each connection independently and invalidates
+the relay so previously queued deliveries cannot reach an old test.
+
 Application diagnostics use module loggers. `biaxial_testing_machine.__main__` configures console logging
 at INFO level; detailed position and motion messages are available at DEBUG level.

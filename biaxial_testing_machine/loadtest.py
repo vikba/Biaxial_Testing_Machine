@@ -161,6 +161,7 @@ class LoadControlTest(MechanicalTest):
 
     def _tick(self):
         try:
+            self._snapshot_markers()
             self._control_tick()
         except Exception as exc:
             self._fail(exc)

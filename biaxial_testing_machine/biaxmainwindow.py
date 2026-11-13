@@ -24,6 +24,7 @@ from biaxial_testing_machine.loadcalculator import LoadCalculatorWindow
 from biaxial_testing_machine.machineconfigdialog import MachineConfigDialog
 from biaxial_testing_machine.ringbuffer import RingBuffer
 from biaxial_testing_machine.sessioncontroller import TestSessionController
+from biaxial_testing_machine.videotestlink import VideoTestLink
 from biaxial_testing_machine.state import State
 from biaxial_testing_machine.sessionstate import SessionState
 from biaxial_testing_machine.unit import Unit
@@ -392,19 +393,11 @@ class BiaxMainWindow(QMainWindow):
         if not hasattr(self, "_video_thread"):
             return
 
+        if self._video_connected_test is test:
+            return
         if self._video_connected_test is not None:
-            try:
-                self._video_thread.signal_markers_recorded.disconnect(self._video_connected_test.init_markers)
-                self._video_thread.signal_markers_coordinates.disconnect(self._video_connected_test.update_markers)
-                self._video_connected_test.signal_start_stop_tracking.disconnect(self._video_thread.start_stop_tracking)
-                self._video_connected_test.signal_save_image.disconnect(self._video_thread.save_image)
-            except Exception:
-                pass
-
-        self._video_thread.signal_markers_recorded.connect(test.init_markers)
-        self._video_thread.signal_markers_coordinates.connect(test.update_markers)
-        test.signal_start_stop_tracking.connect(self._video_thread.start_stop_tracking)
-        test.signal_save_image.connect(self._video_thread.save_image)
+            self._video_test_link.detach()
+        self._video_test_link = VideoTestLink(self._video_thread, test, self)
         self._video_connected_test = test
 
     def __startCamera(self):

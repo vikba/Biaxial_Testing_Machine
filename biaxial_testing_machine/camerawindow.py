@@ -20,6 +20,8 @@ import math
 import numpy as np
 import time
 from threading import Event, Lock
+from queue import SimpleQueue
+from concurrent.futures import ThreadPoolExecutor
 
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QPushButton, QVBoxLayout, QLabel,
@@ -45,6 +47,7 @@ class VideoThread(QThread):
     signal_markers_coordinates = pyqtSignal(list)
     signal_error = pyqtSignal(str)
     signal_camera_settings = pyqtSignal(dict)
+    signal_image_saved = pyqtSignal(str)
 
     FRAME_TIMEOUT_MS = 500
     FRAME_GRAB_DELAY_MS = 100
@@ -58,6 +61,9 @@ class VideoThread(QThread):
         self._camera_id = camera_id.strip()
         self._stop = Event()
         self._settings_lock = Lock()
+        self._commands = SimpleQueue()
+        self._pending_settings = {}
+        self._writer = None
         self._frame_shape = None
         self._camera_settings = {}
         self._applied_settings = {}
@@ -129,8 +135,9 @@ class VideoThread(QThread):
         """
         Stops the video thread and releases rebiaxial_testing_machine.
         """
-        self._execute = False
-        self._stop.set()
+        with self._settings_lock:
+            self._execute = False
+            self._stop.set()
 
     @pyqtSlot()
     def reset_flags(self):
@@ -139,6 +146,7 @@ class VideoThread(QThread):
         """
         if self.isRunning():
             return
+        self._commands = SimpleQueue()
         self._stop.clear()
         self._frame_shape = None
         self._img = None
@@ -150,14 +158,7 @@ class VideoThread(QThread):
 
     @pyqtSlot(list)
     def set_init_points(self, points):
-        if self._frame_shape is None:
-            return
-        if len(points) != 4 or len(set(map(tuple, points))) != 4:
-            self.signal_error.emit("Select four distinct marker positions.")
-            return
-        with self._settings_lock:
-            self._init_points = tuple(map(tuple, points))
-            self._init_marks = True
+        self._commands.put(("initialize", tuple(map(tuple, points))))
 
     def reset_countours(self):
         """
@@ -169,14 +170,7 @@ class VideoThread(QThread):
     @pyqtSlot(int, int, int, int)
     def update_roi(self, x1, y1, x2, y2):
         """Queue a native-pixel ROI; all tracking resets happen in the camera thread."""
-        if self._frame_shape is None:
-            return
-        height, width = self._frame_shape
-        x1, x2 = sorted((max(0, min(width, x1)), max(0, min(width, x2))))
-        y1, y2 = sorted((max(0, min(height, y1)), max(0, min(height, y2))))
-        if x1 < x2 and y1 < y2:
-            with self._settings_lock:
-                self._pending_roi = (x1, y1, x2, y2)
+        self._commands.put(("roi", (x1, y1, x2, y2)))
 
     def _if_within_roi(self, p):
         """
@@ -198,30 +192,60 @@ class VideoThread(QThread):
         Args:
             flag (bool): Indicates whether to start or stop tracking.
         """
-        if flag:
-            if not all(self._marks_groups):
-                self.signal_error.emit("Initialize four camera markers before tracking.")
-                return
-            self._track_marks = True  # Change the flag
-            self._start_time = time.perf_counter()
-            self._current_time = 0
-        else:
-            self._track_marks = False
+        self._commands.put(("tracking", flag))
 
     @pyqtSlot(str)
     def save_image(self, address):
-        """
-        Saves the current image to the specified address.
+        with self._settings_lock:
+            accepting = not self._stop.is_set() and self.isRunning()
+            if accepting:
+                self._commands.put(("save", address))
+        if not accepting:
+            self.signal_error.emit(f"Could not save camera image {address}: camera is stopped")
 
-        Args:
-            address (str): The file path to save the image.
-        """
-        image = self._img
+    def _write_image(self, address, image):
         try:
-            if image is None or not cv2.imwrite(address, image):
-                raise OSError("No current image or image writer returned failure")
-        except (cv2.error, OSError) as exc:
+            if not cv2.imwrite(address, image):
+                raise OSError("Image writer returned failure")
+            self.signal_image_saved.emit(address)
+        except Exception as exc:
             self.signal_error.emit(f"Could not save camera image {address}: {exc}")
+
+    def _apply_commands(self):
+        """Called only by acquisition: own all tracking and processing changes here."""
+        with self._settings_lock:
+            settings, self._pending_settings = self._pending_settings, {}
+        for name, value in settings.items():
+            setattr(self, name, value)
+        self._min_marker_area = min(self._min_marker_area, self._max_marker_area)
+        while not self._commands.empty():
+            command, value = self._commands.get()
+            if command == "save":
+                if self._img is None or self._writer is None:
+                    self.signal_error.emit(f"Could not save camera image {value}: no current image")
+                else:
+                    self._writer.submit(self._write_image, value, self._img.copy())
+            elif command == "tracking":
+                if value and not all(self._marks_groups):
+                    self.signal_error.emit("Initialize four camera markers before tracking.")
+                else:
+                    self._track_marks = value
+                    self._start_time = time.perf_counter()
+                    self._current_time = 0
+            elif command == "initialize" and self._frame_shape is not None:
+                if len(value) != 4 or len(set(value)) != 4:
+                    self.signal_error.emit("Select four distinct marker positions.")
+                elif self._track_marks:
+                    self.signal_error.emit("Stop tracking before initializing markers again.")
+                else:
+                    self._init_points = value
+            elif command == "roi" and self._frame_shape is not None:
+                height, width = self._frame_shape
+                x1, y1, x2, y2 = value
+                x1, x2 = sorted((max(0, min(width, x1)), max(0, min(width, x2))))
+                y1, y2 = sorted((max(0, min(height, y1)), max(0, min(height, y2))))
+                if x1 < x2 and y1 < y2:
+                    self._pending_roi = (x1, y1, x2, y2)
 
     @pyqtSlot(float)
     def set_gain(self, value):
@@ -247,34 +271,42 @@ class VideoThread(QThread):
 
     @pyqtSlot(bool)
     def set_apply_bg_correction(self, value):
-        self._apply_bg_correction = value
+        with self._settings_lock:
+            self._pending_settings["_apply_bg_correction"] = value
 
     @pyqtSlot(bool)
     def set_use_simple_thresh(self, value):
-        self._use_simple_thresh = value
+        with self._settings_lock:
+            self._pending_settings["_use_simple_thresh"] = value
 
     @pyqtSlot(bool)
     def set_invert_signal(self, value):
-        self._invert_signal = value
+        with self._settings_lock:
+            self._pending_settings["_invert_signal"] = value
 
     @pyqtSlot(str)
     def set_display_mode(self, mode):
-        self._display_mode = mode
+        with self._settings_lock:
+            self._pending_settings["_display_mode"] = mode
 
     @pyqtSlot(int)
     def set_min_marker_area(self, value):
-        self._min_marker_area = min(value, self._max_marker_area)
+        with self._settings_lock:
+            self._pending_settings["_min_marker_area"] = value
 
     @pyqtSlot(int)
     def set_max_marker_area(self, value):
-        self._max_marker_area = max(value, self._min_marker_area)
+        with self._settings_lock:
+            self._pending_settings["_max_marker_area"] = value
 
     @pyqtSlot(str)
     def set_center_method(self, method):
-        self._center_method = method
+        with self._settings_lock:
+            self._pending_settings["_center_method"] = method
 
     def run(self):
         """Own the SDK, camera and feature access entirely in this thread."""
+        self._writer = ThreadPoolExecutor(max_workers=1, thread_name_prefix="camera-image-writer")
         try:
             from vmbpy import VmbSystem, PixelFormat, VmbFeatureError
             with VmbSystem.get_instance() as vmb:
@@ -307,6 +339,7 @@ class VideoThread(QThread):
                             logger.warning("Camera acquisition failed: %s", exc)
                             self.signal_error.emit(last_error)
                     finally:
+                        self._apply_commands()
                         self._cam = None
                         self._frame_shape = None
                         self._init_marks = self._track_marks = False
@@ -318,6 +351,10 @@ class VideoThread(QThread):
         except Exception as exc:
             self.signal_error.emit(f"Vimba X camera unavailable: {exc}. Install Vimba X and its matching VmbPy package.")
         finally:
+            self.stop()
+            self._apply_commands()
+            self._writer.shutdown(wait=True)
+            self._writer = None
             self._execute = False
 
     def _select_camera(self, cams):
@@ -367,6 +404,7 @@ class VideoThread(QThread):
             self.signal_camera_settings.emit(dict(self._camera_settings, ready=self._frame_shape is not None))
 
     def _grab_frame(self):
+        self._apply_commands()
         from vmbpy import FrameStatus, PixelFormat, VmbTimeout
         if self._cam is None or self._stop.is_set():
             return False
@@ -604,7 +642,8 @@ class VideoThread(QThread):
         Args:
             value (int): The new threshold value.
         """
-        self._threshold_value = value
+        with self._settings_lock:
+            self._pending_settings["_threshold_value"] = value
 
 
     def _detectMarkers(

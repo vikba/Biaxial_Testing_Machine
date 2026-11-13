@@ -8,6 +8,7 @@
 from concurrent.futures import CancelledError
 
 import logging
+from threading import Lock
 
 from PyQt6.QtCore import QMetaObject, QThread, QTimer, Qt, pyqtSignal, pyqtSlot
 import numpy as np
@@ -44,6 +45,8 @@ class MechanicalTest (QThread):
         super().__init__()
 
         self._mot_daq = mot_daq
+        self._marker_lock = Lock()
+        self._latest_markers = None
 
         self._use_video = False #Flag indicating whether marks are recorded
         self._failure = None
@@ -92,7 +95,7 @@ class MechanicalTest (QThread):
             self._F21 = []
             self._F22 = []
 
-            self.init_markers()
+            self._initialize_marker_history()
         
         #record start time
         self._start_cycle_time = time.perf_counter()
@@ -159,50 +162,33 @@ class MechanicalTest (QThread):
     
     
     @pyqtSlot(list)
-    def init_markers(self, array = None):
-
+    def init_markers(self, array):
+        if self.isRunning():
+            self.signal_error.emit("Stop the test before initializing markers again.")
+            return
+        self.update_markers(array)
         self._use_video = True
 
-        #datastructures to store tracks of marks
-        self._marks_groups = []
-        self._point1 = []
-        self._point2 = []
-        self._point3 = []
-        self._point4 = []
-        
-        self._marks_groups.append(self._point1)
-        self._marks_groups.append(self._point2)
-        self._marks_groups.append(self._point3)
-        self._marks_groups.append(self._point4)
-
-        if array is not None:
-            #Temporary coordinates 
-            self._temp_p1 = array[0]
-            self._temp_p2 = array[1]
-            self._temp_p3 = array[2]
-            self._temp_p4 = array[3]
-
-        self._p1_0 = self._temp_p1
-        self._p2_0 = self._temp_p2
-        self._p3_0 = self._temp_p3
-        self._p4_0 = self._temp_p4
-
-        self._point1.append(self._temp_p1)
-        self._point2.append(self._temp_p2)
-        self._point3.append(self._temp_p3)
-        self._point4.append(self._temp_p4)
-    
     @pyqtSlot(list)
     def update_markers(self, array):
-        #Temporary coordinates 
-        self._temp_p1 = array[0]
-        self._temp_p2 = array[1]
-        self._temp_p3 = array[2]
-        self._temp_p4 = array[3]
+        with self._marker_lock:
+            self._latest_markers = tuple(map(tuple, array))
 
-    
- 
-    
+    def _snapshot_markers(self):
+        """Read once per tick; calculations use only this worker-owned snapshot."""
+        with self._marker_lock:
+            points = self._latest_markers
+        if points is not None:
+            self._temp_p1, self._temp_p2, self._temp_p3, self._temp_p4 = points
+
+    def _initialize_marker_history(self):
+        self._snapshot_markers()
+        self._p1_0, self._p2_0 = self._temp_p1, self._temp_p2
+        self._p3_0, self._p4_0 = self._temp_p3, self._temp_p4
+        self._point1, self._point2 = [self._p1_0], [self._p2_0]
+        self._point3, self._point4 = [self._p3_0], [self._p4_0]
+        self._marks_groups = [self._point1, self._point2, self._point3, self._point4]
+
     def _update_arrays_emit_data(self, include_video_strain=None):
 
         """

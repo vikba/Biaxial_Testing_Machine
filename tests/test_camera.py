@@ -1,7 +1,7 @@
 """Camera migration checks using real Qt/OpenCV and a simulated VmbPy API."""
 from contextlib import contextmanager
 from importlib.util import find_spec
-from threading import Event, get_ident
+from threading import Event, Thread, get_ident
 from time import monotonic, sleep
 from types import ModuleType, SimpleNamespace
 import os
@@ -285,13 +285,128 @@ class CameraTests(unittest.TestCase):
 
     def test_image_save_failures_are_reported(self):
         self.thread.save_image('unused.png')
-        self.thread._img = np.zeros((10, 10), dtype=np.uint8)
+        self.system()
+        self.frame(np.zeros((10, 10), dtype=np.uint8))
+        self.thread.start()
+        pump(lambda: bool(self.frames))
         with patch('biaxial_testing_machine.camerawindow.cv2.imwrite', return_value=False):
             self.thread.save_image('unused.png')
+            pump(lambda: len(self.errors) == 2)
         with patch('biaxial_testing_machine.camerawindow.cv2.imwrite', side_effect=cv2.error('writer unavailable')):
             self.thread.save_image('unused.png')
+            pump(lambda: len(self.errors) == 3)
         self.assertEqual(len(self.errors), 3)
         self.assertTrue(all('Could not save camera image' in error for error in self.errors))
+
+    def test_slow_writer_does_not_block_frames_or_gui_and_finishes_before_thread(self):
+        self.system()
+        self.frame(np.full((10, 10), 128, dtype=np.uint8))
+        entered = Event()
+        writes, saved = [], []
+        gui_thread = get_ident()
+        acquisition_threads = []
+        original_detect = self.thread._detectMarkers.side_effect
+        def detect(*args, **kwargs):
+            acquisition_threads.append(get_ident())
+            return original_detect(*args, **kwargs)
+        self.thread._detectMarkers.side_effect = detect
+        def write(path, image):
+            writes.append((get_ident(), image.copy()))
+            entered.set()
+            self.release.wait(2)
+            return True
+        self.thread.signal_image_saved.connect(saved.append)
+        with patch('biaxial_testing_machine.camerawindow.cv2.imwrite', side_effect=write):
+            self.thread.start()
+            pump(lambda: bool(self.frames))
+            self.thread.save_image('snapshot.png')
+            pump(entered.is_set)
+            before = len(self.frames)
+            pump(lambda: len(self.frames) > before)
+            self.thread.stop()
+            self.assertTrue(self.thread.isRunning())
+            self.release.set()
+            pump(lambda: not self.thread.isRunning() and saved == ['snapshot.png'])
+        self.assertNotEqual(writes[0][0], gui_thread)
+        self.assertNotIn(writes[0][0], acquisition_threads)
+        self.assertEqual(int(writes[0][1][0, 0]), 128)
+
+    def test_processing_controls_are_consumed_only_by_acquisition(self):
+        self.thread.set_threshold(42)
+        self.thread.set_display_mode(VideoThread.DISPLAY_MODE_BINARIZED)
+        self.thread.start_stop_tracking(True)
+        self.assertEqual(self.thread._threshold_value, 70)
+        self.assertFalse(self.thread._track_marks)
+        self.system()
+        self.frame(np.zeros((10, 10), dtype=np.uint8))
+        observed = []
+        original = self.thread._apply_commands
+        def apply():
+            observed.append(get_ident())
+            original()
+        self.thread._apply_commands = apply
+        self.thread.start()
+        pump(lambda: bool(self.frames))
+        self.thread.stop()
+        pump(lambda: not self.thread.isRunning())
+        self.assertEqual(self.thread._threshold_value, 42)
+        self.assertTrue(observed)
+        self.assertTrue(all(identity != get_ident() for identity in observed))
+
+    def test_marker_updates_are_immutable_snapshots_without_history_mutation(self):
+        from biaxial_testing_machine.mechanicaltest import MechanicalTest
+        test = MechanicalTest(Mock())
+        points = [[1, 1]] * 4
+        test.init_markers(points)
+        points[0][0] = 999
+        self.assertFalse(hasattr(test, '_temp_p1'))
+        test._init_variables()
+        self.assertEqual(test._p1_0, (1, 1))
+        def produce():
+            for value in range(1000):
+                test.update_markers([(value, value)] * 4)
+        producer = Thread(target=produce)
+        producer.start()
+        for _ in range(1000):
+            test._snapshot_markers()
+            self.assertEqual(len(set((test._temp_p1, test._temp_p2, test._temp_p3, test._temp_p4))), 1)
+        producer.join()
+        self.assertEqual(test._point1, [(1, 1)])
+        errors = []
+        test.signal_error.connect(errors.append)
+        with patch.object(test, 'isRunning', return_value=True):
+            test.init_markers([(2, 2)] * 4)
+        self.assertTrue(errors)
+        self.assertEqual(test._p1_0, (1, 1))
+
+    def test_attachment_is_idempotent_and_rejects_queued_old_deliveries(self):
+        from PyQt6.QtCore import QObject
+        from biaxial_testing_machine.biaxmainwindow import BiaxMainWindow
+        from biaxial_testing_machine.mechanicaltest import MechanicalTest
+        owner = QObject()
+        owner._video_thread = self.thread
+        owner._video_connected_test = None
+        first, second = MechanicalTest(Mock()), MechanicalTest(Mock())
+        first.update_markers, second.update_markers = Mock(), Mock()
+        attach = lambda test: BiaxMainWindow._attach_video_to_test(owner, test)
+        attach(first)
+        link = owner._video_test_link
+        attach(first)
+        self.assertIs(link, owner._video_test_link)
+        self.thread.signal_markers_coordinates.emit([(1, 1)] * 4)
+        first.update_markers.assert_called_once()
+        emitter = Thread(target=lambda: self.thread.signal_markers_coordinates.emit([(2, 2)] * 4))
+        emitter.start()
+        emitter.join()
+        # One missing connection must not prevent detaching the other three.
+        self.thread.signal_markers_recorded.disconnect(link.initialize)
+        attach(second)
+        QApplication.processEvents()
+        first.update_markers.assert_called_once()
+        second.update_markers.assert_not_called()
+        self.thread.signal_markers_coordinates.emit([(3, 3)] * 4)
+        second.update_markers.assert_called_once()
+        owner._video_test_link.detach()
 
     def test_camera_fault_fails_only_a_video_dependent_test(self):
         if not all(find_spec(name) is not None for name in ('pyqtgraph', 'openpyxl', 'serial', 'zaber_motion')):
