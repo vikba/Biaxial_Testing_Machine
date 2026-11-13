@@ -78,28 +78,33 @@ biaxial-testing-machine
 Alternatively, use `python -m biaxial_testing_machine`. Running `python main.py`
 remains supported from a source checkout. Python 3.10 or newer is required.
 
-Qt forms and portable defaults are bundled in the package. Writable settings are
-loaded from `config.local.json` in the user's configuration directory:
+Machine configuration lives in `resources/` in the source folder (beside `main.py`):
 
-- Windows: `%LOCALAPPDATA%\biaxial-testing-machine\config.local.json`
-- Linux: `$XDG_CONFIG_HOME/biaxial-testing-machine/config.local.json`, defaulting
-  to `~/.config/biaxial-testing-machine/config.local.json`
-- macOS: `~/Library/Application Support/biaxial-testing-machine/config.local.json`
+- `config.local.json`: active workstation settings; edit this file. It is excluded
+  from Git and distribution packages.
+- `config.example.json`: tracked defaults and a template for new workstations.
 
-When no settings file exists, the bundled example is loaded. Saving settings
-creates the configuration directory. Set the motor IP, sensor serials, camera ID,
+Writable settings are loaded from `resources/config.local.json`.
+The path is resolved from the application source, independently of the current
+working directory. No AppData or user configuration folder is used.
+
+When no settings file exists, `resources/config.example.json` is loaded. Saving
+settings creates `resources/config.local.json` without changing the example.
+Set the motor IP, sensor serials, camera ID,
 and output folder for your workstation. Flat legacy configuration files remain
 readable. Experimental output stays in the selected output folder.
+Each experiment's `config_test.json` records the settings used for that test;
+it is a snapshot and is never loaded as the workstation configuration.
 
-To keep an existing checkout configuration, copy `resources/config.local.json`
-to the user configuration location, or explicitly select it before launching:
+An existing `resources/config.local.json` is loaded automatically. To explicitly
+select a different file before launching:
 
 ```powershell
 $env:BIAXIAL_CONFIG = "C:\path\to\resources\config.local.json"
 biaxial-testing-machine
 ```
 
-The old local file is preserved; it is never included in the installed package.
+The local file is preserved; it is never included in the installed package.
 The `BIAXIAL_CONFIG` override can also select a shared lab configuration.
 
 ## Building distributions
@@ -112,6 +117,8 @@ python -m build
 This creates a wheel and source distribution in `dist/`. Both include the Qt
 forms, example configuration, and license. CI installs the built wheel and checks
 both launchers from outside the checkout on Windows and Linux.
+The build copies the single source template from `resources/config.example.json`
+into the package so installed applications retain fallback defaults.
 
 ## Vimba X camera
 

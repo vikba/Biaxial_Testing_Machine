@@ -18,7 +18,6 @@ dependencies = [
     "openpyxl",
     "pyserial",
     "zaber-motion",
-    "platformdirs",
 ]
 
 [project.scripts]

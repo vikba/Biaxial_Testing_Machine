@@ -10,8 +10,7 @@ import logging
 import os
 import sys
 from importlib.resources import as_file, files
-
-from platformdirs import user_config_path
+from pathlib import Path
 
 from PyQt6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
 from PyQt6.uic import loadUi
@@ -71,7 +70,9 @@ class BiaxMainWindow(QMainWindow):
         self._t_label = [i * self._liveforce_update_time / 1000 for i in range(buffer_len)]
 
     def _init_config_repository(self):
-        self._config_path = os.environ.get("BIAXIAL_CONFIG") or str(user_config_path("biaxial-testing-machine", appauthor=False) / "config.local.json")
+        self._config_path = os.environ.get("BIAXIAL_CONFIG") or str(
+            Path(__file__).resolve().parent.parent / "resources" / "config.local.json"
+        )
         self._config_repository = ConfigRepository(self._config_path)
         self.load_config()
         if not self._config.runtime.folder:
@@ -152,8 +153,12 @@ class BiaxMainWindow(QMainWindow):
         if os.path.exists(self._config_path):
             self._config = self._config_repository.load()
         else:
-            with as_file(files(__package__).joinpath("resources/config.example.json")) as example:
+            example = Path(__file__).resolve().parent.parent / "resources" / "config.example.json"
+            if example.is_file():
                 self._config = ConfigRepository(str(example)).load()
+            else:
+                with as_file(files(__package__).joinpath("resources/config.example.json")) as bundled_example:
+                    self._config = ConfigRepository(str(bundled_example)).load()
         self._apply_sample_config(self._config)
         return self._config
 

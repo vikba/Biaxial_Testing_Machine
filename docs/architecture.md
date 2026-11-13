@@ -30,11 +30,17 @@ applies the configured mechanical transmission factor, and converts to Newtons
 only when requested. Internal DSCUSB calibration is never written.
 
 Configuration loading supports old flat keys. Saving uses nested sections.
-The Qt forms and `resources/config.example.json` are bundled inside the package
-and accessed through `importlib.resources`. Writable `config.local.json` settings
-live in the platform's user configuration directory (`platformdirs`), or at the
-`BIAXIAL_CONFIG` override. Old checkout settings can be copied or selected through
-that override; installation does not overwrite them.
+The source `resources/` folder contains `config.local.json` (active workstation
+settings, ignored by Git) and `config.example.json` (tracked defaults). Missing
+local settings fall back to that example. Builds copy the same example into the
+package alongside the bundled Qt forms; installed applications access those
+defaults through `importlib.resources`. Writable `config.local.json` settings
+live in `resources/config.local.json` beside the source entry point `main.py`, or
+at the `BIAXIAL_CONFIG` override. The default path is resolved relative to the
+source file, not the working directory. No user configuration folder is created;
+installation does not overwrite workstation settings.
+Per-experiment `config_test.json` files are output snapshots and are not loaded
+as workstation settings.
 
 The legacy `biaxial_testing_machine.motordaqinterface` import and constructor `ip_daq` argument
 remain accepted for compatibility. Gantner acquisition and calibration are gone.
