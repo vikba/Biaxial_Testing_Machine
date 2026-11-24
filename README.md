@@ -151,9 +151,10 @@ selects the only discovered camera. With multiple cameras, acquisition reports
 their IDs and requires explicit configuration. Reconnection retains the selected
 identity and never silently switches to another camera.
 
-The **Auto once** buttons beside Gain and Exposure run one automatic adjustment,
-then return to manual control with the resulting value. Each slider is disabled
-while its adjustment runs; unsupported automatic controls remain disabled.
+Gain and Exposure each have a slider and one editable numeric field. Drag the
+slider or type a value and press Enter or leave the field to apply it. Both controls
+stay synchronized and respect the camera's range and increments. Exposure is in
+microseconds. Controls are disabled until the corresponding camera feature is available.
 Exposure supports both `ExposureTime` and older cameras' `ExposureTimeAbs`.
 
 Images are processed in native camera pixels and displayed with preserved aspect
@@ -168,9 +169,7 @@ The app prefers `Mono8`; other formats are converted to `Mono8`, or through `Bgr
 to grayscale if supported by the SDK. Gain and exposure controls use camera-reported
 ranges and increments, with SDK writes performed only in the acquisition thread.
 Exposure is capped at 500,000 microseconds (500 ms), with a 1,000 ms frame
-acquisition timeout to allow image transfer. Before automatic exposure starts,
-the camera's automatic upper limit is set and verified; unsupported limits leave
-manual adjustment available. Preview acquisition is limited to approximately 10 frames/s
+acquisition timeout to allow image transfer. Preview acquisition is limited to approximately 10 frames/s
 before image-processing time; this is not synchronized to force acquisition.
 
 Stopping returns immediately while the worker releases its camera context. The
