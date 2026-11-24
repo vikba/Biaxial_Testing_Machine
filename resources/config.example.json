@@ -4,7 +4,7 @@
         "axis2_serial": "0017835697",
         "axis1_transmission_factor": 0.5,
         "axis2_transmission_factor": 0.5,
-        "timeout": 0.075,
+        "timeout": 0.10,
         "max_data_age": 0.25
     },
     "runtime": {

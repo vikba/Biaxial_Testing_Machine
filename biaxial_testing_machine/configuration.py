@@ -21,7 +21,7 @@ class ForceConfig:
     # Preserve the old /2 correction until mechanical geometry is verified.
     axis1_transmission_factor: float = 0.5
     axis2_transmission_factor: float = 0.5
-    timeout: float = 0.075
+    timeout: float = 0.10
     max_data_age: float = 0.25
 
     def __post_init__(self):

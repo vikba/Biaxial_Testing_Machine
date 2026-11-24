@@ -208,6 +208,15 @@ class MachineConfigurationTests(unittest.TestCase):
         self.assertEqual(example.read_bytes(), example_bytes)
         self.assertEqual(snapshot.read_bytes(), original_snapshot)
 
+    def test_force_warning_is_logged_and_displayed(self):
+        message = "Axis 1 force data stale: DSCUSB COM7, SYS?: timeout or incomplete response"
+        with patch("biaxial_testing_machine.biaxmainwindow.QMessageBox") as warning_box:
+            with self.assertLogs("biaxial_testing_machine.biaxmainwindow", level="WARNING") as logs:
+                self.window._session_controller.signal_error.emit(message)
+            self.assertEqual([record.getMessage() for record in logs.records], [message])
+            warning_box.return_value.setText.assert_called_once_with(message)
+            warning_box.return_value.exec.assert_called_once()
+
     def test_serialization_failure_preserves_original(self):
         repository = ConfigRepository(str(self.path))
         config = MachineConfig()

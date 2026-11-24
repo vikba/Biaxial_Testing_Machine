@@ -777,6 +777,7 @@ class BiaxMainWindow(QMainWindow):
         return "Cycle -/-"
 
     def _show_warning(self, message):
+        logger.warning("%s", message)
         warning_box = QMessageBox()
         warning_box.setIcon(QMessageBox.Icon.Warning)
         warning_box.setWindowTitle("Warning")
