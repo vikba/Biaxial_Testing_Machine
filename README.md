@@ -198,8 +198,8 @@ Set hardware identity and acquisition settings in the local JSON `force` section
 - `axis2_serial`: `"0017835697"` (change this to assign the second axis)
 - `axis1_transmission_factor`, `axis2_transmission_factor`: default `0.5`, preserving
   the previous force `/2` correction. Confirm these against the pulley geometry.
-- `timeout`: serial read/write timeout in seconds, default `0.10`.
-- `max_data_age`: maximum valid sample age in seconds, default `0.25`.
+- `timeout`: serial read/write timeout in seconds, default `0.15`.
+- `max_data_age`: maximum valid sample age in seconds, default `0.35`.
 
 Ports are discovered by querying device serials (`65536 * SERH + SERL`), never by
 COM number. Close DSC Toolkit before connecting. Both devices use 115200 baud,
