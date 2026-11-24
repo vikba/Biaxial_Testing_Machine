@@ -53,6 +53,7 @@ class VideoThread(QThread):
     FRAME_GRAB_DELAY_MS = 100
     CAMERA_RECONNECT_DELAY_MS = 500
     MAX_CONSECUTIVE_TIMEOUTS = 5
+    AUTO_ONCE_TIMEOUT_S = 10
     DISPLAY_MODE_OVERLAY = "overlay"
     DISPLAY_MODE_BINARIZED = "binarized"
 
@@ -67,6 +68,8 @@ class VideoThread(QThread):
         self._frame_shape = None
         self._camera_settings = {}
         self._applied_settings = {}
+        self._auto_requests = set()
+        self._auto_active = {}
         self._pending_roi = None
         self._img = None
 
@@ -274,6 +277,13 @@ class VideoThread(QThread):
         with self._settings_lock:
             self._pending_settings["_apply_bg_correction"] = value
 
+    def auto_once(self, name):
+        """Queue a one-time adjustment; SDK access stays in the camera thread."""
+        if name not in ("Gain", "ExposureTime"):
+            raise ValueError("Unknown automatic camera setting")
+        with self._settings_lock:
+            self._auto_requests.add(name)
+
     @pyqtSlot(bool)
     def set_use_simple_thresh(self, value):
         with self._settings_lock:
@@ -327,6 +337,9 @@ class VideoThread(QThread):
                                 self._cam.set_pixel_format(PixelFormat.Mono8)
                             self._applied_settings.clear()
                             self._camera_settings.clear()
+                            self._auto_active.clear()
+                            with self._settings_lock:
+                                self._auto_requests.clear()
                             self._consecutive_timeouts = 0
                             while not self._stop.is_set():
                                 self._apply_camera_settings()
@@ -341,6 +354,9 @@ class VideoThread(QThread):
                     finally:
                         self._apply_commands()
                         self._cam = None
+                        self._auto_active.clear()
+                        with self._settings_lock:
+                            self._auto_requests.clear()
                         self._frame_shape = None
                         self._init_marks = self._track_marks = False
                         self._init_points = self._pending_roi = None
@@ -369,18 +385,71 @@ class VideoThread(QThread):
         ids = ", ".join(camera.get_id() for camera in cams)
         raise RuntimeError(f"Configure runtime.camera_id; discovered cameras: {ids or 'none'}.")
 
-    def _apply_camera_settings(self):
+    def _camera_feature(self, name):
+        from vmbpy import VmbFeatureError
+        try:
+            return self._cam.get_feature_by_name(name)
+        except VmbFeatureError:
+            if name != "ExposureTime":
+                raise
+            return self._cam.get_feature_by_name("ExposureTimeAbs")
+
+    def _apply_auto_once(self):
         from vmbpy import VmbFeatureError
         with self._settings_lock:
+            requests = self._auto_requests.copy()
+            self._auto_requests.clear()
+        states = {}
+        for name, auto_name, attr in (("Gain", "GainAuto", "_gain_value"),
+                                      ("ExposureTime", "ExposureAuto", "_exposure_value")):
+            try:
+                feature = self._cam.get_feature_by_name(auto_name)
+                supported = (feature.is_readable() and feature.is_writeable()
+                             and any(str(entry) == "Once"
+                                     for entry in feature.get_available_entries()))
+                if name in requests and name not in self._auto_active:
+                    if not supported:
+                        raise VmbFeatureError("One-time automatic adjustment is unavailable")
+                    feature.set("Once")
+                    self._auto_active[name] = time.monotonic()
+                if name in self._auto_active:
+                    done = str(feature.get()) == "Off"
+                    if not done and time.monotonic() - self._auto_active[name] >= self.AUTO_ONCE_TIMEOUT_S:
+                        feature.set("Off")
+                        done = True
+                        self.signal_error.emit(f"{auto_name} timed out; returned to manual adjustment.")
+                    if done:
+                        value = self._camera_feature(name).get()
+                        with self._settings_lock:
+                            setattr(self, attr, value)
+                        self._applied_settings.pop(name, None)
+                        del self._auto_active[name]
+                states[name] = (bool(supported), name in self._auto_active)
+            except VmbFeatureError as exc:
+                # An error during an active run requires reconnecting to restore manual mode.
+                if name in self._auto_active:
+                    raise
+                states[name] = (False, False)
+                if name in requests:
+                    self.signal_error.emit(f"{auto_name}: {exc}")
+        return states
+
+    def _apply_camera_settings(self):
+        from vmbpy import VmbFeatureError
+        auto_states = self._apply_auto_once()
+        with self._settings_lock:
             requested = {"Gain": self._gain_value, "ExposureTime": self._exposure_value}
-        changed = False
+        changed = self._camera_settings.get("auto") != auto_states
+        self._camera_settings["auto"] = auto_states
         for name, value in requested.items():
+            if name in self._auto_active:
+                continue
             if self._applied_settings.get(name) == value:
                 continue
             if not math.isfinite(value):
                 raise ValueError(f"{name} must be finite.")
             try:
-                feature = self._cam.get_feature_by_name(name)
+                feature = self._camera_feature(name)
             except VmbFeatureError:
                 self._applied_settings[name] = value
                 continue
@@ -808,6 +877,8 @@ class VideoWindow(QWidget):
         self.signal_update_roi.connect(self.thread.update_roi)
         self.signal_gain_changed.connect(self.thread.set_gain)
         self.signal_exposure_changed.connect(self.thread.set_exposure)
+        self._gain_auto_once.clicked.connect(lambda: self.thread.auto_once("Gain"))
+        self._exposure_auto_once.clicked.connect(lambda: self.thread.auto_once("ExposureTime"))
         self.signal_threshold_changed.connect(self.thread.set_threshold)
         self.signal_display_mode_changed.connect(self.thread.set_display_mode)
         self.signal_min_marker_area_changed.connect(self.thread.set_min_marker_area)
@@ -836,6 +907,9 @@ class VideoWindow(QWidget):
         self._gain_control.valueChanged.connect(self.change_gain)
 
         self._gain_value_label = QLabel(str(self._gain_control.value()), self)
+        self._gain_auto_once = QPushButton("Auto once", self)
+        self._gain_auto_once.setEnabled(False)
+        self._gain_auto_once.setToolTip("Adjust gain automatically once, then return to manual control")
 
         # Exposure Controls
         self._exposure_label = QLabel('Exposure (us):', self)
@@ -847,18 +921,23 @@ class VideoWindow(QWidget):
         self._exposure_control.valueChanged.connect(self.change_exposure)
 
         self._exposure_value_label = QLabel(str(self._exposure_control.value()), self)
+        self._exposure_auto_once = QPushButton("Auto once", self)
+        self._exposure_auto_once.setEnabled(False)
+        self._exposure_auto_once.setToolTip("Adjust exposure automatically once, then return to manual control")
 
         # Layout for Gain Slider
         gain_layout = QHBoxLayout()
         gain_layout.addWidget(self._gain_label)
         gain_layout.addWidget(self._gain_control)
         gain_layout.addWidget(self._gain_value_label)
+        gain_layout.addWidget(self._gain_auto_once)
 
         # Layout for Exposure Slider
         exposure_layout = QHBoxLayout()
         exposure_layout.addWidget(self._exposure_label)
         exposure_layout.addWidget(self._exposure_control)
         exposure_layout.addWidget(self._exposure_value_label)
+        exposure_layout.addWidget(self._exposure_auto_once)
 
         # Combine both layouts into a vertical layout
         sliders_layout = QVBoxLayout()
@@ -990,7 +1069,11 @@ class VideoWindow(QWidget):
             self._image_label.clear()
         for name, control, label in (("Gain", self._gain_control, self._gain_value_label),
                                      ("ExposureTime", self._exposure_control, self._exposure_value_label)):
-            control.setEnabled(name in settings)
+            supported, busy = settings.get("auto", {}).get(name, (False, False))
+            button = self._gain_auto_once if name == "Gain" else self._exposure_auto_once
+            button.setEnabled(name in settings and supported and not busy)
+            button.setText("Adjusting…" if busy else "Auto once")
+            control.setEnabled(name in settings and not busy)
             if name in settings:
                 low, high, step, value = settings[name]
                 # Slider positions represent legal feature increments, including

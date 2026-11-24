@@ -207,6 +207,124 @@ class CameraTests(unittest.TestCase):
         self.assertTrue(all(thread_id != get_ident() for thread_id, _ in writes))
         self.assertEqual(self.thread._camera_settings['Gain'][:3], (0, 12, .5))
 
+    def test_legacy_exposure_feature_enables_slider_and_applies_changes(self):
+        feature = Mock()
+        feature.is_readable.return_value = feature.is_writeable.return_value = True
+        feature.get_range.return_value = (10.0, 1e6)
+        feature.get_increment.return_value = 10.0
+        feature.get.side_effect = lambda: feature.set.call_args.args[0]
+
+        def lookup(name):
+            if name == 'ExposureTimeAbs':
+                return feature
+            raise self.sdk.VmbFeatureError('unsupported')
+
+        self.camera.get_feature_by_name.side_effect = lookup
+        window = VideoWindow(self.thread)
+        self.addCleanup(window.close)
+        self.thread._apply_camera_settings()
+        self.assertTrue(window._exposure_control.isEnabled())
+        self.assertEqual(window._exposure_value_label.text(), '5000')
+        window._exposure_control.setValue(window._exposure_control.maximum())
+        self.thread._apply_camera_settings()
+        feature.set.assert_called_with(400000.0)
+        self.assertIn('ExposureTime', self.thread._camera_settings)
+
+    def auto_camera(self, exposure_name='ExposureTime'):
+        features = {}
+        for name in ('Gain', exposure_name):
+            feature = Mock()
+            feature.is_readable.return_value = feature.is_writeable.return_value = True
+            feature.get_range.return_value = (0.0, 12.0) if name == 'Gain' else (10.0, 1e6)
+            feature.get_increment.return_value = .5 if name == 'Gain' else 10.0
+            feature.get.return_value = 5.0 if name == 'Gain' else 5000.0
+            features[name] = feature
+        for name in ('GainAuto', 'ExposureAuto'):
+            feature = Mock()
+            feature.is_readable.return_value = feature.is_writeable.return_value = True
+            # VmbPy enums return entries whose string representation is the value.
+            entry = MagicMock()
+            entry.__str__.return_value = 'Once'
+            feature.get_available_entries.return_value = (entry,)
+            mode = MagicMock()
+            mode.__str__.return_value = 'Off'
+            feature.get.return_value = mode
+            feature.set.side_effect = lambda value, mode=mode: setattr(mode.__str__, 'return_value', value)
+            features[name] = feature
+        def lookup(name):
+            if name not in features:
+                raise self.sdk.VmbFeatureError('unsupported')
+            return features[name]
+        self.camera.get_feature_by_name.side_effect = lookup
+        return features
+
+    def test_auto_once_buttons_queue_adjustment_and_restore_manual_readback(self):
+        for exposure_name in ('ExposureTime', 'ExposureTimeAbs'):
+            with self.subTest(exposure_name=exposure_name):
+                features = self.auto_camera(exposure_name)
+                self.thread._applied_settings.clear()
+                window = VideoWindow(self.thread)
+                try:
+                    self.thread._apply_camera_settings()
+                    self.assertTrue(window._gain_auto_once.isEnabled())
+                    self.assertTrue(window._exposure_auto_once.isEnabled())
+                    for name, auto_name, button, slider, result in (
+                        ('Gain', 'GainAuto', window._gain_auto_once, window._gain_control, 7.5),
+                        ('ExposureTime', 'ExposureAuto', window._exposure_auto_once,
+                         window._exposure_control, 123450.0),
+                    ):
+                        button.click()
+                        features[auto_name].set.assert_not_called()
+                        self.thread._apply_camera_settings()
+                        features[auto_name].set.assert_called_once_with('Once')
+                        self.assertFalse(button.isEnabled())
+                        self.assertFalse(slider.isEnabled())
+                        numeric = features['Gain' if name == 'Gain' else exposure_name]
+                        numeric.set.reset_mock()
+                        self.thread._apply_camera_settings()
+                        numeric.set.assert_not_called()
+                        features[auto_name].get.return_value.__str__.return_value = 'Off'
+                        numeric.get.return_value = result
+                        self.thread._apply_camera_settings()
+                        self.assertTrue(button.isEnabled())
+                        self.assertTrue(slider.isEnabled())
+                        numeric.set.assert_called_once_with(result)
+                        self.assertEqual(self.thread._camera_settings[name][3], result)
+                        self.assertEqual(self.thread._gain_value if name == 'Gain'
+                                         else self.thread._exposure_value, result)
+                finally:
+                    window.close()
+                    self.thread.signal_camera_settings.disconnect(window._update_camera_controls)
+
+    def test_auto_once_timeout_returns_to_manual_and_reports_error(self):
+        features = self.auto_camera()
+        self.thread.auto_once('ExposureTime')
+        self.thread._apply_camera_settings()
+        self.thread._auto_active['ExposureTime'] -= self.thread.AUTO_ONCE_TIMEOUT_S
+        features['ExposureTime'].get.return_value = 12000.0
+        self.thread._apply_camera_settings()
+        self.assertEqual(features['ExposureAuto'].set.call_args_list, [unittest.mock.call('Once'),
+                                                                     unittest.mock.call('Off')])
+        self.assertFalse(self.thread._auto_active)
+        self.assertEqual(self.thread._exposure_value, 12000.0)
+        self.assertTrue(any('timed out' in error for error in self.errors))
+
+    def test_unsupported_auto_once_leaves_manual_controls_enabled(self):
+        features = self.auto_camera()
+        features['GainAuto'].get_available_entries.return_value = ()
+        del features['ExposureAuto']
+        window = VideoWindow(self.thread)
+        self.addCleanup(window.close)
+        self.thread._apply_camera_settings()
+        self.assertTrue(window._gain_control.isEnabled())
+        self.assertTrue(window._exposure_control.isEnabled())
+        self.assertFalse(window._gain_auto_once.isEnabled())
+        self.assertFalse(window._exposure_auto_once.isEnabled())
+        self.thread.auto_once('Gain')
+        self.thread._apply_camera_settings()
+        features['GainAuto'].set.assert_not_called()
+        self.assertTrue(self.errors)
+
     def test_camera_sliders_map_increments_and_readback_without_feedback(self):
         window = VideoWindow(self.thread)
         self.addCleanup(window.close)

@@ -150,6 +150,11 @@ selects the only discovered camera. With multiple cameras, acquisition reports
 their IDs and requires explicit configuration. Reconnection retains the selected
 identity and never silently switches to another camera.
 
+The **Auto once** buttons beside Gain and Exposure run one automatic adjustment,
+then return to manual control with the resulting value. Each slider is disabled
+while its adjustment runs; unsupported automatic controls remain disabled.
+Exposure supports both `ExposureTime` and older cameras' `ExposureTimeAbs`.
+
 Images are processed in native camera pixels and displayed with preserved aspect
 ratio. Click **Initialize Markers**, then select four distinct markers in the image;
 clicks in the surrounding margins are ignored. Initialize markers for each new
