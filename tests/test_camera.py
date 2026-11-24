@@ -15,7 +15,7 @@ if AVAILABLE:
     import cv2
     import numpy as np
     from PyQt6.QtCore import QPoint, QPointF
-    from PyQt6.QtWidgets import QApplication
+    from PyQt6.QtWidgets import QApplication, QSlider
     from biaxial_testing_machine.camerawindow import VideoThread, VideoWindow
 
 
@@ -206,6 +206,57 @@ class CameraTests(unittest.TestCase):
         self.assertEqual(features['Gain'].get.return_value, 7.0)
         self.assertTrue(all(thread_id != get_ident() for thread_id, _ in writes))
         self.assertEqual(self.thread._camera_settings['Gain'][:3], (0, 12, .5))
+
+    def test_camera_sliders_map_increments_and_readback_without_feedback(self):
+        window = VideoWindow(self.thread)
+        self.addCleanup(window.close)
+        gains, exposures = [], []
+        window.signal_gain_changed.connect(gains.append)
+        window.signal_exposure_changed.connect(exposures.append)
+        self.assertIsInstance(window._gain_control, QSlider)
+        self.assertIsInstance(window._exposure_control, QSlider)
+        self.assertFalse(window._gain_control.isEnabled())
+        self.assertFalse(window._exposure_control.isEnabled())
+
+        settings = {'Gain': (0.25, 12.0, .5, 7.25),
+                    'ExposureTime': (10.0, 400000.0, 10.0, 5000.0), 'ready': True}
+        window._update_camera_controls(settings)
+        self.assertEqual((gains, exposures), ([], []))
+        self.assertEqual(window._gain_control.value(), 14)
+        self.assertEqual(window._gain_value_label.text(), '7.25')
+        self.assertEqual(window._exposure_control.value(), 499)
+        window._gain_control.setValue(0)
+        window._gain_control.setValue(window._gain_control.maximum())
+        self.assertEqual(gains, [.25, 11.75])
+        window._exposure_control.setValue(0)
+        window._exposure_control.setValue(window._exposure_control.maximum())
+        self.assertEqual(exposures, [10.0, 400000.0])
+        self.assertEqual(self.thread._gain_value, 11.75)
+        self.assertEqual(self.thread._exposure_value, 400000.0)
+
+        window._update_camera_controls(settings)
+        self.assertEqual(len(gains), 2)
+        self.assertEqual(len(exposures), 2)
+        window._update_camera_controls({})
+        self.assertFalse(window._gain_control.isEnabled())
+        self.assertFalse(window._exposure_control.isEnabled())
+        window._update_camera_controls({'Gain': (1.0, 3.0, .25, 2.0), 'ready': True})
+        self.assertTrue(window._gain_control.isEnabled())
+        self.assertFalse(window._exposure_control.isEnabled())
+        window._gain_control.setValue(5)
+        self.assertEqual(gains[-1], 2.25)
+
+    def test_camera_slider_handles_fixed_and_very_fine_ranges(self):
+        window = VideoWindow(self.thread)
+        self.addCleanup(window.close)
+        window._update_camera_controls({'Gain': (2.5, 2.5, .5, 2.5),
+                                        'ExposureTime': (0.0, 400000.0, .0001, 5000.0)})
+        self.assertEqual(window._gain_control.maximum(), 0)
+        self.assertEqual(window._camera_slider_value('Gain', 0), 2.5)
+        slider = window._exposure_control
+        self.assertLessEqual(slider.maximum(), 1_000_000)
+        self.assertEqual(window._camera_slider_value('ExposureTime', 0), 0.0)
+        self.assertEqual(window._camera_slider_value('ExposureTime', slider.maximum()), 400000.0)
 
     def test_stop_returns_without_waiting_for_frame(self):
         self.system()

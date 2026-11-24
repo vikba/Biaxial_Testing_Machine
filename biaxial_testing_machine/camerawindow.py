@@ -7,7 +7,7 @@ Updated on Oct 23, 2024
 @description:
 A PyQt6 application that captures video from a web camera using Vimba X and OpenCV.
 It tracks markers within a programmatically configured region of interest (ROI),
-and adjusts camera settings such as gain and exposure through numeric controls. The interface also
+and adjusts camera settings such as gain and exposure through sliders. The interface also
 displays coordinate axes to indicate the origin of the coordinate plane.
 
 @author: V
@@ -26,7 +26,7 @@ from concurrent.futures import ThreadPoolExecutor
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QPushButton, QVBoxLayout, QLabel,
     QHBoxLayout, QSlider, QGroupBox, QRadioButton, QCheckBox, QButtonGroup,
-    QSpinBox, QDoubleSpinBox
+    QSpinBox
 )
 from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot, Qt
 from PyQt6.QtGui import QImage, QPixmap
@@ -825,10 +825,10 @@ class VideoWindow(QWidget):
         """
         Initializes the gain and exposure sliders along with their value labels.
         """
+        self._camera_control_ranges = {}
         # Gain Controls
         self._gain_label = QLabel('Gain:', self)
-        self._gain_control = QDoubleSpinBox(self)
-        self._gain_control.setDecimals(3)
+        self._gain_control = QSlider(Qt.Orientation.Horizontal, self)
         self._gain_control.setEnabled(False)
         self._gain_control.setMinimum(0)
         self._gain_control.setMaximum(24)
@@ -839,8 +839,7 @@ class VideoWindow(QWidget):
 
         # Exposure Controls
         self._exposure_label = QLabel('Exposure (us):', self)
-        self._exposure_control = QDoubleSpinBox(self)
-        self._exposure_control.setDecimals(3)
+        self._exposure_control = QSlider(Qt.Orientation.Horizontal, self)
         self._exposure_control.setEnabled(False)
         self._exposure_control.setMinimum(100)
         self._exposure_control.setMaximum(20000)
@@ -994,33 +993,53 @@ class VideoWindow(QWidget):
             control.setEnabled(name in settings)
             if name in settings:
                 low, high, step, value = settings[name]
+                # Slider positions represent legal feature increments, including
+                # fractional gain. Bound Qt's integer range for fine increments.
+                steps = max(0, math.floor(math.nextafter((high - low) / step, math.inf)))
+                maximum = min(steps, 1_000_000)
+                self._camera_control_ranges[name] = (low, high, step, steps, maximum)
                 control.blockSignals(True)
-                control.setRange(low, high)
-                control.setSingleStep(step)
-                control.setValue(value)
+                control.setRange(0, maximum)
+                control.setSingleStep(1)
+                control.setPageStep(max(1, maximum // 100))
+                position = round((value - low) / step * maximum / steps) if steps else 0
+                control.setValue(position)
                 label.setText(f"{value:g}")
                 control.blockSignals(False)
+            else:
+                self._camera_control_ranges.pop(name, None)
 
-    @pyqtSlot(float)
-    def change_gain(self, value):
+    def _camera_slider_value(self, name, position):
+        low, high, step, steps, maximum = self._camera_control_ranges[name]
+        ticks = round(position * steps / maximum) if maximum else 0
+        return min(high, low + ticks * step)
+
+    @pyqtSlot(int)
+    def change_gain(self, position):
         """
         Slot to handle gain control changes.
 
         Args:
-            value (int): The new gain value.
+            position (int): The new slider position.
         """
-        self._gain_value_label.setText(str(value))
+        if "Gain" not in self._camera_control_ranges:
+            return
+        value = self._camera_slider_value("Gain", position)
+        self._gain_value_label.setText(f"{value:g}")
         self.signal_gain_changed.emit(value)
 
-    @pyqtSlot(float)
-    def change_exposure(self, value):
+    @pyqtSlot(int)
+    def change_exposure(self, position):
         """
         Slot to handle exposure control changes.
 
         Args:
-            value (int): The new exposure value.
+            position (int): The new slider position.
         """
-        self._exposure_value_label.setText(str(value))
+        if "ExposureTime" not in self._camera_control_ranges:
+            return
+        value = self._camera_slider_value("ExposureTime", position)
+        self._exposure_value_label.setText(f"{value:g}")
         self.signal_exposure_changed.emit(value)
 
     @pyqtSlot(int)
