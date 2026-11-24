@@ -167,8 +167,10 @@ native-pixel coordinates. The camera window currently has no ROI selection contr
 The app prefers `Mono8`; other formats are converted to `Mono8`, or through `Bgr8`
 to grayscale if supported by the SDK. Gain and exposure controls use camera-reported
 ranges and increments, with SDK writes performed only in the acquisition thread.
-Exposure is capped at 400,000 microseconds to leave margin within the 500 ms frame
-acquisition timeout. Preview acquisition is limited to approximately 10 frames/s
+Exposure is capped at 500,000 microseconds (500 ms), with a 1,000 ms frame
+acquisition timeout to allow image transfer. Before automatic exposure starts,
+the camera's automatic upper limit is set and verified; unsupported limits leave
+manual adjustment available. Preview acquisition is limited to approximately 10 frames/s
 before image-processing time; this is not synchronized to force acquisition.
 
 Stopping returns immediately while the worker releases its camera context. The

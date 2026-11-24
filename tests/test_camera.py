@@ -102,7 +102,7 @@ class CameraTests(unittest.TestCase):
         self.assertEqual(self.thread._frame_shape, (120, 200))
         self.assertEqual(self.thread._img_track.shape, (120, 200))
         np.testing.assert_array_equal(self.frames[-1], np.full((120, 200), 128, dtype=np.uint8))
-        self.camera.get_frame_with_context.assert_called_once_with(timeout_ms=500)
+        self.camera.get_frame_with_context.assert_called_once_with(timeout_ms=1000)
 
     def test_color_and_high_bit_depth_conversion(self):
         color = np.full((120, 200, 3), 255, dtype=np.uint8)
@@ -205,7 +205,7 @@ class CameraTests(unittest.TestCase):
         pump(lambda: bool(self.frames))
         self.thread.set_gain(7.3)
         self.thread.set_exposure(1e6)
-        pump(lambda: features['ExposureTime'].get.return_value == 400000)
+        pump(lambda: features['ExposureTime'].get.return_value == 500000)
         self.assertEqual(features['Gain'].get.return_value, 7.0)
         self.assertTrue(all(thread_id != get_ident() for thread_id, _ in writes))
         self.assertEqual(self.thread._camera_settings['Gain'][:3], (0, 12, .5))
@@ -232,7 +232,7 @@ class CameraTests(unittest.TestCase):
         self.assertEqual(window._exposure_value_label.text(), '10000')
         window._exposure_control.setValue(window._exposure_control.maximum())
         self.thread._apply_camera_settings()
-        feature.set.assert_called_with(400000.0)
+        feature.set.assert_called_with(500000.0)
         self.assertIn('ExposureTime', self.thread._camera_settings)
         self.assertNotIn(unittest.mock.call('ExposureTime'),
                          self.camera.get_feature_by_name.call_args_list)
@@ -258,6 +258,13 @@ class CameraTests(unittest.TestCase):
             feature.get.return_value = mode
             feature.set.side_effect = lambda value, mode=mode: setattr(mode.__str__, 'return_value', value)
             features[name] = feature
+        upper = Mock()
+        upper.is_readable.return_value = upper.is_writeable.return_value = True
+        upper.get_range.return_value = (10.0, 1e6)
+        upper.get_increment.return_value = 10.0
+        upper.get.return_value = 1e6
+        upper.set.side_effect = lambda value: setattr(upper.get, 'return_value', value)
+        features['ExposureAutoMax'] = upper
         def lookup(name):
             if name not in features:
                 raise self.sdk.VmbFeatureError('unsupported')
@@ -320,7 +327,7 @@ class CameraTests(unittest.TestCase):
                     for name, auto_name, button, slider, result in (
                         ('Gain', 'GainAuto', window._gain_auto_once, window._gain_control, 7.5),
                         ('ExposureTime', 'ExposureAuto', window._exposure_auto_once,
-                         window._exposure_control, 123450.0),
+                         window._exposure_control, 12000.0),
                     ):
                         button.click()
                         features[auto_name].set.assert_not_called()
@@ -344,6 +351,71 @@ class CameraTests(unittest.TestCase):
                 finally:
                     window.close()
                     self.thread.signal_camera_settings.disconnect(window._update_camera_controls)
+
+    def test_auto_exposure_caps_camera_before_once_and_captures_at_limit(self):
+        features = self.auto_camera('ExposureTimeAbs')
+        upper = features['ExposureAutoMax']
+        auto = features['ExposureAuto']
+        set_mode = auto.set.side_effect
+        def start_once(value):
+            upper.set.assert_called_once_with(500000.0)
+            self.assertEqual(upper.get(), 500000.0)
+            features['ExposureTimeAbs'].get.return_value = upper.get()
+            set_mode(value)
+        auto.set.side_effect = start_once
+        self.thread.auto_once('ExposureTime')
+        self.thread._apply_camera_settings()
+        self.frame(np.zeros((120, 200), dtype=np.uint8))
+        self.assertTrue(self.thread._grab_frame())
+        timeout = self.camera.get_frame_with_context.call_args.kwargs['timeout_ms']
+        self.assertGreater(timeout, features['ExposureTimeAbs'].get() / 1000)
+        auto.get.return_value.__str__.return_value = 'Off'
+        self.thread._apply_camera_settings()
+        features['ExposureTimeAbs'].set.assert_called_once_with(500000.0)
+        self.assertEqual(self.thread._exposure_value, 500000.0)
+        self.assertFalse(self.errors)
+
+    def test_auto_exposure_limit_supports_aliases_and_high_existing_minimum(self):
+        for upper_name, lower_name in (
+            ('ExposureAutoMax', 'ExposureAutoMin'),
+            ('ExposureAutoUpperLimit', 'ExposureAutoLowerLimit'),
+            ('ExposureAutoUpperLimitAbs', 'ExposureAutoLowerLimitAbs'),
+        ):
+            with self.subTest(upper_name=upper_name):
+                features = self.auto_camera()
+                upper = features.pop('ExposureAutoMax')
+                upper.get_name.return_value = upper_name
+                features[upper_name] = upper
+                lower = Mock()
+                lower.get_name.return_value = lower_name
+                lower.is_readable.return_value = lower.is_writeable.return_value = True
+                lower.get_range.return_value = (10.0, 1e6)
+                lower.get_increment.return_value = 10.0
+                lower.get.return_value = 600000.0
+                lower.set.side_effect = lambda value: setattr(lower.get, 'return_value', value)
+                features[lower_name] = lower
+                self.camera.get_all_features.return_value = tuple(features.values())
+                self.thread._limit_auto_exposure()
+                lower.set.assert_called_once_with(500000.0)
+                upper.set.assert_called_once_with(500000.0)
+
+    def test_auto_exposure_refuses_unbounded_or_rejected_limits(self):
+        for failure in ('missing', 'readonly', 'rejected'):
+            with self.subTest(failure=failure):
+                features = self.auto_camera()
+                upper = features['ExposureAutoMax']
+                if failure == 'missing':
+                    del features['ExposureAutoMax']
+                    self.camera.get_all_features.return_value = tuple(features.values())
+                elif failure == 'readonly':
+                    upper.is_writeable.return_value = False
+                else:
+                    upper.set.side_effect = None  # Camera ignores the requested limit.
+                self.thread.auto_once('ExposureTime')
+                self.thread._apply_camera_settings()
+                features['ExposureAuto'].set.assert_not_called()
+                self.assertNotIn('ExposureTime', self.thread._auto_active)
+                self.assertTrue(self.errors)
 
     def test_auto_once_timeout_returns_to_manual_and_reports_error(self):
         features = self.auto_camera()

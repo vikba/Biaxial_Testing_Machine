@@ -49,11 +49,12 @@ class VideoThread(QThread):
     signal_camera_settings = pyqtSignal(dict)
     signal_image_saved = pyqtSignal(str)
 
-    FRAME_TIMEOUT_MS = 500
+    FRAME_TIMEOUT_MS = 1000  # Allow 500 ms exposure plus image transfer time.
     FRAME_GRAB_DELAY_MS = 100
     CAMERA_RECONNECT_DELAY_MS = 500
     MAX_CONSECUTIVE_TIMEOUTS = 5
     AUTO_ONCE_TIMEOUT_S = 10
+    AUTO_EXPOSURE_MAX_US = 500000  # 500 ms.
     PACKET_ADJUST_TIMEOUT_S = 2
     DISPLAY_MODE_OVERLAY = "overlay"
     DISPLAY_MODE_BINARIZED = "binarized"
@@ -420,6 +421,45 @@ class VideoThread(QThread):
         except VmbFeatureError as exc:
             logger.warning("GigE packet-size adjustment failed: %s", exc)
 
+    def _limit_auto_exposure(self):
+        """Set camera-side bounds before Once can increase exposure."""
+        from vmbpy import VmbFeatureError
+        features = {feature.get_name(): feature for feature in self._cam.get_all_features()}
+        upper = next((features[key] for key in ("ExposureAutoMax", "ExposureAutoUpperLimit",
+                                              "ExposureAutoUpperLimitAbs") if key in features), None)
+        if upper is None:
+            raise VmbFeatureError("Camera has no supported automatic exposure limit; use manual exposure.")
+        cap = min(self.AUTO_EXPOSURE_MAX_US, (self.FRAME_TIMEOUT_MS - 100) * 1000)
+        exposure_min, _ = self._camera_feature("ExposureTime").get_range()
+        if cap < exposure_min:
+            raise VmbFeatureError("Camera minimum exposure exceeds the automatic exposure limit.")
+
+        def limit(feature):
+            if not feature.is_readable():
+                raise VmbFeatureError("Cannot verify automatic exposure limit.")
+            if feature.is_writeable():
+                low, high = feature.get_range()
+                target = min(high, cap)
+                if target < low:
+                    raise VmbFeatureError("Camera exposure limit cannot be reduced enough.")
+                step = feature.get_increment()
+                if step:
+                    target = low + math.floor((target - low) / step) * step
+                feature.set(target)
+            actual = feature.get()
+            if not math.isfinite(actual) or not exposure_min <= actual <= cap:
+                raise VmbFeatureError("Camera did not accept the automatic exposure limit.")
+
+        lower = next((features[key] for key in ("ExposureAutoMin", "ExposureAutoLowerLimit",
+                                              "ExposureAutoLowerLimitAbs") if key in features), None)
+        if lower is not None:
+            if not lower.is_readable():
+                raise VmbFeatureError("Cannot verify automatic exposure minimum.")
+            if lower.get() > cap:
+                limit(lower)
+        limit(upper)
+        logger.info("Automatic exposure capped at %s us", cap)
+
     def _apply_auto_once(self):
         from vmbpy import VmbFeatureError
         with self._settings_lock:
@@ -436,6 +476,8 @@ class VideoThread(QThread):
                 if name in requests and name not in self._auto_active:
                     if not supported:
                         raise VmbFeatureError("One-time automatic adjustment is unavailable")
+                    if name == "ExposureTime":
+                        self._limit_auto_exposure()
                     feature.set("Once")
                     self._auto_active[name] = time.monotonic()
                 if name in self._auto_active:
@@ -484,7 +526,7 @@ class VideoThread(QThread):
                 continue
             low, high = feature.get_range()
             if name == "ExposureTime":
-                high = min(high, (self.FRAME_TIMEOUT_MS - 100) * 1000)
+                high = min(high, self.AUTO_EXPOSURE_MAX_US, (self.FRAME_TIMEOUT_MS - 100) * 1000)
             if high < low:
                 raise ValueError("Minimum camera exposure exceeds the acquisition timeout budget.")
             step = feature.get_increment()
