@@ -217,6 +217,16 @@ class MachineConfigurationTests(unittest.TestCase):
             warning_box.return_value.setText.assert_called_once_with(message)
             warning_box.return_value.exec.assert_called_once()
 
+    def test_stale_force_warning_and_recovery_use_nonblocking_status_bar(self):
+        controller = self.window._session_controller
+        with patch("biaxial_testing_machine.biaxmainwindow.QMessageBox") as warning_box:
+            controller._handle_force_warning("Axis 2 stale (3 consecutive checks)")
+            self.assertIn("3 consecutive checks", self.window.statusBar().currentMessage())
+            controller._handle_force_warning("Fresh force data recovered; consecutive stale count reset.")
+            self.assertIn("recovered", self.window.statusBar().currentMessage())
+            self.assertNotIn("stale (3", self.window.statusBar().currentMessage())
+            warning_box.assert_not_called()
+
     def test_serialization_failure_preserves_original(self):
         repository = ConfigRepository(str(self.path))
         config = MachineConfig()

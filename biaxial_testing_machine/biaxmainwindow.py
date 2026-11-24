@@ -88,6 +88,7 @@ class BiaxMainWindow(QMainWindow):
     def _init_controller(self):
         self._session_controller = TestSessionController(self)
         self._session_controller.signal_error.connect(self._show_warning)
+        self._session_controller.signal_status_message.connect(self._show_status_message)
         self._session_controller.signal_live_forces.connect(self.__update_live_forces)
         self._session_controller.signal_reset_charts.connect(self.reset)
         self._session_controller.signal_save_charts.connect(self._save_charts)
@@ -775,6 +776,9 @@ class BiaxMainWindow(QMainWindow):
             return f"Cycle {current_cycle}/{total_cycles}"
 
         return "Cycle -/-"
+
+    def _show_status_message(self, title, message):
+        self.statusBar().showMessage(f"{title}: {message}")
 
     def _show_warning(self, message):
         logger.warning("%s", message)

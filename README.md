@@ -209,12 +209,31 @@ software offset. Reported grams are `(SYS - zero) * transmission_factor`;
 Newtons are grams times `9.80665 / 1000`. No calibration commands are sent.
 The obsolete `ip_daq` argument/key is accepted for compatibility and ignored.
 
-Acquisition runs separately from motor commands. Force getters read cached
-samples; unavailable/stale samples raise `ForceDataError`. During load or displacement control
-or autoload a 20 ms watchdog stops both motors when either channel exceeds the
-age limit. A force fault cancels the session and blocks further motion until
-hardware is disconnected and reconnected. Actual stop latency also includes
-motor communication and deceleration; verify it on the machine.
+Acquisition runs separately from motor commands. Both axes are read sequentially
+in one acquisition loop; force getters return a pair only when both channels are
+within `max_data_age`. This checks freshness, not simultaneous hardware sampling.
+Starting control and zeroing still require fresh data.
+
+During load control, displacement control, and autoload, one watchdog checks the
+pair every 150 ms. If either channel is stale:
+
+- Checks 1–2: silently tolerate the interruption.
+- Check 3: log and display a nonblocking warning in the status bar.
+- Checks 4–5: continue skipping affected samples.
+- Check 6: stop both motors, cancel the test, and require a hardware reconnect.
+
+A fresh pair resets the consecutive count and reports recovery after a warning.
+Display reads, test samples, and motor commands do not increment this count.
+Each affected measurement row is omitted entirely, keeping time, force,
+displacement, and video arrays aligned; old force values are never exported as
+new measurements. Control updates and phase transitions wait for a fresh pair;
+motors retain their previous command during the bounded grace period. The live
+force display retains its last value. Missing data raises `StaleForceDataError`,
+a subclass of `ForceDataError`; other hardware failures still stop immediately.
+
+Six checks represent approximately 0.75–0.9 seconds after data first becomes
+stale, in addition to `max_data_age`. Actual stop latency also includes worker
+scheduling, motor communication, and deceleration; verify it on the machine.
 
 Smoke test (start with motors stationary and a low test load):
 

@@ -14,6 +14,7 @@ from datetime import datetime
 import os
 
 from .mechanicaltest import MechanicalTest
+from .dscusb import StaleForceDataError
 from .state import State
 from .unit import Unit
 
@@ -163,6 +164,10 @@ class LoadControlTest(MechanicalTest):
         try:
             self._snapshot_markers()
             self._control_tick()
+        except StaleForceDataError:
+            # Omit the entire row and control update, including autoload settling.
+            self._autoload_settled_since = None
+            return
         except Exception as exc:
             self._fail(exc)
 

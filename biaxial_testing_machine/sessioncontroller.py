@@ -59,6 +59,7 @@ class TestSessionController(QObject):
         self._mot_daq.signal_live_forces.connect(self.signal_live_forces.emit)
         self._mot_daq.signal_error.connect(self.signal_error.emit)
         self._mot_daq.signal_force_fault.connect(self._handle_force_fault)
+        self._mot_daq.signal_force_warning.connect(self._handle_force_warning)
         self._mot_daq.signal_autoload_started.connect(self._handle_autoload_started)
         self._mot_daq.signal_autoloading_finished.connect(self._handle_autoload_finished)
         self._mot_daq.signal_autoload_rejected.connect(self._handle_autoload_rejected)
@@ -186,6 +187,10 @@ class TestSessionController(QObject):
             self.stop_test()
         finally:
             self.disconnect_hardware()
+
+    @pyqtSlot(str)
+    def _handle_force_warning(self, message):
+        self.signal_status_message.emit("Force acquisition", message)
 
     @pyqtSlot(str)
     def _handle_force_fault(self, message):

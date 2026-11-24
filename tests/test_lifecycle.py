@@ -270,6 +270,37 @@ class LifecycleTests(unittest.TestCase):
         self.axis1.move_velocity.assert_not_called()
         self.axis2.move_velocity.assert_not_called()
 
+    def test_stale_force_skips_samples_warns_then_stops_both_test_types(self):
+        from biaxial_testing_machine.dscusb import StaleForceDataError
+        from biaxial_testing_machine.loadtest import LoadControlTest
+        from biaxial_testing_machine.displacementtest import DisplacementControlTest
+        for tab, test_type in ((0, LoadControlTest), (2, DisplacementControlTest)):
+            with self.subTest(tab=tab):
+                self.acquisition.read.side_effect = None
+                controller, config = self.session()
+                warnings, errors = [], []
+                controller.signal_status_message.connect(lambda title, message: warnings.append(message))
+                controller.signal_error.connect(errors.append)
+                with patch.object(test_type, '_sample_time', 5):
+                    test = controller.start_test(config, tab)
+                    self.tests.append(test)
+                    pump(lambda: len(test._load1) > 0)
+                    self.acquisition.read.side_effect = StaleForceDataError('Axis 2 force data stale')
+                    pump(lambda: bool(warnings))
+                    rows = len(test._load1)
+                    self.assertIsNone(test._failure)
+                    self.assertTrue(test.isRunning())
+                    self.assertIn('3 consecutive checks', warnings[0])
+                    pump(lambda: controller.active_test is None and controller.state == SessionState.ERROR)
+                self.assertEqual(len(test._load1), rows)
+                self.assertEqual(len(test._load2), rows)
+                self.assertEqual(len(test._disp1), rows)
+                self.assertTrue(any('6 consecutive checks' in error for error in errors))
+                self.axis1.stop.assert_called()
+                self.axis2.stop.assert_called()
+                self.interfaces[-1].stop()
+                pump(lambda: not self.interfaces[-1]._thread.isRunning())
+
     def test_cycle_completion_and_export_failure(self):
         from biaxial_testing_machine.loadtest import LoadControlTest
         from biaxial_testing_machine.displacementtest import DisplacementControlTest

@@ -13,7 +13,7 @@ from PyQt6.QtCore import QObject, QMetaObject, QThread, QTimer, Qt, pyqtSignal, 
 from zaber_motion.ascii import Connection
 from zaber_motion import Units
 from .configuration import AXIS_TRAVEL_MM, ForceConfig
-from .dscusb import ForceAcquisition, ForceDataError
+from .dscusb import ForceAcquisition, ForceDataError, StaleForceDataError
 
 from .unit import Unit
 
@@ -35,6 +35,9 @@ class CommandRequest:
 
 class HardwareWorker(QObject):
     FORCE_AVERAGE_WINDOW = 5
+    FORCE_CHECK_INTERVAL_MS = 150
+    FORCE_WARNING_COUNT = 3
+    FORCE_STOP_COUNT = 6
 
     signal_command_finished = pyqtSignal(object)
     signal_live_forces = pyqtSignal(float, float)
@@ -42,6 +45,7 @@ class HardwareWorker(QObject):
     signal_hardware_disconnected = pyqtSignal()
     signal_error = pyqtSignal(str)
     signal_force_fault = pyqtSignal(str)
+    signal_force_warning = pyqtSignal(str)
     signal_autoload_started = pyqtSignal(float, float)
     signal_autoload_progress = pyqtSignal(float, float, float, float)
     signal_autoloading_finished = pyqtSignal()
@@ -54,6 +58,7 @@ class HardwareWorker(QObject):
         self._acquisition = None
         self._force_guard = False
         self._force_fault = None
+        self._stale_force_checks = 0
         self._motion_blocked = Event()
         self._units = Unit.Newton
         self._force1 = self._force2 = 0.0
@@ -72,7 +77,7 @@ class HardwareWorker(QObject):
         self._telemetry_timer = QTimer(self)
         self._telemetry_timer.timeout.connect(self._emit_live_forces)
         self._watchdog = QTimer(self)
-        self._watchdog.setInterval(20)
+        self._watchdog.setInterval(self.FORCE_CHECK_INTERVAL_MS)
         self._watchdog.timeout.connect(self._check_force_guard)
 
     @pyqtSlot(object)
@@ -160,6 +165,7 @@ class HardwareWorker(QObject):
         self.get_forces()  # Refuse to start until both sensors have fresh data.
         if self._force_fault:
             raise ForceDataError(self._force_fault + " Reconnect hardware to reset.")
+        self._stale_force_checks = 0
         self._force_guard = True
 
     def _check_force_guard(self):
@@ -167,8 +173,23 @@ class HardwareWorker(QObject):
             return
         try:
             self.get_forces()
+        except StaleForceDataError as exc:
+            self._stale_force_checks += 1
+            if self._stale_force_checks == self.FORCE_WARNING_COUNT:
+                message = (f"{exc} ({self._stale_force_checks} consecutive checks). "
+                           f"Skipping samples; test will stop at {self.FORCE_STOP_COUNT}.")
+                logger.warning("%s", message)
+                self.signal_force_warning.emit(message)
+            if self._stale_force_checks >= self.FORCE_STOP_COUNT:
+                self.force_fault(f"{exc} ({self._stale_force_checks} consecutive checks); test stopped.")
         except Exception as exc:
             self.force_fault(str(exc))
+        else:
+            if self._stale_force_checks >= self.FORCE_WARNING_COUNT:
+                message = "Fresh force data recovered; consecutive stale count reset."
+                logger.info("%s", message)
+                self.signal_force_warning.emit(message)
+            self._stale_force_checks = 0
 
     def force_fault(self, message):
         if self._force_fault:
@@ -183,7 +204,8 @@ class HardwareWorker(QObject):
             self.signal_force_fault.emit(self._force_fault)
 
     def _allow_motion(self):
-        self._check_force_guard()
+        # Only watchdog ticks count failures. Commands and other readers must
+        # not accelerate the threshold by repeatedly reading the same cache.
         if self._force_fault:
             raise ForceDataError(self._force_fault + " Reconnect hardware to reset.")
         if self._motion_blocked.is_set():
@@ -386,6 +408,8 @@ class HardwareWorker(QObject):
     def _autoload_step(self):
         try:
             self._run_autoload_step()
+        except StaleForceDataError:
+            return  # Retain the previous command during the watchdog grace period.
         except Exception as exc:
             self.force_fault(str(exc))
 
@@ -425,6 +449,8 @@ class HardwareWorker(QObject):
             return
         try:
             force1, force2 = self.get_av_forces()
+        except StaleForceDataError:
+            return  # Retain the display value without publishing it as fresh.
         except Exception as exc:  # pragma: no cover - hardware path
             if self._telemetry_error != str(exc):
                 self._telemetry_error = str(exc)
@@ -446,6 +472,7 @@ class MotorDAQInterface(QObject):
     signal_live_forces = pyqtSignal(float, float)
     signal_error = pyqtSignal(str)
     signal_force_fault = pyqtSignal(str)
+    signal_force_warning = pyqtSignal(str)
     signal_hardware_connected = pyqtSignal()
     signal_hardware_disconnected = pyqtSignal()
 
@@ -469,6 +496,7 @@ class MotorDAQInterface(QObject):
         self._worker.signal_hardware_disconnected.connect(self.signal_hardware_disconnected.emit)
         self._worker.signal_error.connect(self.signal_error.emit)
         self._worker.signal_force_fault.connect(self.signal_force_fault.emit)
+        self._worker.signal_force_warning.connect(self.signal_force_warning.emit)
         self._worker.signal_autoload_started.connect(self.signal_autoload_started.emit)
         self._worker.signal_autoload_progress.connect(self.signal_autoloading_progress.emit)
         self._worker.signal_autoloading_finished.connect(self.signal_autoloading_finished.emit)

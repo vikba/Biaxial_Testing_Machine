@@ -129,10 +129,15 @@ class ForceTests(unittest.TestCase):
         worker._autoload_timer = Mock()
         worker._stop_timer = Mock()
         worker.signal_force_fault = Mock()
+        worker.signal_force_warning = Mock()
         self.assertEqual(worker.get_forces(), (4.90332, 9.80665))
         worker.arm_force_guard()
         worker._acquisition._timestamps[0] -= 1
-        worker._check_force_guard()
+        for count in range(1, 7):
+            worker._check_force_guard()
+            self.assertEqual(worker.signal_force_warning.emit.call_count, int(count >= 3))
+            self.assertEqual(worker._axis1.stop.call_count, int(count == 6))
+            self.assertEqual(worker._axis2.stop.call_count, int(count == 6))
         worker._axis1.stop.assert_called_once_with(wait_until_idle=False)
         worker._axis2.stop.assert_called_once_with(wait_until_idle=False)
         worker.signal_force_fault.emit.assert_called_once()
@@ -143,6 +148,59 @@ class ForceTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             worker.stop_motors()
         self.assertEqual(worker._axis2.stop.call_count, 2)
+
+    def test_recovery_resets_counter_and_other_readers_do_not_increment_it(self):
+        worker = HardwareWorker.__new__(HardwareWorker)
+        worker._acquisition = self.cache()
+        worker._units = unit.Unit.Gram
+        worker._force_fault = None
+        worker._motion_blocked = Event()
+        worker.signal_force_warning = Mock()
+        worker.force_fault = Mock()
+        worker.arm_force_guard()
+        worker._acquisition._timestamps[1] -= 1
+        for _ in range(2):
+            worker._check_force_guard()
+        for _ in range(20):
+            with self.assertRaises(dsc.StaleForceDataError):
+                worker.get_forces()
+            worker._allow_motion()
+        self.assertEqual(worker._stale_force_checks, 2)
+        worker.signal_force_warning.emit.assert_not_called()
+        worker._acquisition._timestamps[1] = dsc.monotonic()
+        worker._check_force_guard()
+        self.assertEqual(worker._stale_force_checks, 0)
+        worker._acquisition._timestamps[1] -= 1
+        for _ in range(3):
+            worker._check_force_guard()
+        worker.signal_force_warning.emit.assert_called_once()
+        worker._acquisition._timestamps[1] = dsc.monotonic()
+        worker._check_force_guard()
+        self.assertIn("recovered", worker.signal_force_warning.emit.call_args.args[0])
+        self.assertEqual(worker._stale_force_checks, 0)
+        worker.force_fault.assert_not_called()
+
+    def test_non_stale_force_error_stops_immediately(self):
+        worker = HardwareWorker.__new__(HardwareWorker)
+        worker._force_guard = True
+        worker.get_forces = Mock(side_effect=dsc.ForceDataError("disconnected"))
+        worker.force_fault = Mock()
+        worker._check_force_guard()
+        worker.force_fault.assert_called_once_with("disconnected")
+
+    def test_autoload_skips_stale_update_without_new_motion(self):
+        worker = HardwareWorker.__new__(HardwareWorker)
+        worker._current_time = 0
+        worker._start_time = dsc.monotonic()
+        worker._execute_autoloading = True
+        worker.get_av_forces = Mock(side_effect=dsc.StaleForceDataError("stale"))
+        worker.move_velocity_ax1 = Mock()
+        worker.move_velocity_ax2 = Mock()
+        worker.force_fault = Mock()
+        worker._autoload_step()
+        worker.move_velocity_ax1.assert_not_called()
+        worker.move_velocity_ax2.assert_not_called()
+        worker.force_fault.assert_not_called()
 
     def test_config_validation(self):
         for kwargs in ({"axis2_serial": "0017835720"}, {"timeout": 0},

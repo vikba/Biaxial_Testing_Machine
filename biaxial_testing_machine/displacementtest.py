@@ -13,6 +13,7 @@ from datetime import datetime
 import os
 
 from .mechanicaltest import MechanicalTest
+from .dscusb import StaleForceDataError
 from .configuration import AXIS_TRAVEL_MM
 
 
@@ -115,6 +116,8 @@ class DisplacementControlTest(MechanicalTest):
             next_phase = self._next_phase_after_current_sample()
             if next_phase is not None:
                 self._transition_to(next_phase)
+        except StaleForceDataError:
+            return  # Omit the entire sample; persistent failures trip the watchdog.
         except Exception as exc:
             self._fail(exc)
 

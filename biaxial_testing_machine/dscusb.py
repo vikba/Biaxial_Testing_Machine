@@ -13,6 +13,10 @@ class ForceDataError(RuntimeError):
     pass
 
 
+class StaleForceDataError(ForceDataError):
+    """No fresh force pair is available; let the watchdog handle persistence."""
+
+
 class DSCUSB:
     def __init__(self, port, timeout):
         self.port = serial.Serial(port, 115200, bytesize=8, parity="N", stopbits=1,
@@ -114,7 +118,8 @@ class ForceAcquisition:
     def _check_fresh(self):
         for axis, timestamp in enumerate(self._timestamps):
             if timestamp is None or monotonic() - timestamp > self.config.max_data_age:
-                raise ForceDataError(f"Axis {axis + 1} force data stale: {self._errors[axis]}")
+                detail = self._errors[axis] or "last measurement exceeded maximum data age"
+                raise StaleForceDataError(f"Axis {axis + 1} force data stale: {detail}")
 
     def read(self, window=5):
         with self._lock:
