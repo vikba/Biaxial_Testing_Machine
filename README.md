@@ -141,7 +141,8 @@ as the application. Updating the SDK does not update that Python package automat
 
 First confirm continuous acquisition in **Vimba X Viewer**. Configure the GigE
 camera and its Ethernet adapter on compatible subnets, and check the GigE filter
-driver and packet size in Viewer. The application does not modify network settings.
+driver and packet size in Viewer. At connection, the application negotiates GigE
+packet size when supported; it does not modify Ethernet adapter settings.
 See the [Viewer guide](https://docs.alliedvision.com/vimba_x/viewerGuide.html).
 
 Set `runtime.camera_id` in your selected `config.local.json` to the ID

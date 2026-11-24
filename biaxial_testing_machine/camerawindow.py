@@ -54,6 +54,7 @@ class VideoThread(QThread):
     CAMERA_RECONNECT_DELAY_MS = 500
     MAX_CONSECUTIVE_TIMEOUTS = 5
     AUTO_ONCE_TIMEOUT_S = 10
+    PACKET_ADJUST_TIMEOUT_S = 2
     DISPLAY_MODE_OVERLAY = "overlay"
     DISPLAY_MODE_BINARIZED = "binarized"
 
@@ -88,7 +89,7 @@ class VideoThread(QThread):
 
         # Initialize gain and exposure values
         self._gain_value = 15
-        self._exposure_value = 5000
+        self._exposure_value = 10000
         self._threshold_value = 70  # Default threshold
 
         self._apply_bg_correction = True
@@ -335,6 +336,7 @@ class VideoThread(QThread):
                                     feature.set(value)
                             if PixelFormat.Mono8 in self._cam.get_pixel_formats():
                                 self._cam.set_pixel_format(PixelFormat.Mono8)
+                            self._adjust_packet_size()
                             self._applied_settings.clear()
                             self._camera_settings.clear()
                             self._auto_active.clear()
@@ -387,12 +389,36 @@ class VideoThread(QThread):
 
     def _camera_feature(self, name):
         from vmbpy import VmbFeatureError
-        try:
+        if name != "ExposureTime":
             return self._cam.get_feature_by_name(name)
-        except VmbFeatureError:
-            if name != "ExposureTime":
-                raise
-            return self._cam.get_feature_by_name("ExposureTimeAbs")
+        # Failed SDK lookups log errors even when caught. Discover the supported
+        # exposure name without probing a feature absent on older cameras.
+        features = {feature.get_name(): feature for feature in self._cam.get_all_features()}
+        for candidate in ("ExposureTime", "ExposureTimeAbs"):
+            if candidate in features:
+                return features[candidate]
+        raise VmbFeatureError("Camera exposes neither ExposureTime nor ExposureTimeAbs")
+
+    def _adjust_packet_size(self):
+        """Negotiate supported GigE packets without changing NIC settings."""
+        from vmbpy import VmbFeatureError
+        try:
+            for stream in self._cam.get_streams():
+                features = {feature.get_name(): feature for feature in stream.get_all_features()}
+                command = features.get("GVSPAdjustPacketSize")
+                if command is None or not command.is_writeable():
+                    continue
+                command.run()
+                deadline = time.monotonic() + self.PACKET_ADJUST_TIMEOUT_S
+                while not command.is_done():
+                    if self._stop.wait(.01):
+                        return
+                    if time.monotonic() >= deadline:
+                        logger.warning("GigE packet-size adjustment timed out; check packet size in Vimba X Viewer.")
+                        return
+                logger.info("GigE packet size adjusted for camera %s", self._cam.get_id())
+        except VmbFeatureError as exc:
+            logger.warning("GigE packet-size adjustment failed: %s", exc)
 
     def _apply_auto_once(self):
         from vmbpy import VmbFeatureError
@@ -862,7 +888,7 @@ class VideoWindow(QWidget):
         self._layout.addWidget(self.init_button)
 
         gain = 15
-        exposure = 5000
+        exposure = 10000
         thread.set_gain(gain)
         thread.set_exposure(exposure)
 

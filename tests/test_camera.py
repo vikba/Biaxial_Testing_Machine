@@ -197,6 +197,9 @@ class CameraTests(unittest.TestCase):
                 raise self.sdk.VmbFeatureError('unsupported')
             return features[name]
         self.camera.get_feature_by_name.side_effect = lookup
+        for name, feature in features.items():
+            feature.get_name.return_value = name
+        self.camera.get_all_features.return_value = tuple(features.values())
         self.frame(np.full((120, 200), 128, dtype=np.uint8))
         self.thread.start()
         pump(lambda: bool(self.frames))
@@ -220,15 +223,19 @@ class CameraTests(unittest.TestCase):
             raise self.sdk.VmbFeatureError('unsupported')
 
         self.camera.get_feature_by_name.side_effect = lookup
+        feature.get_name.return_value = 'ExposureTimeAbs'
+        self.camera.get_all_features.return_value = (feature,)
         window = VideoWindow(self.thread)
         self.addCleanup(window.close)
         self.thread._apply_camera_settings()
         self.assertTrue(window._exposure_control.isEnabled())
-        self.assertEqual(window._exposure_value_label.text(), '5000')
+        self.assertEqual(window._exposure_value_label.text(), '10000')
         window._exposure_control.setValue(window._exposure_control.maximum())
         self.thread._apply_camera_settings()
         feature.set.assert_called_with(400000.0)
         self.assertIn('ExposureTime', self.thread._camera_settings)
+        self.assertNotIn(unittest.mock.call('ExposureTime'),
+                         self.camera.get_feature_by_name.call_args_list)
 
     def auto_camera(self, exposure_name='ExposureTime'):
         features = {}
@@ -256,7 +263,49 @@ class CameraTests(unittest.TestCase):
                 raise self.sdk.VmbFeatureError('unsupported')
             return features[name]
         self.camera.get_feature_by_name.side_effect = lookup
+        for name, feature in features.items():
+            feature.get_name.return_value = name
+        self.camera.get_all_features.return_value = tuple(features.values())
         return features
+
+    def test_packet_size_adjustment_runs_before_frame_acquisition(self):
+        self.system()
+        command = Mock()
+        command.get_name.return_value = 'GVSPAdjustPacketSize'
+        command.is_writeable.return_value = True
+        command.is_done.side_effect = (False, True)
+        stream = Mock()
+        stream.get_all_features.return_value = (command,)
+        self.camera.get_streams.return_value = (stream,)
+        self.frame(np.zeros((120, 200), dtype=np.uint8))
+        acquire = self.camera.get_frame_with_context.side_effect
+        @contextmanager
+        def checked_acquire(**kwargs):
+            command.run.assert_called_once()
+            self.assertGreaterEqual(command.is_done.call_count, 2)
+            with acquire(**kwargs) as frame:
+                yield frame
+        self.camera.get_frame_with_context.side_effect = checked_acquire
+        self.thread.start()
+        pump(lambda: bool(self.frames))
+
+    def test_packet_size_adjustment_is_bounded_and_optional(self):
+        command = Mock()
+        command.get_name.return_value = 'GVSPAdjustPacketSize'
+        command.is_writeable.return_value = True
+        command.is_done.return_value = False
+        stream = Mock()
+        stream.get_all_features.return_value = (command,)
+        self.camera.get_streams.return_value = (stream,)
+        self.thread.PACKET_ADJUST_TIMEOUT_S = 0
+        with self.assertLogs('biaxial_testing_machine.camerawindow', level='WARNING') as logs:
+            self.thread._adjust_packet_size()
+        self.assertIn('timed out', logs.output[0])
+        command.run.assert_called_once()
+        command.run.reset_mock()
+        stream.get_all_features.return_value = ()
+        self.thread._adjust_packet_size()
+        command.run.assert_not_called()
 
     def test_auto_once_buttons_queue_adjustment_and_restore_manual_readback(self):
         for exposure_name in ('ExposureTime', 'ExposureTimeAbs'):

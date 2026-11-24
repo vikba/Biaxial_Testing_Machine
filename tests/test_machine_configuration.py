@@ -96,10 +96,14 @@ class MachineConfigurationTests(unittest.TestCase):
                 save.assert_not_called()
                 self.assertTrue(dialog.errors[key].text())
                 self.assertNotEqual(dialog.result(), QDialog.DialogCode.Accepted)
-        dialog = self.dialog(Mock())
+        save = Mock()
+        dialog = self.dialog(save)
         dialog.auto_camera.setChecked(False)
+        dialog.fields["camera_id"].clear()
         dialog.accept()
+        save.assert_not_called()
         self.assertTrue(dialog.errors["camera_id"].text())
+        self.assertNotEqual(dialog.result(), QDialog.DialogCode.Accepted)
 
     def test_failed_atomic_replace_preserves_file_memory_and_temporary_cleanup(self):
         original = deepcopy(self.window._config)
