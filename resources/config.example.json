@@ -12,7 +12,7 @@
         "folder": "",
         "sample_name": "",
         "ip_motor": "172.31.100.108",
-        "camera_id": ""
+        "camera_id": "DEV_000F315E1247"
     },
     "sample": {
         "thickness": 0.382,
